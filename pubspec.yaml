@@ -1,0 +1,109 @@
+name: opencie
+description: >
+  Open-source CIE (Italian Electronic Identity Card) application for digital
+  signatures, verification, timestamping, and identity management.
+  Compliant with eIDAS, AGID, and ETSI standards.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^4.0.0
+
+  # Navigation
+  go_router: ^17.0.0
+
+  # FFI / Native
+  ffi: ^2.1.4
+  path: ^1.9.1
+
+  # UI
+  desktop_drop: ^0.7.0
+  file_picker: ^11.0.0
+  dotted_border: ^3.1.0
+  animations: ^2.0.11
+  percent_indicator: ^4.2.3
+
+  # Storage / Persistence
+  shared_preferences: ^2.5.3
+  path_provider: ^2.1.5
+
+  # Internationalization
+  intl: any
+
+  # PDF rendering
+  pdfrx: ^2.2.24
+
+  # Utilities
+  url_launcher: ^6.3.1
+  permission_handler: ^12.0.0
+  collection: ^1.19.1
+
+  # Embedded HTTP server (mock IdP / AS)
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  pointycastle: ^4.0.0
+
+  # Desktop ↔ phone signing handoff (QR-paired WebRTC P2P)
+  flutter_webrtc: ^1.4.1
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.2.0
+  cryptography: ^2.9.0
+
+  # OIDC Relying Party + Authorization Server
+  http: ^1.6.0
+  dart_jsonwebtoken: ^3.4.1
+  app_links: ^7.0.0
+
+  # LTV (PAdES B-LTA hex encoding)
+  convert: ^3.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  riverpod_generator: ^4.0.0
+  build_runner: ^2.12.0
+  ffigen: ^20.0.0
+  test: ^1.25.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/icons/
+    - assets/images/
+    - assets/branding/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
+

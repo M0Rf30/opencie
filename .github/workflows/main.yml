@@ -1,0 +1,586 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache/hosted
+          key: pub-cache-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-cache-
+
+      - name: Install Linux build dependencies
+        run: >
+          sudo apt update &&
+          sudo apt install -y
+          ninja-build
+          libgtk-3-dev
+          libblkid-dev
+          liblzma-dev
+
+      - name: Download libopencie-pkcs11.so
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download \
+            --repo M0Rf30/opencie-pkcs11 \
+            --pattern '*linux-x86_64-portable*' \
+            --dir pkcs11-dist || true
+          if ls pkcs11-dist/*.so 2>/dev/null; then
+            cp pkcs11-dist/*.so libopencie-pkcs11.so
+          fi
+
+      - run: flutter pub get
+
+      - run: flutter build linux --release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-linux-x86_64
+          path: build/linux/x64/release/bundle/
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: linux-build-log
+          path: build/linux/x64/release/
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache/hosted
+          key: pub-cache-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-cache-
+
+      - name: Cache Gradle
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Sync libopencie-pkcs11 jniLibs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/sync-jnilibs.sh
+
+      - run: flutter pub get
+
+      - name: Decode release keystore
+        # Optional: when KEYSTORE_BASE64 is configured, the release APK/AAB
+        # are signed with the upload keystore. Otherwise the build falls back
+        # to debug signing (still produces installable artifacts, but unsuitable
+        # for stores like IzzyOnDroid / Play).
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "Configuring release signing keystore"
+            echo "$KEYSTORE_BASE64" | base64 -d > android/opencie.keystore
+            cat > android/key.properties <<EOF
+          storeFile=opencie.keystore
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+          else
+            echo "::warning::No KEYSTORE_BASE64 secret set — release build will use debug signing"
+          fi
+
+      - name: flutter build apk
+        run: flutter build apk --release
+
+      - name: flutter build appbundle
+        run: flutter build appbundle --release
+
+      - name: Stage Android artifacts
+        run: |
+          TAG="${GITHUB_REF_NAME:-}"
+          # Use plain version label when not building from a tag
+          if [[ ! "$TAG" =~ ^v[0-9] ]]; then
+            TAG="snapshot"
+          fi
+          mkdir -p build/apk
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "build/apk/opencie-${TAG}-android-arm64-v8a.apk"
+          cp build/app/outputs/bundle/release/app-release.aab \
+             "build/apk/opencie-${TAG}-android.aab"
+          ls -lh build/apk/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-android-arm64-v8a
+          path: build/apk/opencie-*-android-arm64-v8a.apk
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-android-aab
+          path: build/apk/opencie-*-android.aab
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: android-build-log
+          path: build/app/outputs/
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache/hosted
+          key: pub-cache-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-cache-
+
+      - name: Download libopencie-pkcs11.dll and runtime deps
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download the main DLL from the latest opencie-pkcs11 release
+          gh release download \
+            --repo M0Rf30/opencie-pkcs11 \
+            --pattern '*windows-x86_64*.dll' \
+            --dir pkcs11-dist || true
+
+          if ls pkcs11-dist/*.dll 2>/dev/null; then
+            cp pkcs11-dist/*.dll libopencie-pkcs11.dll
+            echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.dll" >> "$GITHUB_ENV"
+            echo "DLL downloaded: $(ls -lh libopencie-pkcs11.dll)"
+          else
+            echo "Warning: libopencie-pkcs11.dll not found in latest release, building without it"
+          fi
+
+          # Download runtime deps bundle if available
+          gh release download \
+            --repo M0Rf30/opencie-pkcs11 \
+            --pattern 'windows-x86_64-runtime-deps*' \
+            --dir pkcs11-runtime || true
+
+      - run: flutter pub get
+
+      - name: flutter build windows
+        shell: bash
+        run: flutter build windows --release
+
+      - name: Copy runtime DLLs into release dir
+        shell: pwsh
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          # Copy runtime deps if we downloaded them
+          if (Test-Path "pkcs11-runtime") {
+            $dlls = Get-ChildItem "pkcs11-runtime\*.dll" -ErrorAction SilentlyContinue
+            foreach ($dll in $dlls) {
+              Copy-Item $dll.FullName -Destination $releaseDir -Force
+            }
+            Write-Host "Copied $($dlls.Count) runtime DLLs"
+          }
+          # List final contents
+          Write-Host "=== Release directory ==="
+          Get-ChildItem $releaseDir | Select-Object Name, Length | Format-Table
+
+      - name: Generate Inno Setup wizard images
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Regenerate Inno Setup wizard BMPs on every build so they stay in
+          # sync with the brand palette colors (#0F1115/#181A21/#5B9DFF/
+          # #FFAB40/#F5F6F8/#9097A6) and the current app icon. ImageMagick 7
+          # ships preinstalled on windows-latest.
+          ICON_SRC="windows/runner/resources/app_icon.ico"
+          OUT="installer/assets"
+          mkdir -p "$OUT"
+
+          # Extract the largest frame from the multi-resolution .ico (256×256)
+          # so we can scale it down cleanly with high quality filtering.
+          magick "$ICON_SRC[0]" -resize 256x256 "$OUT/_logo.png"
+
+          # ── Large left panel (164×314, 24-bit BMP) ────────────────────────
+          # Vertical gradient #181A21 → #0F1115, logo 88×88 centered at top,
+          # "OpenCIE" word-mark, gold accent bar, tagline.
+          magick \
+            -size 164x314 \
+            "gradient:#181A21-#0F1115" \
+            \( "$OUT/_logo.png" -resize 88x88 \) \
+            -gravity North -geometry +0+42 -composite \
+            -fill "#F5F6F8" -font Arial-Bold -pointsize 22 \
+            -gravity North -annotate +0+150 "OpenCIE" \
+            -fill "#9097A6" -font Arial -pointsize 11 \
+            -gravity North -annotate +0+182 "v0.1.0" \
+            -fill "#FFAB40" \
+            -draw "rectangle 66,212 98,215" \
+            -fill "#9097A6" -font Arial -pointsize 11 \
+            -gravity North -annotate +0+232 "Firma e verifica" \
+            -gravity North -annotate +0+250 "documenti CIE" \
+            -type TrueColor -depth 8 -alpha off \
+            BMP3:"$OUT/wizard_image.bmp"
+
+          # ── Small top-right banner (55×55, 24-bit BMP) ────────────────────
+          magick \
+            -size 55x55 \
+            "gradient:#181A21-#0F1115" \
+            \( "$OUT/_logo.png" -resize 38x38 \) \
+            -gravity Center -composite \
+            -type TrueColor -depth 8 -alpha off \
+            BMP3:"$OUT/wizard_small_image.bmp"
+
+          rm -f "$OUT/_logo.png"
+          echo "=== Generated wizard images ==="
+          ls -la "$OUT/"
+          file "$OUT/wizard_image.bmp" "$OUT/wizard_small_image.bmp"
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          # JRSoftware migrated downloads to GitHub releases. Use the stable
+          # redirect on jrsoftware.org which forwards to the current version.
+          $innoUrl = "https://jrsoftware.org/download.php/is.exe"
+          Invoke-WebRequest -Uri $innoUrl -OutFile innosetup.exe -MaximumRedirection 5
+          Start-Process -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/DIR=C:\InnoSetup' -Wait
+          # Build installer
+          & "C:\InnoSetup\ISCC.exe" installer\opencie.iss
+          Write-Host "=== Installer output ==="
+          Get-ChildItem build\installer | Select-Object Name, Length | Format-Table
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-windows-x86_64-setup
+          path: build\installer\*.exe
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: windows-build-log
+          path: build\windows\
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.9
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache/hosted
+          key: pub-cache-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-cache-
+
+      - name: Install runtime deps (Homebrew)
+        run: |
+          # Match the upstream libopencie-pkcs11 macOS build (M0Rf30/opencie-pkcs11
+          # .github/workflows/main.yml) so every dylib referenced by otool -L
+          # resolves on this runner. Adding/removing packages here without
+          # checking that file will break the dylib bundling step below.
+          # `tiff` was renamed away on Homebrew (now `largetifftools`); pulled in
+          # transitively by podofo, so we don't request it explicitly.
+          brew install \
+            openssl@3 \
+            curl \
+            libxml2 \
+            podofo \
+            freetype \
+            libpng \
+            fontconfig \
+            cryptopp \
+            jpeg \
+            openjpeg \
+            imagemagick \
+            create-dmg
+
+      - name: Download libopencie-pkcs11.dylib
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download \
+            --repo M0Rf30/opencie-pkcs11 \
+            --pattern '*macos-arm64.dylib' \
+            --dir pkcs11-dist || true
+          if ls pkcs11-dist/*.dylib 2>/dev/null; then
+            cp pkcs11-dist/*.dylib libopencie-pkcs11.dylib
+            echo "DYLIB downloaded: $(ls -lh libopencie-pkcs11.dylib)"
+          else
+            echo "::error::libopencie-pkcs11.dylib not found in latest release"
+            exit 1
+          fi
+
+      - run: flutter pub get
+
+      - name: flutter build macos
+        run: flutter build macos --release
+
+      - name: Bundle dylib + brew deps into .app
+        # macOS runners ship bash 3.2 by default — no associative arrays.
+        # We already use the filesystem ($FRAMEWORKS/<name>) to dedupe copies,
+        # so a bash-3-compatible script is enough.
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/macos/Build/Products/Release/OpenCIE.app"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          EXE="$APP/Contents/MacOS/OpenCIE"
+          mkdir -p "$FRAMEWORKS"
+
+          # Copy our dylib
+          cp libopencie-pkcs11.dylib "$FRAMEWORKS/"
+
+          # Recursively collect & copy non-system dylib deps from Homebrew.
+          # The presence of $FRAMEWORKS/<name> already acts as our "seen" set,
+          # so we just early-return when the file is already there.
+          # If a referenced dylib is missing on the runner (typically because
+          # we forgot to `brew install` something the upstream pkcs11 build
+          # links against), fail loud with the offending lib name.
+          collect_deps() {
+            local lib="$1"
+            otool -L "$lib" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+              case "$dep" in
+                /usr/lib/*|/System/*|@rpath/*|@executable_path/*|@loader_path/*)
+                  ;;
+                /opt/homebrew/*|/usr/local/*)
+                  local depname
+                  depname="$(basename "$dep")"
+                  if [ ! -f "$FRAMEWORKS/$depname" ]; then
+                    if [ ! -f "$dep" ]; then
+                      echo "::error::Missing Homebrew dylib: $dep (referenced by $lib). Add the matching package to the brew install step." >&2
+                      exit 1
+                    fi
+                    cp "$dep" "$FRAMEWORKS/"
+                    chmod 0644 "$FRAMEWORKS/$depname"
+                    collect_deps "$FRAMEWORKS/$depname"
+                  fi
+                  ;;
+              esac
+            done
+          }
+          collect_deps "$FRAMEWORKS/libopencie-pkcs11.dylib"
+
+          # Rewrite install_names: every bundled dylib's own id and all of its
+          # /opt/homebrew or /usr/local references become @rpath/<name>.
+          for f in "$FRAMEWORKS"/*.dylib; do
+            name="$(basename "$f")"
+            install_name_tool -id "@rpath/$name" "$f" || true
+            otool -L "$f" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+              case "$dep" in
+                /opt/homebrew/*|/usr/local/*)
+                  depname="$(basename "$dep")"
+                  install_name_tool -change "$dep" "@rpath/$depname" "$f" || true
+                  ;;
+              esac
+            done
+          done
+
+          # Ensure the executable can find @rpath in Frameworks/.
+          # Flutter already adds @executable_path/../Frameworks; make sure.
+          install_name_tool -add_rpath "@executable_path/../Frameworks" "$EXE" 2>/dev/null || true
+
+          # Ad-hoc codesign — required for Apple Silicon to load the bundled dylibs.
+          codesign --force --deep --sign - "$APP"
+
+          echo "=== Bundled Frameworks ==="
+          ls -lh "$FRAMEWORKS"
+          echo "=== App rpaths ==="
+          otool -l "$EXE" | grep -A2 LC_RPATH || true
+          echo "=== Verify codesign ==="
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Build DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/installer
+
+          # Build a .icns volume icon from the 1024px app icon so the mounted
+          # DMG shows OpenCIE branding in Finder instead of the generic disk.
+          ICON_SRC="macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png"
+          ICONSET="build/installer/OpenCIE.iconset"
+          mkdir -p "$ICONSET"
+          for size in 16 32 64 128 256 512; do
+            sips -z $size $size      "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png"      >/dev/null
+            two=$((size * 2))
+            sips -z $two  $two       "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png"   >/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o build/installer/OpenCIE.icns
+          rm -rf "$ICONSET"
+
+           # DMG window background. Generated on the runner with
+          # ImageMagick (preinstalled as `magick` on macos-latest) so we don't
+          # have to commit a binary asset.
+          # Window is 540x380 logical / 1080x760 @2x. Layout (logical coords):
+          #   y=24    : 64x64 app logo, centered horizontally
+          #   y=98    : "OpenCIE" word-mark
+          #   y=128   : Italian subtitle "Trascina l'app sopra Applicazioni"
+          #   y=270   : icons row (app on left @140, Applications drop @400)
+          #   y=270   : blue arrow → between the icons
+          # All ImageMagick coords below are in @2x pixel space (1080x760).
+          BG_BASE="build/installer/dmg-bg.png"
+          BG_2X="build/installer/dmg-bg@2x.png"
+          # Use bundled Inter TTFs by absolute path. ImageMagick on macos-latest
+          # can no longer resolve Helvetica via fontconfig and bundled fonts
+          # match in-app branding anyway.
+          INTER_BOLD="$(pwd)/assets/fonts/Inter-Bold.ttf"
+          INTER_REGULAR="$(pwd)/assets/fonts/Inter-Regular.ttf"
+          magick \
+            -size 1080x760 \
+            gradient:'#181A21'-'#0F1115' \
+            \( "$ICON_SRC" -resize 128x128 \) -gravity North -geometry +0+48 -composite \
+            -font "$INTER_BOLD" -pointsize 36 -fill '#F5F6F8' \
+              -gravity North -annotate +0+196 'OpenCIE' \
+            -font "$INTER_REGULAR" -pointsize 18 -fill '#9097A6' \
+              -gravity North -annotate +0+256 'Trascina l'"'"'app sopra Applicazioni' \
+            -fill none -stroke '#5B9DFF' -strokewidth 5 \
+              -draw 'line 380,540 700,540' \
+              -draw 'line 660,510 700,540' \
+              -draw 'line 660,570 700,540' \
+            "$BG_2X"
+          # 540x380 fallback (older Finder / non-retina). create-dmg picks
+          # the @2x automatically when both files exist with matching names.
+          magick "$BG_2X" -resize 540x380 "$BG_BASE"
+
+          create-dmg \
+            --volname "OpenCIE" \
+            --volicon build/installer/OpenCIE.icns \
+            --background "$BG_BASE" \
+            --window-size 540 380 \
+            --icon-size 96 \
+            --text-size 12 \
+            --icon "OpenCIE.app" 140 270 \
+            --app-drop-link 400 270 \
+            --no-internet-enable \
+            "build/installer/opencie-macos-arm64.dmg" \
+            "build/macos/Build/Products/Release/OpenCIE.app"
+          ls -lh build/installer/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-macos-arm64-dmg
+          path: build/installer/*.dmg
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: macos-build-log
+          path: build/macos/
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: [linux, android, windows, macos]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-linux-x86_64
+          path: dist/linux-x86_64
+
+      - name: Download android artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-android-arm64-v8a
+          path: dist/android
+
+      - name: Download android aab
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-android-aab
+          path: dist/android-aab
+
+      - name: Download windows installer
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-windows-x86_64-setup
+          path: dist/windows-setup
+
+      - name: Download macos dmg
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-macos-arm64-dmg
+          path: dist/macos-dmg
+
+      - name: Stage release assets
+        run: |
+          TAG=${GITHUB_REF_NAME}
+          mkdir -p release
+          # Linux bundle tarball
+          tar -czf release/opencie-${TAG}-linux-x86_64.tar.gz \
+            -C dist/linux-x86_64 .
+          # Android APK + AAB (already named with tag in the android job)
+          cp dist/android/*.apk release/ 2>/dev/null || true
+          cp dist/android-aab/*.aab release/ 2>/dev/null || true
+          # Windows installer
+          cp dist/windows-setup/*.exe release/ 2>/dev/null || true
+          # macOS DMG (rename to include tag)
+          for dmg in dist/macos-dmg/*.dmg; do
+            [ -f "$dmg" ] || continue
+            cp "$dmg" "release/opencie-${TAG}-macos-arm64.dmg"
+          done
+          ls -lh release/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF_NAME}
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --generate-notes \
+            release/*

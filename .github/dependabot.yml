@@ -1,0 +1,48 @@
+version: 2
+updates:
+  # GitHub Actions used by .github/workflows/*.yml
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Android Gradle dependencies
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - android
+    commit-message:
+      prefix: deps(android)
+      include: scope
+    groups:
+      gradle-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Major bumps land via separate PRs to allow careful review
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

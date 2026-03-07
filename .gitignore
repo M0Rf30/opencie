@@ -1,0 +1,71 @@
+# FVM Version Cache
+.fvm/
+
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+*.lock
+
+.flutter-plugins
+.flutter-plugins-dependencies
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+android/key.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# macOS
+macos/Pods/
+macos/Flutter/ephemeral/
+*.dylib
+
+# Windows
+windows/flutter/ephemeral/
+*.ddl
+*.exe
+
+# Linux
+linux/flutter/ephemeral/
+linux/build/
+# Exclude Linux build output .so but not the Android JNI prebuilt
+linux/*.so
+*.so
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# Generated
+lib/core/l10n/app_localizations*.dart
+!lib/core/l10n/app_localizations_ext.dart
+*.g.dart
+*.freezed.dart
+# Inno Setup wizard images are regenerated on every CI build
+installer/assets/wizard_image.bmp
+installer/assets/wizard_small_image.bmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local research notes / scratch
+.opencode/
+.omc/
+.ruff_cache/
+
+# Card/APDU traces and debug logs (may contain personal card data)
+*.log
+
+# Flatpak local build artifacts (see flatpak/io.github.m0rf30.opencie.yml)
+flatpak/deps-libs/
+flatpak/build/
+flatpak/repo/
+.flatpak-builder/
