@@ -1,0 +1,78 @@
+# Flatpak manifest for OpenCIE — local-test variant.
+#
+# This manifest packages the locally built Flutter bundle
+# (build/linux/x64/release/bundle) together with the shared libraries that
+# libopencie-pkcs11.so needs but the Freedesktop 24.08 runtime does not ship
+# (cryptopp, pcsclite, libxml2 >= 2.14). For local testing those libraries are
+# staged from the host into flatpak/deps-libs/ by tools/flatpak-build.sh.
+#
+# For the Flathub submission the same layout applies, but:
+#   - the bundle comes from a versioned GitHub release tarball (type: archive
+#     with sha256), produced by the `linux` job in .github/workflows/main.yml
+#   - cryptopp / pcsc-lite / libxml2 are built from source as separate modules
+#     (Flathub builders have no network access at build time and host libs are
+#     not acceptable there)
+app-id: io.github.m0rf30.opencie
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: opencie
+
+finish-args:
+  # GUI
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  # OCSP/CRL/TSA validation, OIDC flows, desktop<->phone signing handoff
+  - --share=network
+  # Smart card reader access (talks to the host pcscd)
+  - --socket=pcsc
+  # File access. The open/save dialogs go through the XDG Desktop Portal
+  # (file_picker uses org.freedesktop.portal.FileChooser over D-Bus — no
+  # filesystem permission is needed just to *pick* a file). But OpenCIE
+  # writes the signed output as a sibling of the input (via the native
+  # PKCS#11 library, by absolute path) and supports drag-and-drop, both of
+  # which need real read/write access to where user documents live. Scope
+  # that to the standard XDG document locations rather than all of $HOME —
+  # narrower, and what Flathub review expects for a signing tool.
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-download
+  - --filesystem=xdg-desktop
+
+modules:
+  - name: opencie
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/opencie /app/bin /app/lib
+      - cp -r bundle/* /app/opencie/
+      - chmod 0755 /app/opencie/opencie
+      - ln -s /app/opencie/opencie /app/bin/opencie
+      # Libraries missing from the Freedesktop runtime; /app/lib is on the
+      # default library search path inside the sandbox.
+      - cp -d deps-libs/* /app/lib/
+      - install -Dm644 io.github.m0rf30.opencie.desktop -t /app/share/applications
+      - install -Dm644 io.github.m0rf30.opencie.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 icon_512.png /app/share/icons/hicolor/512x512/apps/io.github.m0rf30.opencie.png
+      - install -Dm644 icon_256.png /app/share/icons/hicolor/256x256/apps/io.github.m0rf30.opencie.png
+      - install -Dm644 icon_128.png /app/share/icons/hicolor/128x128/apps/io.github.m0rf30.opencie.png
+    sources:
+      - type: dir
+        path: ../build/linux/x64/release/bundle
+        dest: bundle
+      - type: dir
+        path: deps-libs
+        dest: deps-libs
+      - type: file
+        path: io.github.m0rf30.opencie.desktop
+      - type: file
+        path: io.github.m0rf30.opencie.metainfo.xml
+      - type: file
+        path: ../linux/runner/resources/io.github.m0rf30.opencie_256.png
+        dest-filename: icon_256.png
+      - type: file
+        path: ../linux/runner/resources/io.github.m0rf30.opencie_128.png
+        dest-filename: icon_128.png
+      - type: file
+        path: ../linux/runner/resources/io.github.m0rf30.opencie.png
+        dest-filename: icon_512.png

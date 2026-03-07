@@ -1,0 +1,51 @@
+name: Sync Android jniLibs
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'opencie-pkcs11 release tag (leave empty for latest)'
+        required: false
+        default: ''
+  repository_dispatch:
+    types: [opencie-pkcs11-released]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Sync jniLibs from opencie-pkcs11 release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.event.client_payload.tag }}"
+          if [ -n "$TAG" ]; then
+            ./scripts/sync-jnilibs.sh "$TAG"
+          else
+            ./scripts/sync-jnilibs.sh
+          fi
+
+      - name: Open PR with updated libraries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api repos/M0Rf30/opencie-pkcs11/releases/latest --jq '.tag_name')
+          BRANCH="chore/sync-jnilibs-${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add android/app/src/main/jniLibs/
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: sync Android jniLibs to opencie-pkcs11 ${TAG}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore: sync Android jniLibs to opencie-pkcs11 ${TAG}" \
+            --body "Automated sync of pre-built \`libopencie-pkcs11.so\` from opencie-pkcs11 release \`${TAG}\`. ABIs absent from the release (e.g. armeabi-v7a in 1.0.0) are skipped." \
+            --base main \
+            --head "$BRANCH"
