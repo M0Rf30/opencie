@@ -14,19 +14,16 @@
 
   <description>
     <p>
-      OpenCIE is an open-source application for digital signatures,
-      verification, and identity management with the Italian Electronic
-      Identity Card (CIE — Carta d'Identità Elettronica).
+      Sign and verify documents with the Italian Electronic Identity Card
+      (CIE — Carta d'Identità Elettronica), and manage the card itself.
     </p>
-    <p>Features:</p>
     <ul>
-      <li>Sign — CAdES (.p7m), PAdES (PDF), and XAdES (.xml) digital signatures using the CIE chip</li>
-      <li>Verify — validate signatures with OCSP/CRL revocation checking</li>
-      <li>Manage — enroll and manage CIE cards, change or unblock the PIN</li>
+      <li>Sign with CAdES (.p7m), PAdES (PDF) and XAdES (.xml) using the CIE chip</li>
+      <li>Verify signatures with OCSP/CRL revocation checking</li>
+      <li>Manage cards: enrollment, PIN change and unblock</li>
     </ul>
     <p>
-      A PC/SC-compatible smart card or contactless reader is required to
-      communicate with the card.
+      A PC/SC-compatible smart card or contactless reader is required.
     </p>
   </description>
 
