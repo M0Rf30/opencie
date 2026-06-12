@@ -64,8 +64,11 @@ Thumbs.db
 # Card/APDU traces and debug logs (may contain personal card data)
 *.log
 
-# Flatpak local build artifacts (see flatpak/io.github.m0rf30.opencie.yml)
+# Flatpak local build artifacts
 flatpak/deps-libs/
 flatpak/build/
 flatpak/repo/
+flatpak/**/build-submit/
+flatpak/**/.fb-submit/
+flatpak/**/.fb-repo/
 .flatpak-builder/
