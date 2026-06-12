@@ -535,11 +535,47 @@ jobs:
           name: macos-build-log
           path: build/macos/
 
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-latest
+    needs: linux
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download Linux bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-linux-x86_64
+          path: flatpak/ci/bundle
+
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.freedesktop.Platform//25.08 org.freedesktop.Sdk//25.08
+
+      - name: Build single-file bundle
+        run: |
+          cd flatpak/ci
+          cp ../flathub/io.github.m0rf30.opencie.desktop \
+             ../flathub/io.github.m0rf30.opencie.metainfo.xml \
+             ../flathub/io.github.m0rf30.opencie.png .
+          flatpak-builder --user --force-clean --repo=fp-repo fp-build io.github.m0rf30.opencie.yml
+          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+            fp-repo "$GITHUB_WORKSPACE/opencie.flatpak" io.github.m0rf30.opencie
+          ls -lh "$GITHUB_WORKSPACE/opencie.flatpak"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: opencie-flatpak
+          path: opencie.flatpak
+
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: [linux, android, windows, macos]
+    needs: [linux, android, windows, macos, flatpak]
     steps:
       - uses: actions/checkout@v6
 
@@ -573,6 +609,12 @@ jobs:
           name: opencie-macos-arm64-dmg
           path: dist/macos-dmg
 
+      - name: Download flatpak bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: opencie-flatpak
+          path: dist/flatpak
+
       - name: Stage release assets
         run: |
           TAG=${GITHUB_REF_NAME}
@@ -590,6 +632,8 @@ jobs:
             [ -f "$dmg" ] || continue
             cp "$dmg" "release/opencie-${TAG}-macos-arm64.dmg"
           done
+          # Flatpak single-file bundle
+          cp dist/flatpak/*.flatpak "release/opencie-${TAG}-x86_64.flatpak" 2>/dev/null || true
           ls -lh release/
 
       - name: Create GitHub release

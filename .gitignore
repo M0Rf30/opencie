@@ -72,3 +72,12 @@ flatpak/**/build-submit/
 flatpak/**/.fb-submit/
 flatpak/**/.fb-repo/
 .flatpak-builder/
+
+# Flatpak CI build artifacts
+flatpak/ci/bundle/
+flatpak/ci/fp-build/
+flatpak/ci/fp-repo/
+flatpak/ci/.flatpak-builder/
+flatpak/ci/io.github.m0rf30.opencie.desktop
+flatpak/ci/io.github.m0rf30.opencie.metainfo.xml
+flatpak/ci/io.github.m0rf30.opencie.png
