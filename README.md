@@ -35,6 +35,30 @@
 
 Application bundle ID: `io.github.m0rf30.opencie`. iOS is not supported.
 
+## Install
+
+### Linux (Flatpak)
+
+Download `opencie-<version>-x86_64.flatpak` from the [latest release](https://github.com/M0Rf30/opencie/releases/latest) and install it:
+
+```bash
+flatpak install --user opencie-v0.1.0-x86_64.flatpak
+flatpak run io.github.m0rf30.opencie
+```
+
+The bundle is sandboxed (Wayland/X11, network, PC/SC reader, and the XDG
+Documents/Downloads/Desktop folders) and pulls the Freedesktop Platform 25.08
+runtime from Flathub automatically on first install. Card operations need
+`pcscd` running on the host:
+
+```bash
+sudo systemctl enable --now pcscd.socket
+```
+
+### Android / macOS / Windows
+
+Download the APK, `.dmg`, or installer from the [releases page](https://github.com/M0Rf30/opencie/releases).
+
 ## Getting Started
 
 ### Prerequisites
@@ -63,16 +87,25 @@ flutter build windows --release  # Windows
 
 ### Flatpak (Linux)
 
+Build and install into the user installation:
+
 ```bash
-./tools/flatpak-build.sh                  # builds + installs into the user installation
+./tools/flatpak-build.sh
 flatpak run io.github.m0rf30.opencie
 ```
 
-The manifest lives in [`flatpak/`](flatpak/) (Freedesktop 24.08 runtime; grants
-network, PC/SC smart card access, and home filesystem access). The host needs
-`pcscd` running for card operations: `systemctl enable --now pcscd.socket`.
-Flathub publication is planned — the manifest comments document the
-from-source module changes the submission requires.
+Manifests live in [`flatpak/`](flatpak/) (Freedesktop Platform 25.08 runtime;
+grants Wayland/X11, network, PC/SC, and scoped XDG Documents/Downloads/Desktop
+access — no blanket home access). Card operations need `pcscd` on the host
+(`systemctl enable --now pcscd.socket`). To produce a distributable
+single-file bundle:
+
+```bash
+flatpak-builder --user --force-clean --repo=repo build \
+  flatpak/flathub/io.github.m0rf30.opencie.yml
+flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+  repo opencie-x86_64.flatpak io.github.m0rf30.opencie
+```
 
 ### Run (development)
 
