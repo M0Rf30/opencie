@@ -26,23 +26,29 @@ void main() {
     });
 
     test('sendRequest with successful response', () async {
-       // Create a mock HTTP server
-       Future<shelf.Response> handler(shelf.Request request) async {
-         expect(request.method, equals('POST'));
-         expect(request.headers['content-type'], contains('application/ocsp-request'));
-         expect(request.headers['accept'], contains('application/ocsp-response'));
+      // Create a mock HTTP server
+      Future<shelf.Response> handler(shelf.Request request) async {
+        expect(request.method, equals('POST'));
+        expect(
+          request.headers['content-type'],
+          contains('application/ocsp-request'),
+        );
+        expect(
+          request.headers['accept'],
+          contains('application/ocsp-response'),
+        );
 
-         // Return a minimal valid OCSP response (just the status, no responseBytes)
-         // This tests that the HTTP layer works correctly
-         final ocspResponse = ASN1Sequence();
-         ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
-         final responseDer = derEncode(ocspResponse);
+        // Return a minimal valid OCSP response (just the status, no responseBytes)
+        // This tests that the HTTP layer works correctly
+        final ocspResponse = ASN1Sequence();
+        ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
+        final responseDer = derEncode(ocspResponse);
 
-         return shelf.Response.ok(
-           responseDer,
-           headers: {'content-type': 'application/ocsp-response'},
-         );
-       }
+        return shelf.Response.ok(
+          responseDer,
+          headers: {'content-type': 'application/ocsp-response'},
+        );
+      }
 
       final server = await shelf_io.serve(handler, 'localhost', 0);
       addTearDown(server.close);
@@ -65,9 +71,9 @@ void main() {
     });
 
     test('sendRequest throws on HTTP error', () async {
-       Future<shelf.Response> handler(shelf.Request request) async {
-         return shelf.Response.internalServerError();
-       }
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.internalServerError();
+      }
 
       final server = await shelf_io.serve(handler, 'localhost', 0);
       addTearDown(server.close);
@@ -90,12 +96,12 @@ void main() {
     });
 
     test('sendRequest throws on wrong content-type', () async {
-       Future<shelf.Response> handler(shelf.Request request) async {
-         return shelf.Response.ok(
-           Uint8List(10),
-           headers: {'content-type': 'text/plain'},
-         );
-       }
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.ok(
+          Uint8List(10),
+          headers: {'content-type': 'text/plain'},
+        );
+      }
 
       final server = await shelf_io.serve(handler, 'localhost', 0);
       addTearDown(server.close);
@@ -133,17 +139,17 @@ void main() {
     });
 
     test('checkCertificate with override responder URL', () async {
-       Future<shelf.Response> handler(shelf.Request request) async {
-         // Just return a minimal response to test the HTTP layer
-         final ocspResponse = ASN1Sequence();
-         ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
-         final responseDer = derEncode(ocspResponse);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        // Just return a minimal response to test the HTTP layer
+        final ocspResponse = ASN1Sequence();
+        ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
+        final responseDer = derEncode(ocspResponse);
 
-         return shelf.Response.ok(
-           responseDer,
-           headers: {'content-type': 'application/ocsp-response'},
-         );
-       }
+        return shelf.Response.ok(
+          responseDer,
+          headers: {'content-type': 'application/ocsp-response'},
+        );
+      }
 
       final server = await shelf_io.serve(handler, 'localhost', 0);
       addTearDown(server.close);
@@ -163,17 +169,17 @@ void main() {
     });
 
     test('checkCertificate returns internalError on nonce mismatch', () async {
-       Future<shelf.Response> handler(shelf.Request request) async {
-         // Return a minimal response
-         final ocspResponse = ASN1Sequence();
-         ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
-         final responseDer = derEncode(ocspResponse);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        // Return a minimal response
+        final ocspResponse = ASN1Sequence();
+        ocspResponse.add(ASN1Integer(BigInt.zero)); // status = successful
+        final responseDer = derEncode(ocspResponse);
 
-         return shelf.Response.ok(
-           responseDer,
-           headers: {'content-type': 'application/ocsp-response'},
-         );
-       }
+        return shelf.Response.ok(
+          responseDer,
+          headers: {'content-type': 'application/ocsp-response'},
+        );
+      }
 
       final server = await shelf_io.serve(handler, 'localhost', 0);
       addTearDown(server.close);

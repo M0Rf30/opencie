@@ -37,21 +37,15 @@ class PrivateKeyJwt {
 
     final jwt = JWT(
       payload,
-      header: {
-        'alg': 'RS256',
-        'typ': 'JWT',
-        'kid': kid,
-      },
+      header: {'alg': 'RS256', 'typ': 'JWT', 'kid': kid},
     );
-    return jwt.sign(
-      privateKey,
-      algorithm: JWTAlgorithm.RS256,
-    );
+    return jwt.sign(privateKey, algorithm: JWTAlgorithm.RS256);
   }
 }
 
 String _randomJti() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   final r = Random.secure();
   return List.generate(16, (_) => chars[r.nextInt(chars.length)]).join();
 }

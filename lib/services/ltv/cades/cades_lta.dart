@@ -47,14 +47,16 @@ class CadesLtaUpgrader {
       // 1. Parse the input
       final sd = CadesSignedData.parse(cadesClt);
 
-       // 2. Extract the four byte segments for the archive timestamp input
-       final encapContentInfoDer = sd.encapContentInfoForAtsV3;
-       final signedAttrsDer = sd.signedAttrsDer;
-       final signatureValueDer = sd.signatureValueDer;
+      // 2. Extract the four byte segments for the archive timestamp input
+      final encapContentInfoDer = sd.encapContentInfoForAtsV3;
+      final signedAttrsDer = sd.signedAttrsDer;
+      final signatureValueDer = sd.signatureValueDer;
 
       // 3. Build the concatenation of remaining unsigned attributes in DER-canonical order
       final unsignedAttrsForArchive = sd.unsignedAttributesForArchiveTimestamp;
-      final unsignedAttrsDerList = unsignedAttrsForArchive.map((e) => e.value).toList();
+      final unsignedAttrsDerList = unsignedAttrsForArchive
+          .map((e) => e.value)
+          .toList();
       // Sort by full DER bytes ascending (DER-canonical order)
       unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
       final unsignedAttrsConcatenated = Uint8List.fromList(
@@ -77,69 +79,72 @@ class CadesLtaUpgrader {
         requestCert: true,
       );
 
-       // 6. Validate response
-       if (!tspResponse.isSuccess || tspResponse.timeStampToken == null) {
-         throw CadesException(
-           'Archive timestamp request rejected: ${tspResponse.status.name}',
-         );
-       }
+      // 6. Validate response
+      if (!tspResponse.isSuccess || tspResponse.timeStampToken == null) {
+        throw CadesException(
+          'Archive timestamp request rejected: ${tspResponse.status.name}',
+        );
+      }
 
-       // 7. Parse the TimeStampToken and add ats-hash-index-v3 to its inner SignerInfo
-       var tstToken = tspResponse.timeStampToken!;
-       try {
-         final tstSd = CadesSignedData.parse(tstToken);
-         
-         // Build ats-hash-index-v3 using outer CAdES content
-         final builder = AtsHashIndexBuilder(hashAlgorithmOid: hashAlgorithmOid);
-         
-         // Collect unsigned attribute values from outer CAdES (excluding archive-time-stamp-v3)
-         final unsignedAttrValues = <Uint8List>[];
-         for (final entry in sd.unsignedAttributesForArchiveTimestamp) {
-           // Each entry is (OID, full Attribute SEQUENCE DER)
-           // We need to extract the attrValue(s) from the Attribute SEQUENCE
-           final attrSeqDer = entry.value;
-           final attrSeq = derDecode(attrSeqDer) as ASN1Sequence;
-           if (attrSeq.elements != null && attrSeq.elements!.length >= 2) {
-             final attrValuesSet = attrSeq.elements![1];
-             if (attrValuesSet is ASN1Set && attrValuesSet.elements != null) {
-               // Add each value in the SET
-               for (final val in attrValuesSet.elements!) {
-                 unsignedAttrValues.add(derEncode(val));
-               }
-             }
-           }
-         }
-         
-         final atsHashIndexDer = builder.build(
-           certificates: sd.embeddedCertificates,
-            crls: sd.embeddedCrls.map((c) => c.rawCrl).toList(),
-           unsignedAttrValues: unsignedAttrValues,
-         );
-         
-         // Add ats-hash-index-v3 as an unsigned attribute to the inner TST's SignerInfo
-         final atsHashIndexSet = ASN1Set();
-         atsHashIndexSet.add(derDecode(atsHashIndexDer));
-         tstSd.setUnsignedAttribute(Oid.atsHashIndexV3, derEncode(atsHashIndexSet));
-         
-         // Re-encode the modified TST
-         tstToken = tstSd.encode();
-       } catch (e) {
-         // If ats-hash-index-v3 addition fails, log but continue with unaugmented TST
-         // (non-conformant but better than failing the entire upgrade)
-         // In production, this should be stricter.
-       }
+      // 7. Parse the TimeStampToken and add ats-hash-index-v3 to its inner SignerInfo
+      var tstToken = tspResponse.timeStampToken!;
+      try {
+        final tstSd = CadesSignedData.parse(tstToken);
 
-       // 8. Build the archive-time-stamp-v3 unsigned attribute
-       // Attribute ::= SEQUENCE { attrType OID, attrValues SET OF AttributeValue }
-       // For archive-time-stamp-v3, attrValues is SET OF TimeStampToken
-       final attrValuesSet = ASN1Set();
-       attrValuesSet.add(derDecode(tstToken));
+        // Build ats-hash-index-v3 using outer CAdES content
+        final builder = AtsHashIndexBuilder(hashAlgorithmOid: hashAlgorithmOid);
 
-       // 9. Add the archive-time-stamp-v3 unsigned attribute
-       sd.setUnsignedAttribute(Oid.archiveTimeStampV3, derEncode(attrValuesSet));
+        // Collect unsigned attribute values from outer CAdES (excluding archive-time-stamp-v3)
+        final unsignedAttrValues = <Uint8List>[];
+        for (final entry in sd.unsignedAttributesForArchiveTimestamp) {
+          // Each entry is (OID, full Attribute SEQUENCE DER)
+          // We need to extract the attrValue(s) from the Attribute SEQUENCE
+          final attrSeqDer = entry.value;
+          final attrSeq = derDecode(attrSeqDer) as ASN1Sequence;
+          if (attrSeq.elements != null && attrSeq.elements!.length >= 2) {
+            final attrValuesSet = attrSeq.elements![1];
+            if (attrValuesSet is ASN1Set && attrValuesSet.elements != null) {
+              // Add each value in the SET
+              for (final val in attrValuesSet.elements!) {
+                unsignedAttrValues.add(derEncode(val));
+              }
+            }
+          }
+        }
 
-       // 10. Return the upgraded signature
-       return sd.encode();
+        final atsHashIndexDer = builder.build(
+          certificates: sd.embeddedCertificates,
+          crls: sd.embeddedCrls.map((c) => c.rawCrl).toList(),
+          unsignedAttrValues: unsignedAttrValues,
+        );
+
+        // Add ats-hash-index-v3 as an unsigned attribute to the inner TST's SignerInfo
+        final atsHashIndexSet = ASN1Set();
+        atsHashIndexSet.add(derDecode(atsHashIndexDer));
+        tstSd.setUnsignedAttribute(
+          Oid.atsHashIndexV3,
+          derEncode(atsHashIndexSet),
+        );
+
+        // Re-encode the modified TST
+        tstToken = tstSd.encode();
+      } catch (e) {
+        // If ats-hash-index-v3 addition fails, log but continue with unaugmented TST
+        // (non-conformant but better than failing the entire upgrade)
+        // In production, this should be stricter.
+      }
+
+      // 8. Build the archive-time-stamp-v3 unsigned attribute
+      // Attribute ::= SEQUENCE { attrType OID, attrValues SET OF AttributeValue }
+      // For archive-time-stamp-v3, attrValues is SET OF TimeStampToken
+      final attrValuesSet = ASN1Set();
+      attrValuesSet.add(derDecode(tstToken));
+
+      // 9. Add the archive-time-stamp-v3 unsigned attribute
+      sd.setUnsignedAttribute(Oid.archiveTimeStampV3, derEncode(attrValuesSet));
+
+      // 10. Return the upgraded signature
+      return sd.encode();
     } catch (e) {
       if (e is CadesException) rethrow;
       throw CadesException('Archive timestamp upgrade failed: $e');

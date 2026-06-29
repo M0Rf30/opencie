@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 
-
 /// Document file-type tile (mini paper) — used in headers and rows.
 ///
 /// Renders a small white "page" with a colored 3-letter ext label, e.g. PDF,
@@ -69,7 +68,8 @@ class OcFileTile extends StatelessWidget {
           alignment: Alignment.bottomCenter,
           child: Text(
             ext.length > 4 ? ext.substring(0, 4) : ext,
-            style: TextStyle(fontFamily: 'JetBrainsMono', 
+            style: TextStyle(
+              fontFamily: 'JetBrainsMono',
               color: color,
               fontWeight: FontWeight.w800,
               fontSize: 9,

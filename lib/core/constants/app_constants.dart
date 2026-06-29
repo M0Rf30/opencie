@@ -67,10 +67,20 @@ class AppConstants {
   ];
 
   static const List<String> verifiableExtensions = [
-    'pdf', 'p7m', 'p7s', 'xml', 'tsr', 'tsd',
+    'pdf',
+    'p7m',
+    'p7s',
+    'xml',
+    'tsr',
+    'tsd',
   ];
 
-  static const List<String> certificateExtensions = ['cer', 'crt', 'pem', 'der'];
+  static const List<String> certificateExtensions = [
+    'cer',
+    'crt',
+    'pem',
+    'der',
+  ];
 
   // ---------------------------------------------------------------------------
   // Layout breakpoints

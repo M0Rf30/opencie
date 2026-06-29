@@ -47,11 +47,9 @@ class SignedResultDialog extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return Dialog(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: cs.surfaceContainer,
-      insetPadding:
-          const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
         child: Column(
@@ -64,10 +62,7 @@ class SignedResultDialog extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  OcDiscHalo(
-                    size: 120,
-                    color: ColorSchemes.valid,
-                  ),
+                  OcDiscHalo(size: 120, color: ColorSchemes.valid),
                   OcStatusDisc(
                     tone: OcStatusTone.valid,
                     icon: const Icon(
@@ -100,8 +95,7 @@ class SignedResultDialog extends StatelessWidget {
 
             // File chip
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(12),
@@ -134,8 +128,7 @@ class SignedResultDialog extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.open_in_new_rounded,
-                      size: 16, color: cs.primary),
+                  Icon(Icons.open_in_new_rounded, size: 16, color: cs.primary),
                 ],
               ),
             ),
@@ -154,15 +147,13 @@ class SignedResultDialog extends StatelessWidget {
                 children: [
                   _DiagRow(label: 'firmato il', value: dateLabel),
                   _DiagRow(
-                      label: 'formato',
-                      value: options.format.displayName
-                          .split(' ')
-                          .first),
+                    label: 'formato',
+                    value: options.format.displayName.split(' ').first,
+                  ),
                   _DiagRow(
-                      label: 'tsa',
-                      value: options.addTimestamp
-                          ? 'FreeTSA · RFC 3161'
-                          : '—'),
+                    label: 'tsa',
+                    value: options.addTimestamp ? 'FreeTSA · RFC 3161' : '—',
+                  ),
                 ],
               ),
             ),
@@ -177,8 +168,7 @@ class SignedResultDialog extends StatelessWidget {
                       Navigator.pop(context);
                       onVerifyFile(outputPath);
                     },
-                    icon: const Icon(Icons.verified_user_rounded,
-                        size: 16),
+                    icon: const Icon(Icons.verified_user_rounded, size: 16),
                     label: Text(l10n.signVerifyButton),
                   ),
                 ),
@@ -220,8 +210,10 @@ class _DiagRow extends StatelessWidget {
             width: 100,
             child: Text(
               label,
-              style: AppTheme.monoBody(cs, color: cs.onSurfaceVariant)
-                  .copyWith(fontSize: 11),
+              style: AppTheme.monoBody(
+                cs,
+                color: cs.onSurfaceVariant,
+              ).copyWith(fontSize: 11),
             ),
           ),
           Expanded(

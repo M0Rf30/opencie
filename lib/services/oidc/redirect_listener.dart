@@ -62,15 +62,12 @@ class OidcRedirectListener {
   Future<OidcCallback> handleCallback() async {
     if (Platform.isAndroid) {
       final completer = Completer<OidcCallback>();
-      _androidSub = AppLinks().stringLinkStream.listen(
-        (link) {
-          final uri = Uri.tryParse(link);
-          if (uri != null && uri.scheme == 'opencie') {
-            completer.complete(parseUri(uri));
-          }
-        },
-        onError: completer.completeError,
-      );
+      _androidSub = AppLinks().stringLinkStream.listen((link) {
+        final uri = Uri.tryParse(link);
+        if (uri != null && uri.scheme == 'opencie') {
+          completer.complete(parseUri(uri));
+        }
+      }, onError: completer.completeError);
       try {
         return await completer.future;
       } finally {

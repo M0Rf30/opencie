@@ -58,9 +58,7 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
           visualDensity: _densityFor(settings.uiScale),
         ),
         themeMode: settings.themeMode,
-        home: const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -77,9 +75,7 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         return MediaQuery(
-          data: mq.copyWith(
-            textScaler: TextScaler.linear(settings.uiScale),
-          ),
+          data: mq.copyWith(textScaler: TextScaler.linear(settings.uiScale)),
           child: child!,
         );
       },

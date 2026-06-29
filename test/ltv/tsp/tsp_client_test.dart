@@ -117,7 +117,9 @@ shelf.Handler _createTsaHandler() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
 
     // Parse the request to extract nonce and hash
     final parser = ASN1Parser(body);
@@ -177,7 +179,9 @@ shelf.Handler _createTsaHandlerWithWrongNonce() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
     final parser = ASN1Parser(body);
     final reqSeq = parser.nextObject() as ASN1Sequence;
 
@@ -216,7 +220,9 @@ shelf.Handler _createTsaHandlerWithWrongHash() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
     final parser = ASN1Parser(body);
     final reqSeq = parser.nextObject() as ASN1Sequence;
 
@@ -283,7 +289,9 @@ shelf.Handler _createTsaHandlerWithWrongContentType() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
     final parser = ASN1Parser(body);
     final reqSeq = parser.nextObject() as ASN1Sequence;
 
@@ -340,7 +348,9 @@ Uint8List _buildTstToken({
   // Build TSTInfo
   final tstInfo = ASN1Sequence();
   tstInfo.add(ASN1Integer(BigInt.one)); // version
-  tstInfo.add(ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1')); // policy
+  tstInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'),
+  ); // policy
 
   // messageImprint
   final msgImprint = ASN1Sequence();
@@ -362,11 +372,16 @@ Uint8List _buildTstToken({
 
   // Wrap in EncapsulatedContentInfo
   final encapContentInfo = ASN1Sequence();
-  encapContentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken));
+  encapContentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken),
+  );
 
   // eContent [0] EXPLICIT OCTET STRING
   final eContentOctet = ASN1OctetString(octets: tstInfo.encode());
-  final eContentCtxBytes = _buildContextSpecificTagBytes(0, eContentOctet.encode());
+  final eContentCtxBytes = _buildContextSpecificTagBytes(
+    0,
+    eContentOctet.encode(),
+  );
   final eContentCtx = ASN1Parser(eContentCtxBytes).nextObject();
   encapContentInfo.add(eContentCtx);
 
@@ -386,7 +401,9 @@ Uint8List _buildTstToken({
 
   // Wrap in ContentInfo
   final contentInfo = ASN1Sequence();
-  contentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData));
+  contentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData),
+  );
 
   // [0] EXPLICIT SignedData
   final signedDataBytes = signedData.encode();
@@ -402,7 +419,7 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
   final tag = 0xA0 | tagNumber;
   final result = BytesBuilder();
   result.addByte(tag);
-  
+
   // Encode length
   if (content.length < 128) {
     result.addByte(content.length);
@@ -416,7 +433,7 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
     result.addByte(0x80 | lenBytes.length);
     result.add(lenBytes);
   }
-  
+
   result.add(content);
   return result.toBytes();
 }

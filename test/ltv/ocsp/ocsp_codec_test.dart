@@ -50,7 +50,24 @@ void main() {
         serialNumber: BigInt.from(12345),
       );
 
-      final nonce = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+      final nonce = Uint8List.fromList([
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+      ]);
       final requestDer = encodeOcspRequest(certIds: [certId], nonce: nonce);
       expect(requestDer, isNotEmpty);
 
@@ -113,36 +130,46 @@ void main() {
       expect(parsed.responses, isEmpty);
     });
 
-    test('parse response with wrong responseType OID returns internalError', () {
-      final response = _buildOcspResponseWithWrongOid();
-      final parsed = parseOcspResponse(response);
-      expect(parsed.status, equals(OcspResponseStatus.internalError));
-    });
+    test(
+      'parse response with wrong responseType OID returns internalError',
+      () {
+        final response = _buildOcspResponseWithWrongOid();
+        final parsed = parseOcspResponse(response);
+        expect(parsed.status, equals(OcspResponseStatus.internalError));
+      },
+    );
 
-    test('extractBasicOcspResponse extracts inner BasicOCSPResponse from OCSPResponse', () {
-      // Build a synthetic OCSPResponse with a BasicOCSPResponse inside
-      final basicOcspResponse = ASN1Sequence();
-      basicOcspResponse.add(ASN1Sequence()); // ResponseData (minimal)
-      basicOcspResponse.add(algorithmIdentifier(Oid.sha256WithRSA));
-      basicOcspResponse.add(ASN1BitString(stringValues: List<int>.filled(256, 0)));
-      final basicOcspResponseDer = derEncode(basicOcspResponse);
+    test(
+      'extractBasicOcspResponse extracts inner BasicOCSPResponse from OCSPResponse',
+      () {
+        // Build a synthetic OCSPResponse with a BasicOCSPResponse inside
+        final basicOcspResponse = ASN1Sequence();
+        basicOcspResponse.add(ASN1Sequence()); // ResponseData (minimal)
+        basicOcspResponse.add(algorithmIdentifier(Oid.sha256WithRSA));
+        basicOcspResponse.add(
+          ASN1BitString(stringValues: List<int>.filled(256, 0)),
+        );
+        final basicOcspResponseDer = derEncode(basicOcspResponse);
 
-      // Wrap in OCSPResponse
-      final responseBytes = ASN1Sequence();
-      responseBytes.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.ocspBasic));
-      responseBytes.add(ASN1OctetString(octets: basicOcspResponseDer));
+        // Wrap in OCSPResponse
+        final responseBytes = ASN1Sequence();
+        responseBytes.add(
+          ASN1ObjectIdentifier.fromIdentifierString(Oid.ocspBasic),
+        );
+        responseBytes.add(ASN1OctetString(octets: basicOcspResponseDer));
 
-      final ocspResponse = ASN1Sequence();
-      ocspResponse.add(ASN1Enumerated(0)); // successful
-      ocspResponse.add(explicit(0, responseBytes));
+        final ocspResponse = ASN1Sequence();
+        ocspResponse.add(ASN1Enumerated(0)); // successful
+        ocspResponse.add(explicit(0, responseBytes));
 
-      final ocspResponseDer = derEncode(ocspResponse);
+        final ocspResponseDer = derEncode(ocspResponse);
 
-      // Extract BasicOCSPResponse
-      final extracted = extractBasicOcspResponse(ocspResponseDer);
-      expect(extracted, isNotNull);
-      expect(extracted, equals(basicOcspResponseDer));
-    });
+        // Extract BasicOCSPResponse
+        final extracted = extractBasicOcspResponse(ocspResponseDer);
+        expect(extracted, isNotNull);
+        expect(extracted, equals(basicOcspResponseDer));
+      },
+    );
 
     test('extractBasicOcspResponse returns null for invalid OCSPResponse', () {
       // Build an invalid OCSPResponse (missing responseBytes)
@@ -164,7 +191,9 @@ OcspCertId? _buildCertIdFromCert(
 ) {
   try {
     final issuerObj = derDecode(issuerDer);
-    if (issuerObj is! ASN1Sequence || issuerObj.elements == null || issuerObj.elements!.isEmpty) {
+    if (issuerObj is! ASN1Sequence ||
+        issuerObj.elements == null ||
+        issuerObj.elements!.isEmpty) {
       return null;
     }
 
@@ -182,7 +211,9 @@ OcspCertId? _buildCertIdFromCert(
     final issuerNameHash = hashOf(issuerSubjectDer, hashAlgorithmOid);
 
     final issuerSpkiObj = issuerTbsCert.elements![6];
-    if (issuerSpkiObj is! ASN1Sequence || issuerSpkiObj.elements == null || issuerSpkiObj.elements!.length < 2) {
+    if (issuerSpkiObj is! ASN1Sequence ||
+        issuerSpkiObj.elements == null ||
+        issuerSpkiObj.elements!.length < 2) {
       return null;
     }
 
@@ -195,10 +226,15 @@ OcspCertId? _buildCertIdFromCert(
     if (issuerSpkBytes == null || issuerSpkBytes.isEmpty) {
       return null;
     }
-    final issuerKeyHash = hashOf(Uint8List.fromList(issuerSpkBytes), hashAlgorithmOid);
+    final issuerKeyHash = hashOf(
+      Uint8List.fromList(issuerSpkBytes),
+      hashAlgorithmOid,
+    );
 
     final certObj = derDecode(certDer);
-    if (certObj is! ASN1Sequence || certObj.elements == null || certObj.elements!.isEmpty) {
+    if (certObj is! ASN1Sequence ||
+        certObj.elements == null ||
+        certObj.elements!.isEmpty) {
       return null;
     }
 
@@ -232,12 +268,14 @@ OcspCertId? _buildCertIdFromCert(
 /// Helper: build OCSP response with wrong responseType OID.
 Uint8List _buildOcspResponseWithWrongOid() {
   final responseBytes = ASN1Sequence();
-  responseBytes.add(ASN1ObjectIdentifier.fromIdentifierString('1.2.3.4.5')); // Wrong OID
+  responseBytes.add(
+    ASN1ObjectIdentifier.fromIdentifierString('1.2.3.4.5'),
+  ); // Wrong OID
   responseBytes.add(ASN1OctetString(octets: Uint8List(10)));
 
   final ocspResponse = ASN1Sequence();
   ocspResponse.add(ASN1Enumerated(0)); // successful
   ocspResponse.add(explicit(0, responseBytes));
 
-   return derEncode(ocspResponse);
+  return derEncode(ocspResponse);
 }

@@ -70,8 +70,10 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
                   labelText: l10n.cieCurrentPin8Digits,
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: val.text.length == 8
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -94,8 +96,10 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
                   labelText: l10n.cieNewPin8Digits,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: val.text.length == 8
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -117,10 +121,11 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
                 decoration: InputDecoration(
                   labelText: l10n.cieRepeatPin,
                   prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: val.text.isNotEmpty &&
-                          val.text == _newCtrl.text
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                  suffixIcon: val.text.isNotEmpty && val.text == _newCtrl.text
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -132,11 +137,10 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.commonCancel)),
-        FilledButton(
-            onPressed: _submit,
-            child: Text(l10n.cieChangePinButton)),
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.cieChangePinButton)),
       ],
     );
   }

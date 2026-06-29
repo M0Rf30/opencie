@@ -70,8 +70,10 @@ class _CieUnblockPinDialogState extends State<CieUnblockPinDialog> {
                   labelText: l10n.ciePuk8Digits,
                   prefixIcon: const Icon(Icons.key),
                   suffixIcon: val.text.length == 8
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -94,8 +96,10 @@ class _CieUnblockPinDialogState extends State<CieUnblockPinDialog> {
                   labelText: l10n.cieNewPin8Digits,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: val.text.length == 8
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -117,10 +121,11 @@ class _CieUnblockPinDialogState extends State<CieUnblockPinDialog> {
                 decoration: InputDecoration(
                   labelText: l10n.cieRepeatPin,
                   prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: val.text.isNotEmpty &&
-                          val.text == _newCtrl.text
-                      ? const Icon(Icons.check_circle_rounded,
-                          color: Colors.green)
+                  suffixIcon: val.text.isNotEmpty && val.text == _newCtrl.text
+                      ? const Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green,
+                        )
                       : null,
                 ),
                 validator: (v) =>
@@ -132,11 +137,10 @@ class _CieUnblockPinDialogState extends State<CieUnblockPinDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.commonCancel)),
-        FilledButton(
-            onPressed: _submit,
-            child: Text(l10n.cieUnblockButton)),
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.cieUnblockButton)),
       ],
     );
   }

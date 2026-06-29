@@ -40,9 +40,7 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
       allowedExtensions: widget.acceptedExtensions,
     );
     if (result != null) {
-      widget.onFilesSelected(
-        result.paths.whereType<String>().toList(),
-      );
+      widget.onFilesSelected(result.paths.whereType<String>().toList());
     }
   }
 
@@ -62,9 +60,7 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
           onDragExited: (_) => setState(() => _isDragging = false),
           onDragDone: (details) {
             setState(() => _isDragging = false);
-            widget.onFilesSelected(
-              details.files.map((f) => f.path).toList(),
-            );
+            widget.onFilesSelected(details.files.map((f) => f.path).toList());
           },
           child: GestureDetector(
             onTap: _pickFiles,
@@ -100,9 +96,7 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
                               : Icons.cloud_upload_outlined,
                           key: ValueKey(_isDragging),
                           size: hasFiles ? 30 : 44,
-                          color: _isDragging
-                              ? cs.primary
-                              : cs.onSurfaceVariant,
+                          color: _isDragging ? cs.primary : cs.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -121,7 +115,9 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
                         style: OutlinedButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ],
@@ -171,8 +167,10 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
                     onPressed: () => widget.onFileRemoved(path),
                     tooltip: l10n.commonDelete,
                     padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   ),
                 );
               },

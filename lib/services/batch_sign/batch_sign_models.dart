@@ -2,7 +2,14 @@
 
 import '../../models/signature_options.dart';
 
-enum BatchSignItemStatus { pending, signing, success, failed, skipped, cancelled }
+enum BatchSignItemStatus {
+  pending,
+  signing,
+  success,
+  failed,
+  skipped,
+  cancelled,
+}
 
 class BatchSignItem {
   final String inputPath;
@@ -57,18 +64,30 @@ class BatchSignState {
     this.isCancelled = false,
   });
 
-  int get successCount => items.where((i) => i.status == BatchSignItemStatus.success).length;
-  int get failedCount => items.where((i) => i.status == BatchSignItemStatus.failed).length;
-  int get skippedCount => items.where((i) => i.status == BatchSignItemStatus.skipped).length;
-  int get cancelledCount => items.where((i) => i.status == BatchSignItemStatus.cancelled).length;
+  int get successCount =>
+      items.where((i) => i.status == BatchSignItemStatus.success).length;
+  int get failedCount =>
+      items.where((i) => i.status == BatchSignItemStatus.failed).length;
+  int get skippedCount =>
+      items.where((i) => i.status == BatchSignItemStatus.skipped).length;
+  int get cancelledCount =>
+      items.where((i) => i.status == BatchSignItemStatus.cancelled).length;
   int get totalCount => items.length;
 
   double get overallProgress {
     if (totalCount == 0) return 0.0;
     final completed = items
-        .where((i) => i.status == BatchSignItemStatus.success || i.status == BatchSignItemStatus.failed || i.status == BatchSignItemStatus.skipped || i.status == BatchSignItemStatus.cancelled)
+        .where(
+          (i) =>
+              i.status == BatchSignItemStatus.success ||
+              i.status == BatchSignItemStatus.failed ||
+              i.status == BatchSignItemStatus.skipped ||
+              i.status == BatchSignItemStatus.cancelled,
+        )
         .length;
-    final currentProgress = currentIndex >= 0 && currentIndex < items.length ? items[currentIndex].progress : 0.0;
+    final currentProgress = currentIndex >= 0 && currentIndex < items.length
+        ? items[currentIndex].progress
+        : 0.0;
     return (completed + currentProgress) / totalCount;
   }
 

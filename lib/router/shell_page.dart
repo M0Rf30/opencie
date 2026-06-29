@@ -67,15 +67,12 @@ class ShellPage extends StatelessWidget {
         body: SafeArea(bottom: false, child: navigationShell),
         bottomNavigationBar: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: cs.outlineVariant),
-            ),
+            border: Border(top: BorderSide(color: cs.outlineVariant)),
           ),
           child: NavigationBar(
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _onDestinationSelected,
-            labelBehavior:
-                NavigationDestinationLabelBehavior.alwaysShow,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: destinations.map((d) {
               return NavigationDestination(
                 icon: Icon(d.icon),
@@ -113,10 +110,9 @@ class ShellPage extends StatelessWidget {
                         const SizedBox(width: 12),
                         Text(
                           'OpenCIE',
-                          style: AppTheme.headlineBold(cs).copyWith(
-                            fontSize: 18,
-                            letterSpacing: -0.2,
-                          ),
+                          style: AppTheme.headlineBold(
+                            cs,
+                          ).copyWith(fontSize: 18, letterSpacing: -0.2),
                         ),
                       ],
                     )
@@ -130,11 +126,7 @@ class ShellPage extends StatelessWidget {
               );
             }).toList(),
           ),
-          VerticalDivider(
-            thickness: 1,
-            width: 1,
-            color: cs.outlineVariant,
-          ),
+          VerticalDivider(thickness: 1, width: 1, color: cs.outlineVariant),
           Expanded(child: navigationShell),
         ],
       ),

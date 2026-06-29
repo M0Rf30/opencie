@@ -8,15 +8,15 @@ import 'package:opencie/features/sign/batch_sign_page.dart';
 
 void main() {
   group('BatchSignPage', () {
-    testWidgets('Renders without crash and shows empty state', (WidgetTester tester) async {
+    testWidgets('Renders without crash and shows empty state', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const Scaffold(
-              body: BatchSignPage(),
-            ),
+            home: const Scaffold(body: BatchSignPage()),
           ),
         ),
       );
@@ -37,9 +37,7 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const Scaffold(
-              body: BatchSignPage(),
-            ),
+            home: const Scaffold(body: BatchSignPage()),
           ),
         ),
       );

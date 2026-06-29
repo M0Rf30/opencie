@@ -34,8 +34,7 @@ class OidcSession {
   final Map<String, Object?>? userinfoClaims;
   final String? _idTokenRaw;
 
-  bool get isExpired =>
-      expiresAt != null && DateTime.now().isAfter(expiresAt!);
+  bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
   /// Human-readable display name from userinfo or ID token claims.
   String? get displayName {
@@ -50,16 +49,15 @@ class OidcSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'issuer': issuer,
-        'client_id': clientId,
-        'id_token_raw': _idTokenRaw,
-        'access_token': accessToken,
-        'token_type': tokenType,
-        if (refreshToken != null) 'refresh_token': refreshToken,
-        if (expiresAt != null)
-          'expires_at': expiresAt!.millisecondsSinceEpoch,
-        if (userinfoClaims != null) 'userinfo': userinfoClaims,
-      };
+    'issuer': issuer,
+    'client_id': clientId,
+    'id_token_raw': _idTokenRaw,
+    'access_token': accessToken,
+    'token_type': tokenType,
+    if (refreshToken != null) 'refresh_token': refreshToken,
+    if (expiresAt != null) 'expires_at': expiresAt!.millisecondsSinceEpoch,
+    if (userinfoClaims != null) 'userinfo': userinfoClaims,
+  };
 
   static Future<OidcSession?> load(SharedPreferences prefs) async {
     final jsonStr = prefs.getString(_prefsKey);
@@ -75,10 +73,11 @@ class OidcSession {
     final idToken = IdToken(
       issuer: payload['iss'] as String,
       subject: payload['sub'] as String,
-      audience: (payload['aud'] is List
-              ? (payload['aud'] as List).first
-              : payload['aud'])
-          as String,
+      audience:
+          (payload['aud'] is List
+                  ? (payload['aud'] as List).first
+                  : payload['aud'])
+              as String,
       expiration: DateTime.fromMillisecondsSinceEpoch(
         ((payload['exp'] as num) * 1000).toInt(),
         isUtc: true,
@@ -115,10 +114,7 @@ class OidcSession {
     );
   }
 
-  static Future<void> save(
-    SharedPreferences prefs,
-    OidcSession session,
-  ) async {
+  static Future<void> save(SharedPreferences prefs, OidcSession session) async {
     await prefs.setString(_prefsKey, json.encode(session.toJson()));
   }
 

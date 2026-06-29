@@ -14,12 +14,12 @@ class CrlClient {
   CrlClient({
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 15),
-    int maxBytes = 8 * 1024 * 1024,  // 8 MB cap
+    int maxBytes = 8 * 1024 * 1024, // 8 MB cap
     DateTime Function() now = _defaultNow,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _timeout = timeout,
-        _maxBytes = maxBytes,
-        _now = now;
+  }) : _httpClient = httpClient ?? http.Client(),
+       _timeout = timeout,
+       _maxBytes = maxBytes,
+       _now = now;
 
   final http.Client _httpClient;
   final Duration _timeout;

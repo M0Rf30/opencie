@@ -34,10 +34,8 @@ class AppRouter {
     routes: [
       GoRoute(
         path: '/login',
-        builder: (context, state) => LoginPage(
-          issuer: issuer,
-          clientId: clientId,
-        ),
+        builder: (context, state) =>
+            LoginPage(issuer: issuer, clientId: clientId),
       ),
       GoRoute(
         path: '/profile',
@@ -57,48 +55,47 @@ class AppRouter {
               ),
             ],
           ),
-           StatefulShellBranch(
-             navigatorKey: _shellNavigatorKeys[1],
-             routes: [
-               GoRoute(
-                 path: '/verify',
-                 builder: (context, state) => const VerifyPage(),
-               ),
-             ],
-           ),
-           StatefulShellBranch(
-             navigatorKey: _shellNavigatorKeys[2],
-             routes: [
-               GoRoute(
-                 path: '/timestamp',
-                 builder: (context, state) => const TimestampPage(),
-               ),
-             ],
-           ),
-           StatefulShellBranch(
-             navigatorKey: _shellNavigatorKeys[3],
-             routes: [
-               GoRoute(
-                 path: '/cie',
-                 builder: (context, state) => const CieManagementPage(),
-               ),
-             ],
-           ),
-           StatefulShellBranch(
-             navigatorKey: _shellNavigatorKeys[4],
-             routes: [
-               GoRoute(
-                 path: '/settings',
-                 builder: (context, state) => const SettingsPage(),
-               ),
-             ],
-           ),
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorKeys[1],
+            routes: [
+              GoRoute(
+                path: '/verify',
+                builder: (context, state) => const VerifyPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorKeys[2],
+            routes: [
+              GoRoute(
+                path: '/timestamp',
+                builder: (context, state) => const TimestampPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorKeys[3],
+            routes: [
+              GoRoute(
+                path: '/cie',
+                builder: (context, state) => const CieManagementPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorKeys[4],
+            routes: [
+              GoRoute(
+                path: '/settings',
+                builder: (context, state) => const SettingsPage(),
+              ),
+            ],
+          ),
         ],
       ),
     ],
   );
 }
-
 
 /// Navigation destinations — shared between NavigationRail and NavigationBar.
 class AppDestination {

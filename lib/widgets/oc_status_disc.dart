@@ -40,10 +40,7 @@ class OcStatusDisc extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.14),
-              border: Border.all(
-                color: color.withValues(alpha: 0.4),
-                width: 1,
-              ),
+              border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
             ),
           ),
           Container(

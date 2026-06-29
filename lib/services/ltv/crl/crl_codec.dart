@@ -14,13 +14,17 @@ CrlData? parseCrl(Uint8List rawDer, {String? sourceUrl}) {
   try {
     // Parse outer SEQUENCE (CertificateList)
     final certListObj = derDecode(rawDer);
-    if (certListObj is! ASN1Sequence || certListObj.elements == null || certListObj.elements!.isEmpty) {
+    if (certListObj is! ASN1Sequence ||
+        certListObj.elements == null ||
+        certListObj.elements!.isEmpty) {
       return null;
     }
 
     // First element is TBSCertList
     final tbsCertListObj = certListObj.elements![0];
-    if (tbsCertListObj is! ASN1Sequence || tbsCertListObj.elements == null || tbsCertListObj.elements!.isEmpty) {
+    if (tbsCertListObj is! ASN1Sequence ||
+        tbsCertListObj.elements == null ||
+        tbsCertListObj.elements!.isEmpty) {
       return null;
     }
 
@@ -65,7 +69,8 @@ CrlData? parseCrl(Uint8List rawDer, {String? sourceUrl}) {
     if (idx < tbsElements.length) {
       final nextUpdateObj = tbsElements[idx];
       // Check if it's a Time (UTCTime or GeneralizedTime), not another structure
-      if (nextUpdateObj is ASN1UtcTime || nextUpdateObj is ASN1GeneralizedTime) {
+      if (nextUpdateObj is ASN1UtcTime ||
+          nextUpdateObj is ASN1GeneralizedTime) {
         nextUpdate = _parseTime(nextUpdateObj);
       }
     }
@@ -103,7 +108,8 @@ Uint8List? pemOrDerToDer(Uint8List input) {
     final str = String.fromCharCodes(input);
 
     // Check for PEM armor
-    if (str.contains('-----BEGIN X509 CRL-----') || str.contains('-----BEGIN CRL-----')) {
+    if (str.contains('-----BEGIN X509 CRL-----') ||
+        str.contains('-----BEGIN CRL-----')) {
       // Extract base64 body
       final lines = str.split('\n');
       final bodyLines = <String>[];

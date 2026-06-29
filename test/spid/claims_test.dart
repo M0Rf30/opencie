@@ -9,8 +9,7 @@ void main() {
         'sub': 'SPID-1234567890',
         'https://attributes.spid.gov.it/name': 'Mario',
         'https://attributes.spid.gov.it/familyName': 'Rossi',
-        'https://attributes.spid.gov.it/fiscalNumber':
-            'TINIT-RSSMRA80A01H501U',
+        'https://attributes.spid.gov.it/fiscalNumber': 'TINIT-RSSMRA80A01H501U',
         'https://attributes.spid.gov.it/dateOfBirth': '1980-01-01',
         'https://attributes.spid.gov.it/email': 'mario.rossi@example.it',
       };
@@ -34,8 +33,7 @@ void main() {
         'family_name': 'Rossi',
         'birthdate': '1980-01-01',
         'email': 'mario.rossi@example.it',
-        'https://attributes.eid.gov.it/fiscal_number':
-            'TINIT-RSSMRA80A01H501U',
+        'https://attributes.eid.gov.it/fiscal_number': 'TINIT-RSSMRA80A01H501U',
       };
 
       final attrs = SpidUserAttributes.fromUserinfo(
@@ -67,10 +65,7 @@ void main() {
     });
 
     test('handles missing optional fields in CIE', () {
-      final userinfo = {
-        'sub': 'CIE-9876543210',
-        'given_name': 'Mario',
-      };
+      final userinfo = {'sub': 'CIE-9876543210', 'given_name': 'Mario'};
 
       final attrs = SpidUserAttributes.fromUserinfo(
         userinfo,

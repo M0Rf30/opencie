@@ -8,7 +8,7 @@ import '../crl/crl_models.dart';
 import 'cades_models.dart';
 
 /// Parses and manipulates a CAdES SignedData blob (CMS ContentInfo).
-/// 
+///
 /// Strategy: Use byte-range preservation for robustness.
 /// - Parse the top-level structure to locate SignerInfo[0].
 /// - For SignerInfo[0], record byte ranges of (a) prefix (before unsignedAttrs)
@@ -21,10 +21,10 @@ class CadesSignedData {
   late ASN1Sequence _signedData;
   late ASN1Set _signerInfos;
   late ASN1Sequence _signerInfo0;
-  
+
   // Parsed unsigned attributes (OID -> attribute value SET DER)
   late Map<String, Uint8List> _unsignedAttrs;
-  
+
   // Embedded certificates from SignedData.certificates [0]
   late List<Uint8List> _embeddedCerts;
 
@@ -78,7 +78,8 @@ class CadesSignedData {
         throw CadesException('ContentInfo.content is not [0] EXPLICIT');
       }
 
-      _signedData = derDecode(contentObj.valueBytes ?? Uint8List(0)) as ASN1Sequence;
+      _signedData =
+          derDecode(contentObj.valueBytes ?? Uint8List(0)) as ASN1Sequence;
       if (_signedData.elements == null || _signedData.elements!.isEmpty) {
         throw CadesException('Invalid SignedData structure');
       }
@@ -94,47 +95,50 @@ class CadesSignedData {
         throw CadesException('SignerInfos is empty');
       }
 
-   // Parse SignerInfo[0]
-   if (_signerInfos.elements!.length != 1) {
-     throw CadesException('Multi-signer CMS not supported (got ${_signerInfos.elements!.length} SignerInfos)');
-   }
-   _signerInfo0 = _signerInfos.elements![0] as ASN1Sequence;
-   if (_signerInfo0.elements == null || _signerInfo0.elements!.isEmpty) {
-     throw CadesException('SignerInfo[0] is empty');
-   }
+      // Parse SignerInfo[0]
+      if (_signerInfos.elements!.length != 1) {
+        throw CadesException(
+          'Multi-signer CMS not supported (got ${_signerInfos.elements!.length} SignerInfos)',
+        );
+      }
+      _signerInfo0 = _signerInfos.elements![0] as ASN1Sequence;
+      if (_signerInfo0.elements == null || _signerInfo0.elements!.isEmpty) {
+        throw CadesException('SignerInfo[0] is empty');
+      }
 
-       // Extract embedded certificates from SignedData.certificates [0] if present
-       _embeddedCerts = [];
-       for (final elem in _signedData.elements!) {
-         if (elem.tag == 0xA0) {
-           // [0] IMPLICIT CertificateSet
-           try {
-             final certs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
-             for (final certElem in certs) {
-               // Filter for SEQUENCE-tagged elements (X.509 Certificate is 30 LL ...)
-               if (certElem is ASN1Sequence) {
-                 // Check if this SEQUENCE is a container (has multiple elements that are SEQUENCEs)
-                 // or a single certificate. If it's a container, extract the certificates.
-                 if (certElem.elements != null && certElem.elements!.isNotEmpty &&
-                     certElem.elements!.every((e) => e is ASN1Sequence)) {
-                   // Likely a container SEQUENCE, extract each element
-                   for (final innerCert in certElem.elements!) {
-                     if (innerCert is ASN1Sequence) {
-                       _embeddedCerts.add(derEncode(innerCert));
-                     }
-                   }
-                 } else {
-                   // Single certificate SEQUENCE
-                   _embeddedCerts.add(derEncode(certElem));
-                 }
-               }
-             }
-           } catch (e) {
-             // ignore cert parsing errors
-           }
-           break;
-         }
-       }
+      // Extract embedded certificates from SignedData.certificates [0] if present
+      _embeddedCerts = [];
+      for (final elem in _signedData.elements!) {
+        if (elem.tag == 0xA0) {
+          // [0] IMPLICIT CertificateSet
+          try {
+            final certs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
+            for (final certElem in certs) {
+              // Filter for SEQUENCE-tagged elements (X.509 Certificate is 30 LL ...)
+              if (certElem is ASN1Sequence) {
+                // Check if this SEQUENCE is a container (has multiple elements that are SEQUENCEs)
+                // or a single certificate. If it's a container, extract the certificates.
+                if (certElem.elements != null &&
+                    certElem.elements!.isNotEmpty &&
+                    certElem.elements!.every((e) => e is ASN1Sequence)) {
+                  // Likely a container SEQUENCE, extract each element
+                  for (final innerCert in certElem.elements!) {
+                    if (innerCert is ASN1Sequence) {
+                      _embeddedCerts.add(derEncode(innerCert));
+                    }
+                  }
+                } else {
+                  // Single certificate SEQUENCE
+                  _embeddedCerts.add(derEncode(certElem));
+                }
+              }
+            }
+          } catch (e) {
+            // ignore cert parsing errors
+          }
+          break;
+        }
+      }
 
       // Parse unsigned attributes from SignerInfo[0]
       _parseSignerInfo0UnsignedAttrs();
@@ -170,9 +174,12 @@ class CadesSignedData {
         // Parse as SET OF Attribute
         try {
           final unsignedAttrsSet = derDecode(elem.valueBytes ?? Uint8List(0));
-          if (unsignedAttrsSet is ASN1Set && unsignedAttrsSet.elements != null) {
+          if (unsignedAttrsSet is ASN1Set &&
+              unsignedAttrsSet.elements != null) {
             for (final attrElem in unsignedAttrsSet.elements!) {
-              if (attrElem is ASN1Sequence && attrElem.elements != null && attrElem.elements!.length >= 2) {
+              if (attrElem is ASN1Sequence &&
+                  attrElem.elements != null &&
+                  attrElem.elements!.length >= 2) {
                 final oidObj = attrElem.elements![0];
                 if (oidObj is ASN1ObjectIdentifier) {
                   final oid = oidObj.objectIdentifierAsString ?? '';
@@ -191,7 +198,6 @@ class CadesSignedData {
         break;
       }
     }
-
   }
 
   /// Returns the DER bytes of the SignedData ContentInfo.
@@ -332,12 +338,16 @@ class CadesSignedData {
     try {
       // attrValueSetDer is the SET OF AttributeValue DER
       final attrValueSet = derDecode(attrValueSetDer);
-      if (attrValueSet is! ASN1Set || attrValueSet.elements == null || attrValueSet.elements!.isEmpty) {
+      if (attrValueSet is! ASN1Set ||
+          attrValueSet.elements == null ||
+          attrValueSet.elements!.isEmpty) {
         return const [];
       }
       // First element of the SET is the RevocationValues SEQUENCE
       final revValSeq = attrValueSet.elements![0];
-      if (revValSeq is! ASN1Sequence || revValSeq.elements == null) return const [];
+      if (revValSeq is! ASN1Sequence || revValSeq.elements == null) {
+        return const [];
+      }
 
       final result = <CrlData>[];
       for (final elem in revValSeq.elements!) {
@@ -364,7 +374,8 @@ class CadesSignedData {
                       if (tbs.elements![idx].tag == 0xA0) idx++; // skip version
                       idx++; // skip signature AlgorithmIdentifier
                       // issuer Name
-                      if (idx < tbs.elements!.length && tbs.elements![idx] is ASN1Sequence) {
+                      if (idx < tbs.elements!.length &&
+                          tbs.elements![idx] is ASN1Sequence) {
                         issuerDn = derEncode(tbs.elements![idx]);
                         idx++;
                       }
@@ -382,11 +393,13 @@ class CadesSignedData {
                 } catch (_) {
                   // metadata extraction failed; use defaults
                 }
-                result.add(CrlData(
-                  rawCrl: rawCrl,
-                  issuerDn: issuerDn,
-                  thisUpdate: thisUpdate,
-                ));
+                result.add(
+                  CrlData(
+                    rawCrl: rawCrl,
+                    issuerDn: issuerDn,
+                    thisUpdate: thisUpdate,
+                  ),
+                );
               }
             } catch (_) {
               // skip unparseable CRL entry
@@ -401,65 +414,65 @@ class CadesSignedData {
     }
   }
 
-   /// Returns the DER encoding of the EncapsulatedContentInfo SEQUENCE.
-   /// This is the third element of SignedData (after version and digestAlgorithms).
-   Uint8List get encapContentInfoDer {
-     if (_signedData.elements == null || _signedData.elements!.length < 3) {
-       throw CadesException('SignedData missing encapContentInfo');
-     }
-     // encapContentInfo is typically at index 2
-     final encapContentInfo = _signedData.elements![2];
-     return derEncode(encapContentInfo);
-   }
+  /// Returns the DER encoding of the EncapsulatedContentInfo SEQUENCE.
+  /// This is the third element of SignedData (after version and digestAlgorithms).
+  Uint8List get encapContentInfoDer {
+    if (_signedData.elements == null || _signedData.elements!.length < 3) {
+      throw CadesException('SignedData missing encapContentInfo');
+    }
+    // encapContentInfo is typically at index 2
+    final encapContentInfo = _signedData.elements![2];
+    return derEncode(encapContentInfo);
+  }
 
-   /// Builds the encapContentInfo portion of the archive-time-stamp-v3 input
-   /// per ETSI EN 319 122-1 §5.5.3: concatenation of eContentType TLV
-   /// and (if present) [0] EXPLICIT eContent TLV. Does NOT include the
-   /// outer EncapsulatedContentInfo SEQUENCE wrapper.
-   Uint8List get encapContentInfoForAtsV3 {
-     if (_signedData.elements == null || _signedData.elements!.length < 3) {
-       throw CadesException('SignedData missing encapContentInfo');
-     }
-     final eci = _signedData.elements![2] as ASN1Sequence;
-     final out = BytesBuilder();
-     // eContentType (always present)
-     if (eci.elements != null && eci.elements!.isNotEmpty) {
-       out.add(derEncode(eci.elements![0]));
-     }
-     // [0] EXPLICIT eContent (optional; tag 0xA0)
-     if ((eci.elements?.length ?? 0) > 1) {
-       final eContent = eci.elements![1];
-       if (eContent.tag == 0xA0) {
-         out.add(derEncode(eContent));
-       }
-     }
-     return out.toBytes();
-   }
+  /// Builds the encapContentInfo portion of the archive-time-stamp-v3 input
+  /// per ETSI EN 319 122-1 §5.5.3: concatenation of eContentType TLV
+  /// and (if present) [0] EXPLICIT eContent TLV. Does NOT include the
+  /// outer EncapsulatedContentInfo SEQUENCE wrapper.
+  Uint8List get encapContentInfoForAtsV3 {
+    if (_signedData.elements == null || _signedData.elements!.length < 3) {
+      throw CadesException('SignedData missing encapContentInfo');
+    }
+    final eci = _signedData.elements![2] as ASN1Sequence;
+    final out = BytesBuilder();
+    // eContentType (always present)
+    if (eci.elements != null && eci.elements!.isNotEmpty) {
+      out.add(derEncode(eci.elements![0]));
+    }
+    // [0] EXPLICIT eContent (optional; tag 0xA0)
+    if ((eci.elements?.length ?? 0) > 1) {
+      final eContent = eci.elements![1];
+      if (eContent.tag == 0xA0) {
+        out.add(derEncode(eContent));
+      }
+    }
+    return out.toBytes();
+  }
 
-   /// Returns the DER encoding of the signedAttrs as a canonical SET OF Attribute (tag 0x31).
-   /// SignerInfo stores signedAttrs as [0] IMPLICIT, so we extract the inner elements
-   /// and re-encode them as a canonical SET OF with tag 0x31.
-   Uint8List get signedAttrsDer {
-     if (_signerInfo0.elements == null) {
-       throw CadesException('SignerInfo[0] is empty');
-     }
+  /// Returns the DER encoding of the signedAttrs as a canonical SET OF Attribute (tag 0x31).
+  /// SignerInfo stores signedAttrs as [0] IMPLICIT, so we extract the inner elements
+  /// and re-encode them as a canonical SET OF with tag 0x31.
+  Uint8List get signedAttrsDer {
+    if (_signerInfo0.elements == null) {
+      throw CadesException('SignerInfo[0] is empty');
+    }
 
-     // Find signedAttrs [0] IMPLICIT
-     for (final elem in _signerInfo0.elements!) {
-       if (elem.tag == 0xA0) {
-         // Found signedAttrs [0]
-         try {
-           final attrs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
-           // Build canonical 0x31 SET in DER order
-           return derEncode(derSortedSet(attrs));
-         } catch (e) {
-           throw CadesException('Failed to parse signedAttrs: $e');
-         }
-       }
-     }
+    // Find signedAttrs [0] IMPLICIT
+    for (final elem in _signerInfo0.elements!) {
+      if (elem.tag == 0xA0) {
+        // Found signedAttrs [0]
+        try {
+          final attrs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
+          // Build canonical 0x31 SET in DER order
+          return derEncode(derSortedSet(attrs));
+        } catch (e) {
+          throw CadesException('Failed to parse signedAttrs: $e');
+        }
+      }
+    }
 
-     throw CadesException('SignerInfo[0] missing signedAttrs [0]');
-   }
+    throw CadesException('SignerInfo[0] missing signedAttrs [0]');
+  }
 
   /// Returns the DER encoding of the signature OCTET STRING (full TLV with tag 0x04).
   /// This is the signature field in SignerInfo[0].
@@ -489,43 +502,45 @@ class CadesSignedData {
     throw CadesException('SignerInfo[0] missing signature OCTET STRING');
   }
 
-   /// Returns a list of (OID, full Attribute SEQUENCE DER) pairs for all unsigned attributes
-   /// except the archive-time-stamp-v3. Each entry is the complete SEQUENCE TLV,
-   /// suitable for sorting and concatenation.
-   List<MapEntry<String, Uint8List>> get unsignedAttributesForArchiveTimestamp {
-     final result = <MapEntry<String, Uint8List>>[];
+  /// Returns a list of (OID, full Attribute SEQUENCE DER) pairs for all unsigned attributes
+  /// except the archive-time-stamp-v3. Each entry is the complete SEQUENCE TLV,
+  /// suitable for sorting and concatenation.
+  List<MapEntry<String, Uint8List>> get unsignedAttributesForArchiveTimestamp {
+    final result = <MapEntry<String, Uint8List>>[];
 
-     if (_signerInfo0.elements == null) {
-       return result;
-     }
+    if (_signerInfo0.elements == null) {
+      return result;
+    }
 
-     // Find unsignedAttrs [1] IMPLICIT
-     for (final elem in _signerInfo0.elements!) {
-       if (elem.tag == 0xA1) {
-         // Found unsignedAttrs [1]
-         try {
-           final attrs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
-           for (final attrElem in attrs) {
-             if (attrElem is ASN1Sequence && attrElem.elements != null && attrElem.elements!.length >= 2) {
-               final oidObj = attrElem.elements![0];
-               if (oidObj is ASN1ObjectIdentifier) {
-                 final oid = oidObj.objectIdentifierAsString ?? '';
-                 // Skip archive-time-stamp-v3 itself
-                 if (oid == Oid.archiveTimeStampV3) {
-                   continue;
-                 }
-                 // Store the full Attribute SEQUENCE TLV
-                 result.add(MapEntry(oid, derEncode(attrElem)));
-               }
-             }
-           }
-         } catch (e) {
-           // ignore parsing errors
-         }
-         break;
-       }
-     }
+    // Find unsignedAttrs [1] IMPLICIT
+    for (final elem in _signerInfo0.elements!) {
+      if (elem.tag == 0xA1) {
+        // Found unsignedAttrs [1]
+        try {
+          final attrs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
+          for (final attrElem in attrs) {
+            if (attrElem is ASN1Sequence &&
+                attrElem.elements != null &&
+                attrElem.elements!.length >= 2) {
+              final oidObj = attrElem.elements![0];
+              if (oidObj is ASN1ObjectIdentifier) {
+                final oid = oidObj.objectIdentifierAsString ?? '';
+                // Skip archive-time-stamp-v3 itself
+                if (oid == Oid.archiveTimeStampV3) {
+                  continue;
+                }
+                // Store the full Attribute SEQUENCE TLV
+                result.add(MapEntry(oid, derEncode(attrElem)));
+              }
+            }
+          }
+        } catch (e) {
+          // ignore parsing errors
+        }
+        break;
+      }
+    }
 
-     return result;
-   }
+    return result;
+  }
 }

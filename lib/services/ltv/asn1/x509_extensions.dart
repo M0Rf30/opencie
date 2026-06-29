@@ -23,7 +23,9 @@ class X509Extensions {
   static List<X509Extension> parseFromCertificate(Uint8List certDer) {
     try {
       final cert = ASN1Parser(certDer).nextObject();
-      if (cert is! ASN1Sequence || cert.elements == null || cert.elements!.isEmpty) {
+      if (cert is! ASN1Sequence ||
+          cert.elements == null ||
+          cert.elements!.isEmpty) {
         return [];
       }
 
@@ -67,7 +69,9 @@ class X509Extensions {
 
       final extensions = <X509Extension>[];
       for (final extElem in extensionsSeq.elements!) {
-        if (extElem is! ASN1Sequence || extElem.elements == null || extElem.elements!.isEmpty) {
+        if (extElem is! ASN1Sequence ||
+            extElem.elements == null ||
+            extElem.elements!.isEmpty) {
           continue;
         }
 
@@ -101,7 +105,9 @@ class X509Extensions {
           }
         }
 
-        extensions.add(X509Extension(oid: oid, critical: critical, value: value));
+        extensions.add(
+          X509Extension(oid: oid, critical: critical, value: value),
+        );
       }
 
       return extensions;
@@ -170,7 +176,9 @@ class X509Extensions {
       if (ext.oid == Oid.authorityKeyIdentifier) {
         try {
           final obj = ASN1Parser(ext.value).nextObject();
-          if (obj is ASN1Sequence && obj.elements != null && obj.elements!.isNotEmpty) {
+          if (obj is ASN1Sequence &&
+              obj.elements != null &&
+              obj.elements!.isNotEmpty) {
             // AuthorityKeyIdentifier ::= SEQUENCE {
             //   keyIdentifier [0] IMPLICIT OCTET STRING OPTIONAL,
             //   authorityCertIssuer [1] IMPLICIT GeneralNames OPTIONAL,
@@ -191,7 +199,10 @@ class X509Extensions {
   }
 
   /// Parse AIA extension value for URLs of a specific access method.
-  static List<String> _parseAiaUrls(Uint8List aiaValue, String accessMethodOid) {
+  static List<String> _parseAiaUrls(
+    Uint8List aiaValue,
+    String accessMethodOid,
+  ) {
     final urls = <String>[];
     try {
       final obj = ASN1Parser(aiaValue).nextObject();
@@ -201,7 +212,9 @@ class X509Extensions {
 
       // AuthorityInfoAccessSyntax ::= SEQUENCE OF AccessDescription
       for (final descElem in obj.elements!) {
-        if (descElem is! ASN1Sequence || descElem.elements == null || descElem.elements!.length < 2) {
+        if (descElem is! ASN1Sequence ||
+            descElem.elements == null ||
+            descElem.elements!.length < 2) {
           continue;
         }
 
@@ -222,7 +235,9 @@ class X509Extensions {
         final locationObj = descElem.elements![1];
         if (locationObj.tag == 0x86) {
           // [6] IMPLICIT IA5String (uniformResourceIdentifier)
-          final url = String.fromCharCodes(locationObj.valueBytes ?? Uint8List(0));
+          final url = String.fromCharCodes(
+            locationObj.valueBytes ?? Uint8List(0),
+          );
           if (_isHttpUrl(url)) {
             urls.add(url);
           }
@@ -271,7 +286,9 @@ class X509Extensions {
                 final gnObj = gnParser.nextObject();
                 if (gnObj.tag == 0x86) {
                   // [6] IMPLICIT IA5String (uniformResourceIdentifier)
-                  final url = String.fromCharCodes(gnObj.valueBytes ?? Uint8List(0));
+                  final url = String.fromCharCodes(
+                    gnObj.valueBytes ?? Uint8List(0),
+                  );
                   if (_isHttpUrl(url)) {
                     urls.add(url);
                   }

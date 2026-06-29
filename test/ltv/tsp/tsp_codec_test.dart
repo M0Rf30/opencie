@@ -215,17 +215,19 @@ Uint8List _buildTstToken({
   // Build TSTInfo
   final tstInfo = ASN1Sequence();
   tstInfo.add(ASN1Integer(BigInt.one)); // version
-  tstInfo.add(ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1')); // policy
-  
+  tstInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'),
+  ); // policy
+
   // messageImprint
   final msgImprint = ASN1Sequence();
   msgImprint.add(algorithmIdentifier(hashOid));
   msgImprint.add(ASN1OctetString(octets: hash));
   tstInfo.add(msgImprint);
-  
+
   tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
   tstInfo.add(ASN1GeneralizedTime(genTime)); // genTime
-  
+
   if (nonce != null) {
     // Encode nonce as INTEGER
     var value = BigInt.zero;
@@ -237,33 +239,40 @@ Uint8List _buildTstToken({
 
   // Wrap in EncapsulatedContentInfo
   final encapContentInfo = ASN1Sequence();
-  encapContentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken));
-  
+  encapContentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken),
+  );
+
   // eContent [0] EXPLICIT OCTET STRING
   final eContentOctet = ASN1OctetString(octets: tstInfo.encode());
   // Build context-specific tag manually
-  final eContentCtxBytes = _buildContextSpecificTagBytes(0, eContentOctet.encode());
+  final eContentCtxBytes = _buildContextSpecificTagBytes(
+    0,
+    eContentOctet.encode(),
+  );
   final eContentCtx = ASN1Parser(eContentCtxBytes).nextObject();
   encapContentInfo.add(eContentCtx);
 
   // Build minimal SignedData
   final signedData = ASN1Sequence();
   signedData.add(ASN1Integer(BigInt.from(3))); // version
-  
+
   // digestAlgorithms SET
   final digestAlgos = ASN1Set();
   signedData.add(digestAlgos);
-  
+
   signedData.add(encapContentInfo);
-  
+
   // signerInfos SET — empty
   final signerInfos = ASN1Set();
   signedData.add(signerInfos);
 
   // Wrap in ContentInfo
   final contentInfo = ASN1Sequence();
-  contentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData));
-  
+  contentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData),
+  );
+
   // [0] EXPLICIT SignedData
   final signedDataBytes = signedData.encode();
   final signedDataCtxBytes = _buildContextSpecificTagBytes(0, signedDataBytes);
@@ -278,7 +287,7 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
   final tag = 0xA0 | tagNumber;
   final result = BytesBuilder();
   result.addByte(tag);
-  
+
   // Encode length
   if (content.length < 128) {
     result.addByte(content.length);
@@ -292,7 +301,7 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
     result.addByte(0x80 | lenBytes.length);
     result.add(lenBytes);
   }
-  
+
   result.add(content);
   return result.toBytes();
 }

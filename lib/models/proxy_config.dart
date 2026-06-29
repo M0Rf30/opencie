@@ -30,8 +30,7 @@ class ProxyConfig {
   String? get address => isConfigured ? '$host:$port' : null;
 
   /// Returns "user:pass" for proxy auth, or null.
-  String? get userPass =>
-      username.isNotEmpty ? '$username:$password' : null;
+  String? get userPass => username.isNotEmpty ? '$username:$password' : null;
 
   ProxyConfig copyWith({
     ProxyMode? mode,

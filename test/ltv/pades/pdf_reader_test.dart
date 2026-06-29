@@ -53,10 +53,7 @@ void main() {
       final truncated = pdf.sublist(0, pdf.length ~/ 2);
       final reader = PdfReader(truncated);
 
-      expect(
-        () => reader.readTrailer(),
-        throwsA(isA<PadesException>()),
-      );
+      expect(() => reader.readTrailer(), throwsA(isA<PadesException>()));
     });
 
     test('returns null for PDF without signature', () {
@@ -64,27 +61,32 @@ void main() {
       final header = '%PDF-1.7\n%\xE2\xE3\xCF\xD3\n';
       final obj1 = '1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n';
       final obj2 = '2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n';
-      final obj3 = '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
+      final obj3 =
+          '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
 
       final offset1 = header.length;
       final offset2 = offset1 + obj1.length;
       final offset3 = offset2 + obj2.length;
       final xrefStart = offset3 + obj3.length;
 
-      final xref = 'xref\n'
+      final xref =
+          'xref\n'
           '0 4\n'
           '0000000000 65535 f \n'
           '${offset1.toString().padLeft(10, '0')} 00000 n \n'
           '${offset2.toString().padLeft(10, '0')} 00000 n \n'
           '${offset3.toString().padLeft(10, '0')} 00000 n \n';
 
-      final trailer = 'trailer\n'
+      final trailer =
+          'trailer\n'
           '<</Size 4/Root 1 0 R/ID[<414243><414243>]>>\n'
           'startxref\n'
           '$xrefStart\n'
           '%%EOF\n';
 
-      final pdf = Uint8List.fromList((header + obj1 + obj2 + obj3 + xref + trailer).codeUnits);
+      final pdf = Uint8List.fromList(
+        (header + obj1 + obj2 + obj3 + xref + trailer).codeUnits,
+      );
       final reader = PdfReader(pdf);
 
       expect(reader.findSignatureContentsRange(), isNull);
@@ -116,7 +118,8 @@ void main() {
       final header = '%PDF-1.5\n%\xE2\xE3\xCF\xD3\n';
       final obj1 = '1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n';
       final obj2 = '2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n';
-      final obj3 = '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
+      final obj3 =
+          '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
 
       final offset1 = header.length;
       final offset2 = offset1 + obj1.length;
@@ -124,13 +127,15 @@ void main() {
       final xrefStreamStart = offset3 + obj3.length;
 
       // Xref stream object (minimal, just enough to trigger the detection)
-      final xrefStreamObj = '5 0 obj\n<</Type/XRef/Size 4/W[1 2 1]>>stream\n'
+      final xrefStreamObj =
+          '5 0 obj\n<</Type/XRef/Size 4/W[1 2 1]>>stream\n'
           '\x00\x00\x00\x00\x00\x00\x01\x00\x00\x01\x00\x00\x02\x00\x00\x03\x00\x00'
           '\nendstream\nendobj\n';
 
       final xrefStreamObjStart = xrefStreamStart;
 
-      final trailer = 'trailer\n'
+      final trailer =
+          'trailer\n'
           '<</Size 4/Root 1 0 R/XRefStm 5 0 R/ID[<414243><414243>]>>\n'
           'startxref\n'
           '$xrefStreamObjStart\n'

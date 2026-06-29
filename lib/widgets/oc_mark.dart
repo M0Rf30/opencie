@@ -65,7 +65,10 @@ class _OcMarkPainter extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(-0.5, -0.25), // (32,48) on 128 → (-0.5,-0.25)
           radius: 60 / 64.0, // r=60 over half-width 64
-          colors: [_goldHi.withValues(alpha: 0.45), _goldHi.withValues(alpha: 0)],
+          colors: [
+            _goldHi.withValues(alpha: 0.45),
+            _goldHi.withValues(alpha: 0),
+          ],
         ).createShader(rect),
     );
 
@@ -131,7 +134,10 @@ class _OcMarkPainter extends CustomPainter {
       ..lineTo(100, 12)
       ..quadraticBezierTo(50, 22, 0, 12)
       ..close();
-    canvas.drawPath(gloss, Paint()..color = Colors.white.withValues(alpha: 0.18));
+    canvas.drawPath(
+      gloss,
+      Paint()..color = Colors.white.withValues(alpha: 0.18),
+    );
 
     canvas.restore();
     canvas.restore();
@@ -144,7 +150,8 @@ class _OcMarkPainter extends CustomPainter {
     Paint base, {
     required double cx,
     required double ry,
-    required double dy, // half height of NFC arc bounding (dy = ry on right side)
+    required double
+    dy, // half height of NFC arc bounding (dy = ry on right side)
     required double sw,
     required double opacity,
   }) {
@@ -174,16 +181,29 @@ class _OcMarkPainter extends CustomPainter {
     );
   }
 
-  void _bar(Canvas canvas, double x, double y, double w, double h, Color color) {
+  void _bar(
+    Canvas canvas,
+    double x,
+    double y,
+    double w,
+    double h,
+    Color color,
+  ) {
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(x, y, w, h), const Radius.circular(1)),
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, w, h),
+        const Radius.circular(1),
+      ),
       Paint()..color = color,
     );
   }
 
   void _flag(Canvas canvas, double x, double y) {
     canvas.drawRect(Rect.fromLTWH(x, y, 4.5, 7), Paint()..color = _itGreen);
-    canvas.drawRect(Rect.fromLTWH(x + 4.5, y, 4.5, 7), Paint()..color = Colors.white);
+    canvas.drawRect(
+      Rect.fromLTWH(x + 4.5, y, 4.5, 7),
+      Paint()..color = Colors.white,
+    );
     canvas.drawRect(Rect.fromLTWH(x + 9, y, 4.5, 7), Paint()..color = _itRed);
   }
 

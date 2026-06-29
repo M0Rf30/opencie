@@ -29,7 +29,10 @@ void main() {
       );
 
       expect(requestObject, isNotEmpty);
-      expect(requestObject.split('.').length, 3); // JWT format: header.payload.signature
+      expect(
+        requestObject.split('.').length,
+        3,
+      ); // JWT format: header.payload.signature
     });
 
     test('decodes and verifies JWT structure', () {
@@ -65,7 +68,10 @@ void main() {
       expect(payload['redirect_uri'], 'https://sp.example.it/callback');
       expect(payload['state'], 'state-value-32-chars-minimum-ok');
       expect(payload['nonce'], 'nonce-value-32-chars-minimum-ok');
-      expect(payload['code_challenge'], 'E9Mrozoa2owUednMg8_p5wqichJeuWMqFH7I80dP5YE');
+      expect(
+        payload['code_challenge'],
+        'E9Mrozoa2owUednMg8_p5wqichJeuWMqFH7I80dP5YE',
+      );
       expect(payload['code_challenge_method'], 'S256');
       expect(payload['acr_values'], SpidLevel.l2.acrValue);
       expect(payload['prompt'], 'consent');
@@ -79,7 +85,7 @@ void main() {
         'userinfo': {
           'https://attributes.spid.gov.it/fiscalNumber': null,
           'https://attributes.spid.gov.it/name': null,
-        }
+        },
       };
 
       final requestObject = SpidRequestObject.build(

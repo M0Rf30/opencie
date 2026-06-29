@@ -68,8 +68,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       title: Text(label, style: theme.textTheme.bodySmall),
       subtitle: Text(
         value ?? '—',
-        style: theme.textTheme.bodyLarge
-            ?.copyWith(fontWeight: FontWeight.w600),
+        style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -80,9 +79,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final theme = Theme.of(context);
 
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final session = _session;
@@ -93,10 +90,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Not logged in',
-                style: theme.textTheme.bodyLarge,
-              ),
+              Text('Not logged in', style: theme.textTheme.bodyLarge),
               const SizedBox(height: 16),
               OcGradientButton(
                 onPressed: () => context.go('/login'),

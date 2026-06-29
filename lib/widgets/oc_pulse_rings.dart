@@ -75,11 +75,7 @@ class _OcPulseRingsState extends State<OcPulseRings>
 
 /// Glowing chip with subtle rocking motion — center of the NFC overlay.
 class OcGlowChip extends StatefulWidget {
-  const OcGlowChip({
-    super.key,
-    this.size = 100,
-    required this.icon,
-  });
+  const OcGlowChip({super.key, this.size = 100, required this.icon});
 
   final double size;
   final IconData icon;

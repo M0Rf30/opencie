@@ -17,15 +17,14 @@ class AppTheme {
     Color? color,
     double? letterSpacing,
     double? height,
-  }) =>
-      TextStyle(
-        fontFamily: 'Inter',
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        letterSpacing: letterSpacing,
-        height: height,
-      );
+  }) => TextStyle(
+    fontFamily: 'Inter',
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    letterSpacing: letterSpacing,
+    height: height,
+  );
 
   static TextStyle _jetBrainsMono({
     double? fontSize,
@@ -33,15 +32,14 @@ class AppTheme {
     Color? color,
     double? letterSpacing,
     double? height,
-  }) =>
-      TextStyle(
-        fontFamily: 'JetBrainsMono',
-        fontSize: fontSize,
-        fontWeight: fontWeight,
-        color: color,
-        letterSpacing: letterSpacing,
-        height: height,
-      );
+  }) => TextStyle(
+    fontFamily: 'JetBrainsMono',
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    letterSpacing: letterSpacing,
+    height: height,
+  );
 
   // ---------------------------------------------------------------------------
   // Light theme
@@ -118,21 +116,21 @@ class AppTheme {
 
   /// Bold display (28/800 -0.6ls) used by the Sign / Verify / Identity titles.
   static TextStyle displayBold(ColorScheme cs) => _inter(
-        color: cs.onSurface,
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.6,
-        height: 1.15,
-      );
+    color: cs.onSurface,
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.6,
+    height: 1.15,
+  );
 
   /// Headline 26/800 used in section heroes.
   static TextStyle headlineBold(ColorScheme cs) => _inter(
-        color: cs.onSurface,
-        fontSize: 26,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.4,
-        height: 1.2,
-      );
+    color: cs.onSurface,
+    fontSize: 26,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.4,
+    height: 1.2,
+  );
 
   /// Mono caption 11/0.4ls — "RAPPORTO DI VERIFICA", "FIRMA · 1 / 4", etc.
   static TextStyle monoCaption(ColorScheme cs, {Color? color}) =>
@@ -145,13 +143,12 @@ class AppTheme {
       );
 
   /// Mono body 12 — diagnostics rows, paths, hashes.
-  static TextStyle monoBody(ColorScheme cs, {Color? color}) =>
-      _jetBrainsMono(
-        color: color ?? cs.onSurface,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        height: 1.4,
-      );
+  static TextStyle monoBody(ColorScheme cs, {Color? color}) => _jetBrainsMono(
+    color: color ?? cs.onSurface,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    height: 1.4,
+  );
 
   /// Mono label 10/0.6ls — settings section captions ("AUTORITÀ DI MARCATURA").
   static TextStyle monoSection(ColorScheme cs, {Color? color}) =>
@@ -169,81 +166,106 @@ class AppTheme {
   static TextTheme _textTheme(ColorScheme cs) {
     return TextTheme(
       displayLarge: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: -0.8),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.8,
+      ),
       displayMedium: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w800, letterSpacing: -0.6),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+      ),
       displaySmall: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.4,
+      ),
       headlineLarge: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w700, letterSpacing: -0.2),
-      headlineMedium: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w700),
-      headlineSmall: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w600),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+      ),
+      headlineMedium: _inter(color: cs.onSurface, fontWeight: FontWeight.w700),
+      headlineSmall: _inter(color: cs.onSurface, fontWeight: FontWeight.w600),
       titleLarge: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w700, fontSize: 18),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w700,
+        fontSize: 18,
+      ),
       titleMedium: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w600, fontSize: 15),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w600,
+        fontSize: 15,
+      ),
       titleSmall: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w600, fontSize: 13),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w600,
+        fontSize: 13,
+      ),
       bodyLarge: _inter(color: cs.onSurface, fontSize: 15),
       bodyMedium: _inter(color: cs.onSurface, fontSize: 14),
       bodySmall: _inter(color: cs.onSurfaceVariant, fontSize: 12),
       labelLarge: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w600, fontSize: 14),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+      ),
       labelMedium: _inter(
-          color: cs.onSurface, fontWeight: FontWeight.w500, fontSize: 12),
+        color: cs.onSurface,
+        fontWeight: FontWeight.w500,
+        fontSize: 12,
+      ),
       labelSmall: _inter(
-          color: cs.onSurfaceVariant, fontWeight: FontWeight.w500, fontSize: 11),
+        color: cs.onSurfaceVariant,
+        fontWeight: FontWeight.w500,
+        fontSize: 11,
+      ),
     );
   }
 
   static AppBarTheme _appBarTheme(ColorScheme cs) => AppBarTheme(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: cs.surface,
-        foregroundColor: cs.onSurface,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: false,
-        titleTextStyle: _inter(
-          color: cs.onSurface,
-          fontWeight: FontWeight.w700,
-          fontSize: 17,
-        ),
-      );
+    elevation: 0,
+    scrolledUnderElevation: 0,
+    backgroundColor: cs.surface,
+    foregroundColor: cs.onSurface,
+    surfaceTintColor: Colors.transparent,
+    centerTitle: false,
+    titleTextStyle: _inter(
+      color: cs.onSurface,
+      fontWeight: FontWeight.w700,
+      fontSize: 17,
+    ),
+  );
 
   static CardThemeData _cardTheme(ColorScheme cs) => CardThemeData(
-        elevation: 0,
-        color: cs.surfaceContainer,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: cs.outlineVariant),
-        ),
-        clipBehavior: Clip.antiAlias,
-      );
+    elevation: 0,
+    color: cs.surfaceContainer,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(color: cs.outlineVariant),
+    ),
+    clipBehavior: Clip.antiAlias,
+  );
 
-  static NavigationRailThemeData _navRailTheme(ColorScheme cs) =>
-      NavigationRailThemeData(
-        backgroundColor: cs.surface,
-        indicatorColor: cs.surfaceContainerHigh,
-        useIndicator: true,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        selectedIconTheme: IconThemeData(color: cs.primary, size: 22),
-        unselectedIconTheme:
-            IconThemeData(color: cs.onSurfaceVariant, size: 22),
-        selectedLabelTextStyle: _inter(
-          color: cs.onSurface,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        unselectedLabelTextStyle: _inter(
-          color: cs.onSurfaceVariant,
-          fontSize: 12,
-        ),
-      );
+  static NavigationRailThemeData _navRailTheme(
+    ColorScheme cs,
+  ) => NavigationRailThemeData(
+    backgroundColor: cs.surface,
+    indicatorColor: cs.surfaceContainerHigh,
+    useIndicator: true,
+    indicatorShape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    ),
+    selectedIconTheme: IconThemeData(color: cs.primary, size: 22),
+    unselectedIconTheme: IconThemeData(color: cs.onSurfaceVariant, size: 22),
+    selectedLabelTextStyle: _inter(
+      color: cs.onSurface,
+      fontWeight: FontWeight.w600,
+      fontSize: 12,
+    ),
+    unselectedLabelTextStyle: _inter(color: cs.onSurfaceVariant, fontSize: 12),
+  );
 
   static NavigationBarThemeData _navBarTheme(ColorScheme cs) =>
       NavigationBarThemeData(
@@ -306,10 +328,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: _inter(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-          ),
+          textStyle: _inter(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       );
 
@@ -322,10 +341,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: _inter(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-          ),
+          textStyle: _inter(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       );
 
@@ -338,10 +354,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: _inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
+          textStyle: _inter(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       );
 
@@ -353,38 +366,35 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: _inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
+          textStyle: _inter(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       );
 
   static ChipThemeData _chipTheme(ColorScheme cs) => ChipThemeData(
-        backgroundColor: cs.surfaceContainerHigh,
-        selectedColor: cs.primary.withValues(alpha: 0.18),
-        labelStyle: _inter(
-          color: cs.onSurface,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        side: BorderSide(color: cs.outlineVariant),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      );
+    backgroundColor: cs.surfaceContainerHigh,
+    selectedColor: cs.primary.withValues(alpha: 0.18),
+    labelStyle: _inter(
+      color: cs.onSurface,
+      fontWeight: FontWeight.w600,
+      fontSize: 12,
+    ),
+    side: BorderSide(color: cs.outlineVariant),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  );
 
   static SwitchThemeData _switchTheme(ColorScheme cs) => SwitchThemeData(
-        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.transparent;
-          return cs.outlineVariant;
-        }),
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return cs.onSurfaceVariant;
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return cs.primary;
-          return cs.surfaceContainerHigh;
-        }),
-      );
+    trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) return Colors.transparent;
+      return cs.outlineVariant;
+    }),
+    thumbColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) return Colors.white;
+      return cs.onSurfaceVariant;
+    }),
+    trackColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) return cs.primary;
+      return cs.surfaceContainerHigh;
+    }),
+  );
 }

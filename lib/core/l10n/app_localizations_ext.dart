@@ -35,10 +35,15 @@ extension CieProgressL10n on AppLocalizations {
       case AppConstants.ckrGeneralError:
       case AppConstants.ckrFunctionFailed:
       default:
-        final hex = code.toUnsigned(32).toRadixString(16).toUpperCase().padLeft(8, '0');
+        final hex = code
+            .toUnsigned(32)
+            .toRadixString(16)
+            .toUpperCase()
+            .padLeft(8, '0');
         return errUnknown('0x$hex');
     }
   }
+
   String localizeProgress(String raw) {
     switch (raw.trim()) {
       case 'Connessione alla CIE':
@@ -94,7 +99,7 @@ extension CieProgressL10n on AppLocalizations {
       case 'OK!':
         return cieProgressDone;
       default:
-         return raw;
-     }
-   }
+        return raw;
+    }
+  }
 }

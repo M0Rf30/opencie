@@ -59,9 +59,26 @@ void main() {
       expect(ski!.length, equals(20));
       // Expected value from openssl: 2E:6A:A3:21:32:FD:55:5A:29:59:77:EA:0C:16:BC:B9:C7:39:9D:5B
       final expected = Uint8List.fromList([
-        0x2E, 0x6A, 0xA3, 0x21, 0x32, 0xFD, 0x55, 0x5A,
-        0x29, 0x59, 0x77, 0xEA, 0x0C, 0x16, 0xBC, 0xB9,
-        0xC7, 0x39, 0x9D, 0x5B,
+        0x2E,
+        0x6A,
+        0xA3,
+        0x21,
+        0x32,
+        0xFD,
+        0x55,
+        0x5A,
+        0x29,
+        0x59,
+        0x77,
+        0xEA,
+        0x0C,
+        0x16,
+        0xBC,
+        0xB9,
+        0xC7,
+        0x39,
+        0x9D,
+        0x5B,
       ]);
       expect(ski, equals(expected));
     });
@@ -72,9 +89,26 @@ void main() {
       expect(aki!.length, equals(20));
       // Expected value from openssl: 2E:6A:A3:21:32:FD:55:5A:29:59:77:EA:0C:16:BC:B9:C7:39:9D:5B
       final expected = Uint8List.fromList([
-        0x2E, 0x6A, 0xA3, 0x21, 0x32, 0xFD, 0x55, 0x5A,
-        0x29, 0x59, 0x77, 0xEA, 0x0C, 0x16, 0xBC, 0xB9,
-        0xC7, 0x39, 0x9D, 0x5B,
+        0x2E,
+        0x6A,
+        0xA3,
+        0x21,
+        0x32,
+        0xFD,
+        0x55,
+        0x5A,
+        0x29,
+        0x59,
+        0x77,
+        0xEA,
+        0x0C,
+        0x16,
+        0xBC,
+        0xB9,
+        0xC7,
+        0x39,
+        0x9D,
+        0x5B,
       ]);
       expect(aki, equals(expected));
     });
@@ -122,10 +156,7 @@ void main() {
       // The test cert only has HTTP URLs, so we just verify the behavior
       final urls = X509Extensions.ocspUrls(testCertDer);
       for (final url in urls) {
-        expect(
-          url.startsWith('http://') || url.startsWith('https://'),
-          isTrue,
-        );
+        expect(url.startsWith('http://') || url.startsWith('https://'), isTrue);
       }
     });
 
@@ -133,10 +164,7 @@ void main() {
       // This test verifies that only HTTP/HTTPS URLs are returned
       final urls = X509Extensions.crlUrls(testCertDer);
       for (final url in urls) {
-        expect(
-          url.startsWith('http://') || url.startsWith('https://'),
-          isTrue,
-        );
+        expect(url.startsWith('http://') || url.startsWith('https://'), isTrue);
       }
     });
   });

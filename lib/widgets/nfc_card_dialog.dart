@@ -48,9 +48,9 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
     return ValueListenableBuilder<(bool, double, String)>(
       valueListenable: widget.notifier,
       builder: (context, value, _) {
-         final (waiting, progress, message) = value;
+        final (waiting, progress, message) = value;
 
-         final caption = widget.processingTitle.toUpperCase();
+        final caption = widget.processingTitle.toUpperCase();
 
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -163,10 +163,10 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
                           child: LinearProgressIndicator(
                             value: progress > 0 ? progress : null,
                             minHeight: 4,
-                            backgroundColor:
-                                cs.primary.withValues(alpha: 0.14),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(cs.primary),
+                            backgroundColor: cs.primary.withValues(alpha: 0.14),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              cs.primary,
+                            ),
                           ),
                         ),
                       ],

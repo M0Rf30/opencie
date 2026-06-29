@@ -8,7 +8,7 @@ import 'batch_sign_models.dart';
 /// Streams BatchSignState updates as files are signed sequentially.
 class BatchSignService {
   BatchSignService({SignBackend? backend})
-      : _backend = backend ?? Pkcs11SignBackend();
+    : _backend = backend ?? Pkcs11SignBackend();
 
   final SignBackend _backend;
   bool _cancelled = false;
@@ -20,7 +20,8 @@ class BatchSignService {
     required List<BatchSignItem> items,
     required String pin,
     required String pan,
-    required String Function(String inputPath, SignatureFormat fmt) outputPathBuilder,
+    required String Function(String inputPath, SignatureFormat fmt)
+    outputPathBuilder,
   }) async* {
     _cancelled = false;
 
@@ -32,7 +33,11 @@ class BatchSignService {
         // Mark remaining as cancelled
         final updatedItems = [
           ...state.items.sublist(0, i),
-          ...state.items.sublist(i).map((item) => item.copyWith(status: BatchSignItemStatus.cancelled)),
+          ...state.items
+              .sublist(i)
+              .map(
+                (item) => item.copyWith(status: BatchSignItemStatus.cancelled),
+              ),
         ];
         yield state.copyWith(items: updatedItems, isRunning: false);
         break;
@@ -97,7 +102,9 @@ class BatchSignService {
               errorCode: result.returnValue,
               message: 'PIN incorrect',
             ),
-            ...state.items.sublist(i + 1).map((it) => it.copyWith(status: BatchSignItemStatus.skipped)),
+            ...state.items
+                .sublist(i + 1)
+                .map((it) => it.copyWith(status: BatchSignItemStatus.skipped)),
           ];
           state = state.copyWith(items: updatedItems, isRunning: false);
           yield state;
@@ -111,7 +118,9 @@ class BatchSignService {
               errorCode: result.returnValue,
               message: 'PIN locked',
             ),
-            ...state.items.sublist(i + 1).map((it) => it.copyWith(status: BatchSignItemStatus.skipped)),
+            ...state.items
+                .sublist(i + 1)
+                .map((it) => it.copyWith(status: BatchSignItemStatus.skipped)),
           ];
           state = state.copyWith(items: updatedItems, isRunning: false);
           yield state;

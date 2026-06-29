@@ -5,11 +5,11 @@ import 'dart:typed_data';
 /// Parsed metadata from a CRL, plus the original DER bytes.
 class CrlData {
   CrlData({
-    required this.rawCrl,        // Original DER bytes — preserved for DSS embedding
-    required this.issuerDn,      // Subject DN of the issuer (DER bytes of the Name SEQUENCE)
-    required this.thisUpdate,    // When this CRL was issued
-    this.nextUpdate,             // When the next CRL is expected (optional per RFC 5280)
-    this.sourceUrl,              // URL it was fetched from (informational)
+    required this.rawCrl, // Original DER bytes — preserved for DSS embedding
+    required this.issuerDn, // Subject DN of the issuer (DER bytes of the Name SEQUENCE)
+    required this.thisUpdate, // When this CRL was issued
+    this.nextUpdate, // When the next CRL is expected (optional per RFC 5280)
+    this.sourceUrl, // URL it was fetched from (informational)
   });
 
   final Uint8List rawCrl;

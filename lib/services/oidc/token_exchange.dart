@@ -34,8 +34,8 @@ class TokenResponse {
 /// Exchanges an authorization code for tokens and verifies the ID token.
 class TokenExchanger {
   TokenExchanger({http.Client? httpClient, JwksClient? jwks})
-      : _http = httpClient ?? http.Client(),
-        _jwks = jwks ?? JwksClient();
+    : _http = httpClient ?? http.Client(),
+      _jwks = jwks ?? JwksClient();
 
   final http.Client _http;
   final JwksClient _jwks;

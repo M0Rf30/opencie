@@ -7,7 +7,7 @@ import '../ocsp/ocsp_models.dart';
 /// Validation material to embed in PDF DSS.
 class PdfValidationMaterial {
   PdfValidationMaterial({
-    this.certificates = const [],   // DER bytes per cert
+    this.certificates = const [], // DER bytes per cert
     this.crls = const [],
     this.ocspResponses = const [],
   });
@@ -15,7 +15,8 @@ class PdfValidationMaterial {
   final List<CrlData> crls;
   final List<OcspResponse> ocspResponses;
 
-  bool get isEmpty => certificates.isEmpty && crls.isEmpty && ocspResponses.isEmpty;
+  bool get isEmpty =>
+      certificates.isEmpty && crls.isEmpty && ocspResponses.isEmpty;
 }
 
 class PadesException implements Exception {

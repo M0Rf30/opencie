@@ -10,11 +10,7 @@ import 'oc_section_label.dart';
 
 /// Reusable PIN entry dialog widget.
 class PinEntryDialog extends StatefulWidget {
-  const PinEntryDialog({
-    super.key,
-    this.maxLength = 4,
-    this.title,
-  });
+  const PinEntryDialog({super.key, this.maxLength = 4, this.title});
 
   final int maxLength;
   final String? title;
@@ -24,14 +20,10 @@ class PinEntryDialog extends StatefulWidget {
     BuildContext context, {
     int maxLength = 4,
     String? title,
-  }) =>
-      showDialog<String>(
-        context: context,
-        builder: (_) => PinEntryDialog(
-          maxLength: maxLength,
-          title: title,
-        ),
-      );
+  }) => showDialog<String>(
+    context: context,
+    builder: (_) => PinEntryDialog(maxLength: maxLength, title: title),
+  );
 
   @override
   State<PinEntryDialog> createState() => _PinEntryDialogState();
@@ -80,13 +72,16 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.backspace) {
       _backspace();
-    } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+    } else if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
       _submitIfReady();
     } else if (key == LogicalKeyboardKey.escape) {
       Navigator.pop(context);
     } else {
       final label = key.keyLabel;
-      if (label.length == 1 && label.codeUnitAt(0) >= 0x30 && label.codeUnitAt(0) <= 0x39) {
+      if (label.length == 1 &&
+          label.codeUnitAt(0) >= 0x30 &&
+          label.codeUnitAt(0) <= 0x39) {
         _appendDigit(label);
       }
     }
@@ -134,7 +129,10 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                         icon: const Icon(Icons.close_rounded),
                         onPressed: () => Navigator.pop(context),
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                       ),
                       const Spacer(),
                     ],
@@ -150,7 +148,11 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: cs.outlineVariant),
                     ),
-                    child: Icon(Icons.lock_outline_rounded, size: 26, color: cs.primary),
+                    child: Icon(
+                      Icons.lock_outline_rounded,
+                      size: 26,
+                      color: cs.primary,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   OcSectionLabel('PIN'),
@@ -177,7 +179,9 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                           height: tileH,
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
-                            color: filled ? cs.primary : cs.surfaceContainerHigh,
+                            color: filled
+                                ? cs.primary
+                                : cs.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: filled ? cs.primary : cs.outlineVariant,

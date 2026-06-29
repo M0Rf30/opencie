@@ -196,7 +196,10 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           item.message!,
-                          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -204,7 +207,8 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
                   ],
                 ),
               ),
-            if (item.status == BatchSignItemStatus.failed && item.message != null)
+            if (item.status == BatchSignItemStatus.failed &&
+                item.message != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
@@ -264,7 +268,10 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
               children: [
                 Expanded(
                   child: Text(
-                    l10n.batchSignInProgress(state.currentIndex + 1, state.totalCount),
+                    l10n.batchSignInProgress(
+                      state.currentIndex + 1,
+                      state.totalCount,
+                    ),
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -292,14 +299,13 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
           color: cs.surfaceContainerHigh,
           border: Border(top: BorderSide(color: cs.outlineVariant)),
         ),
-        child: OcGradientButton(
-          onPressed: null,
-          label: l10n.batchSignStart,
-        ),
+        child: OcGradientButton(onPressed: null, label: l10n.batchSignStart),
       );
     }
 
-    if (state.successCount > 0 || state.failedCount > 0 || state.skippedCount > 0) {
+    if (state.successCount > 0 ||
+        state.failedCount > 0 ||
+        state.skippedCount > 0) {
       // Completed state
       return Container(
         padding: const EdgeInsets.all(16),
@@ -311,7 +317,11 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              l10n.batchSignSummary(state.successCount, state.failedCount, state.skippedCount),
+              l10n.batchSignSummary(
+                state.successCount,
+                state.failedCount,
+                state.skippedCount,
+              ),
               style: const TextStyle(fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
@@ -389,15 +399,15 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     ref.read(batchSignProvider.notifier).addFiles(paths, _selectedFormat);
   }
 
-  Future<void> _startSigning(BuildContext context, AppLocalizations l10n) async {
+  Future<void> _startSigning(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
     final pin = await PinEntryDialog.show(context);
     if (pin == null || !mounted) return;
 
     // Start signing with empty PAN (can be extended if needed)
-    await ref.read(batchSignProvider.notifier).start(
-          pin: pin,
-          pan: '',
-        );
+    await ref.read(batchSignProvider.notifier).start(pin: pin, pan: '');
 
     // Add signed files to recent files
     final state = ref.read(batchSignProvider);

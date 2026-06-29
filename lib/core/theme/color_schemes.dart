@@ -139,5 +139,4 @@ class ColorSchemes {
     scrim: Colors.black54,
     surfaceTint: primary,
   );
-
 }

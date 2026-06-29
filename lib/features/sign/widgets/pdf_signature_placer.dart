@@ -41,7 +41,8 @@ class PdfSignaturePlacer extends StatefulWidget {
     required double w,
     required double h,
     Uint8List? imageData,
-  }) onChanged;
+  })
+  onChanged;
 
   @override
   State<PdfSignaturePlacer> createState() => _PdfSignaturePlacerState();
@@ -174,16 +175,12 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       min(container.width / page.width, container.height / page.height);
 
   Offset _renderOffset(Size container, Size page, double scale) => Offset(
-        (container.width - page.width * scale) / 2,
-        (container.height - page.height * scale) / 2,
-      );
+    (container.width - page.width * scale) / 2,
+    (container.height - page.height * scale) / 2,
+  );
 
-  Rect _sigAsFractionRect() => Rect.fromLTWH(
-        widget.sigX,
-        widget.sigY,
-        widget.sigW,
-        widget.sigH,
-      );
+  Rect _sigAsFractionRect() =>
+      Rect.fromLTWH(widget.sigX, widget.sigY, widget.sigW, widget.sigH);
 
   void _notify(Rect fracRect) {
     widget.onChanged(
@@ -293,20 +290,24 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           itemBuilder: (_) => [
             const PopupMenuItem(
               value: _ImageAction.pick,
-              child: Row(children: [
-                Icon(Icons.upload_file, size: 16),
-                SizedBox(width: 8),
-                Text('Immagine personalizzata…'),
-              ]),
+              child: Row(
+                children: [
+                  Icon(Icons.upload_file, size: 16),
+                  SizedBox(width: 8),
+                  Text('Immagine personalizzata…'),
+                ],
+              ),
             ),
             if (isCustom)
               const PopupMenuItem(
                 value: _ImageAction.reset,
-                child: Row(children: [
-                  Icon(Icons.auto_awesome_rounded, size: 16),
-                  SizedBox(width: 8),
-                  Text('Ripristina predefinito'),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 16),
+                    SizedBox(width: 8),
+                    Text('Ripristina predefinito'),
+                  ],
+                ),
               ),
           ],
           onSelected: (action) {
@@ -341,13 +342,10 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
         children: [
           // ── Header bar ──────────────────────────────────────────────
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: cs.surfaceContainer,
-              border: Border(
-                bottom: BorderSide(color: cs.outlineVariant),
-              ),
+              border: Border(bottom: BorderSide(color: cs.outlineVariant)),
             ),
             child: Row(
               children: [
@@ -358,7 +356,8 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                     children: [
                       Text(
                         'Posiziona la firma',
-                        style: TextStyle(fontFamily: 'Inter', 
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           color: cs.onSurface,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
@@ -384,7 +383,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                     iconSize: 20,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
-                        minWidth: 32, minHeight: 32),
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right_rounded),
@@ -395,7 +396,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                     iconSize: 20,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
-                        minWidth: 32, minHeight: 32),
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   ),
                   const SizedBox(width: 4),
                 ],
@@ -410,16 +413,15 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                   onTap: _resetSigBox,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: cs.outlineVariant),
                       color: cs.surfaceContainerHigh,
                     ),
-                    child: Text(
-                      'Reset',
-                      style: AppTheme.monoCaption(cs),
-                    ),
+                    child: Text('Reset', style: AppTheme.monoCaption(cs)),
                   ),
                 ),
               ],
@@ -427,10 +429,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           ),
 
           // ── PDF preview ─────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildPreview(cs),
-          ),
+          Padding(padding: const EdgeInsets.all(16), child: _buildPreview(cs)),
         ],
       ),
     );
@@ -484,143 +483,162 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
             ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: Builder(builder: (context) {
-            final containerSize = Size(containerW, containerH);
-            final currentScreenRect = _screenRect ??
-                _fractionToScreen(
-                    _sigAsFractionRect(), containerSize, pageSize);
-            final imgBytes = _effectiveImageData;
+          child: Builder(
+            builder: (context) {
+              final containerSize = Size(containerW, containerH);
+              final currentScreenRect =
+                  _screenRect ??
+                  _fractionToScreen(
+                    _sigAsFractionRect(),
+                    containerSize,
+                    pageSize,
+                  );
+              final imgBytes = _effectiveImageData;
 
-            return Stack(
-              children: [
-                // PDF page
-                Positioned.fill(
-                  child: PdfPageView(
-                    document: _doc!,
-                    pageNumber: _pageIndex + 1,
-                    alignment: Alignment.center,
-                  ),
-                ),
-
-                // Signature image preview
-                if (imgBytes != null &&
-                    currentScreenRect.width > 4 &&
-                    currentScreenRect.height > 4)
-                  Positioned(
-                    left: currentScreenRect.left,
-                    top: currentScreenRect.top,
-                    width: currentScreenRect.width,
-                    height: currentScreenRect.height,
-                    child: Image.memory(
-                      imgBytes,
-                      fit: BoxFit.fill,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              return Stack(
+                children: [
+                  // PDF page
+                  Positioned.fill(
+                    child: PdfPageView(
+                      document: _doc!,
+                      pageNumber: _pageIndex + 1,
+                      alignment: Alignment.center,
                     ),
                   ),
 
-                // Overlay: border + fill + handles (via CustomPainter)
-                Positioned.fill(
-                  child: GestureDetector(
-                    onPanStart: (d) {
-                      if (currentScreenRect.contains(d.localPosition)) {
-                        setState(() {
-                          _moving = true;
-                          _moveOffset =
-                              d.localPosition - currentScreenRect.topLeft;
-                          _screenRect = currentScreenRect;
-                        });
-                      } else {
-                        setState(() {
-                          _moving = false;
-                          _screenRect = Rect.fromLTWH(
+                  // Signature image preview
+                  if (imgBytes != null &&
+                      currentScreenRect.width > 4 &&
+                      currentScreenRect.height > 4)
+                    Positioned(
+                      left: currentScreenRect.left,
+                      top: currentScreenRect.top,
+                      width: currentScreenRect.width,
+                      height: currentScreenRect.height,
+                      child: Image.memory(
+                        imgBytes,
+                        fit: BoxFit.fill,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+
+                  // Overlay: border + fill + handles (via CustomPainter)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onPanStart: (d) {
+                        if (currentScreenRect.contains(d.localPosition)) {
+                          setState(() {
+                            _moving = true;
+                            _moveOffset =
+                                d.localPosition - currentScreenRect.topLeft;
+                            _screenRect = currentScreenRect;
+                          });
+                        } else {
+                          setState(() {
+                            _moving = false;
+                            _screenRect = Rect.fromLTWH(
                               d.localPosition.dx,
                               d.localPosition.dy,
                               1,
-                              1);
-                        });
-                      }
-                    },
-                    onPanUpdate: (d) {
-                      final scale = _scale(containerSize, pageSize);
-                      final offset =
-                          _renderOffset(containerSize, pageSize, scale);
-                      final bounds = Rect.fromLTWH(
-                        offset.dx,
-                        offset.dy,
-                        pageSize.width * scale,
-                        pageSize.height * scale,
-                      );
-
-                      setState(() {
-                        if (_moving &&
-                            _screenRect != null &&
-                            _moveOffset != null) {
-                          final newTopLeft =
-                              d.localPosition - _moveOffset!;
-                          final clamped = Offset(
-                            newTopLeft.dx.clamp(bounds.left,
-                                bounds.right - _screenRect!.width),
-                            newTopLeft.dy.clamp(bounds.top,
-                                bounds.bottom - _screenRect!.height),
-                          );
-                          _screenRect = Rect.fromLTWH(
-                            clamped.dx,
-                            clamped.dy,
-                            _screenRect!.width,
-                            _screenRect!.height,
-                          );
-                        } else if (_screenRect != null) {
-                          final raw = Rect.fromPoints(
-                              _screenRect!.topLeft, d.localPosition);
-                          final clamped = raw.intersect(bounds);
-                          if (clamped.width > 4 && clamped.height > 4) {
-                            _screenRect = clamped;
-                          }
+                              1,
+                            );
+                          });
                         }
-                      });
-                    },
-                    onPanEnd: (_) {
-                      if (_screenRect == null) return;
-                      final fracRect = _screenToFraction(
-                          _screenRect!, containerSize, pageSize);
-                      setState(() => _moving = false);
-                      _notify(fracRect);
-                    },
-                    child: CustomPaint(
-                      painter: _SignatureOverlayPainter(
-                        screenRect: currentScreenRect,
-                        color: cs.primary,
-                      ),
-                    ),
-                  ),
-                ),
+                      },
+                      onPanUpdate: (d) {
+                        final scale = _scale(containerSize, pageSize);
+                        final offset = _renderOffset(
+                          containerSize,
+                          pageSize,
+                          scale,
+                        );
+                        final bounds = Rect.fromLTWH(
+                          offset.dx,
+                          offset.dy,
+                          pageSize.width * scale,
+                          pageSize.height * scale,
+                        );
 
-                // "FIRMA QUI" label centered in sig box
-                if (imgBytes == null &&
-                    currentScreenRect.width > 32 &&
-                    currentScreenRect.height > 18)
-                  Positioned(
-                    left: currentScreenRect.left,
-                    top: currentScreenRect.top,
-                    width: currentScreenRect.width,
-                    height: currentScreenRect.height,
-                    child: IgnorePointer(
-                      child: Center(
-                        child: Text(
-                          'FIRMA QUI',
-                          style: TextStyle(fontFamily: 'JetBrainsMono', 
-                            color: cs.primary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
+                        setState(() {
+                          if (_moving &&
+                              _screenRect != null &&
+                              _moveOffset != null) {
+                            final newTopLeft = d.localPosition - _moveOffset!;
+                            final clamped = Offset(
+                              newTopLeft.dx.clamp(
+                                bounds.left,
+                                bounds.right - _screenRect!.width,
+                              ),
+                              newTopLeft.dy.clamp(
+                                bounds.top,
+                                bounds.bottom - _screenRect!.height,
+                              ),
+                            );
+                            _screenRect = Rect.fromLTWH(
+                              clamped.dx,
+                              clamped.dy,
+                              _screenRect!.width,
+                              _screenRect!.height,
+                            );
+                          } else if (_screenRect != null) {
+                            final raw = Rect.fromPoints(
+                              _screenRect!.topLeft,
+                              d.localPosition,
+                            );
+                            final clamped = raw.intersect(bounds);
+                            if (clamped.width > 4 && clamped.height > 4) {
+                              _screenRect = clamped;
+                            }
+                          }
+                        });
+                      },
+                      onPanEnd: (_) {
+                        if (_screenRect == null) return;
+                        final fracRect = _screenToFraction(
+                          _screenRect!,
+                          containerSize,
+                          pageSize,
+                        );
+                        setState(() => _moving = false);
+                        _notify(fracRect);
+                      },
+                      child: CustomPaint(
+                        painter: _SignatureOverlayPainter(
+                          screenRect: currentScreenRect,
+                          color: cs.primary,
                         ),
                       ),
                     ),
                   ),
-              ],
-            );
-          }),
+
+                  // "FIRMA QUI" label centered in sig box
+                  if (imgBytes == null &&
+                      currentScreenRect.width > 32 &&
+                      currentScreenRect.height > 18)
+                    Positioned(
+                      left: currentScreenRect.left,
+                      top: currentScreenRect.top,
+                      width: currentScreenRect.width,
+                      height: currentScreenRect.height,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Text(
+                            'FIRMA QUI',
+                            style: TextStyle(
+                              fontFamily: 'JetBrainsMono',
+                              color: cs.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         );
       },
     );

@@ -68,14 +68,20 @@ Uint8List buildSyntheticCadesBes({
   // signedAttrs [0] IMPLICIT
   final signedAttrs = ASN1Set();
   final contentTypeAttr = ASN1Sequence();
-  contentTypeAttr.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.contentType));
+  contentTypeAttr.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.contentType),
+  );
   final contentTypeAttrValues = ASN1Set();
-  contentTypeAttrValues.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7Data));
+  contentTypeAttrValues.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7Data),
+  );
   contentTypeAttr.add(contentTypeAttrValues);
   signedAttrs.add(contentTypeAttr);
 
   final messageDigestAttr = ASN1Sequence();
-  messageDigestAttr.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.messageDigest));
+  messageDigestAttr.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.messageDigest),
+  );
   final messageDigestAttrValues = ASN1Set();
   messageDigestAttrValues.add(ASN1OctetString(octets: Uint8List(32)));
   messageDigestAttr.add(messageDigestAttrValues);
@@ -118,7 +124,9 @@ Uint8List buildSyntheticCadesBes({
 
   // encapContentInfo
   final encapContentInfo = ASN1Sequence();
-  encapContentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7Data));
+  encapContentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7Data),
+  );
   signedData.add(encapContentInfo);
 
   // certificates [0] IMPLICIT (optional)
@@ -135,7 +143,9 @@ Uint8List buildSyntheticCadesBes({
 
   // Build ContentInfo
   final contentInfo = ASN1Sequence();
-  contentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData));
+  contentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData),
+  );
   contentInfo.add(explicit(0, signedData));
 
   return derEncode(contentInfo);
@@ -182,7 +192,9 @@ Uint8List _buildTstToken({
   // Build TSTInfo
   final tstInfo = ASN1Sequence();
   tstInfo.add(ASN1Integer(BigInt.one)); // version
-  tstInfo.add(ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1')); // policy
+  tstInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'),
+  ); // policy
 
   // messageImprint
   final msgImprint = ASN1Sequence();
@@ -204,11 +216,16 @@ Uint8List _buildTstToken({
 
   // Wrap in EncapsulatedContentInfo
   final encapContentInfo = ASN1Sequence();
-  encapContentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken));
+  encapContentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken),
+  );
 
   // eContent [0] EXPLICIT OCTET STRING
   final eContentOctet = ASN1OctetString(octets: tstInfo.encode());
-  final eContentCtxBytes = _buildContextSpecificTagBytes(0, eContentOctet.encode());
+  final eContentCtxBytes = _buildContextSpecificTagBytes(
+    0,
+    eContentOctet.encode(),
+  );
   final eContentCtx = ASN1Parser(eContentCtxBytes).nextObject();
   encapContentInfo.add(eContentCtx);
 
@@ -228,7 +245,9 @@ Uint8List _buildTstToken({
 
   // Wrap in ContentInfo
   final contentInfo = ASN1Sequence();
-  contentInfo.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData));
+  contentInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData),
+  );
 
   // [0] EXPLICIT SignedData
   final signedDataBytes = signedData.encode();
@@ -270,7 +289,9 @@ shelf.Handler _createTsaHandler() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
 
     // Parse the request to extract nonce and hash
     final parser = ASN1Parser(body);
@@ -364,75 +385,79 @@ void main() {
       await server.close(force: true);
     });
 
-    test('happy path: upgrade C-LT to C-LTA with archive-time-stamp-v3', () async {
-      // Arrange: Build a synthetic C-LT signature
-      final originalBes = buildSyntheticCadesBes();
+    test(
+      'happy path: upgrade C-LT to C-LTA with archive-time-stamp-v3',
+      () async {
+        // Arrange: Build a synthetic C-LT signature
+        final originalBes = buildSyntheticCadesBes();
 
-      // Build validation material
-      final dummyCert = ASN1Sequence();
-      dummyCert.add(ASN1Integer(BigInt.from(1)));
-      final dummyCertDer = derEncode(dummyCert);
+        // Build validation material
+        final dummyCert = ASN1Sequence();
+        dummyCert.add(ASN1Integer(BigInt.from(1)));
+        final dummyCertDer = derEncode(dummyCert);
 
-      final dummyCrl = buildSyntheticCrl();
-      final crlData = CrlData(
-        rawCrl: dummyCrl,
-        issuerDn: Uint8List(0),
-        thisUpdate: DateTime.now(),
-      );
+        final dummyCrl = buildSyntheticCrl();
+        final crlData = CrlData(
+          rawCrl: dummyCrl,
+          issuerDn: Uint8List(0),
+          thisUpdate: DateTime.now(),
+        );
 
-      final material = ValidationMaterial(
-        certificates: [dummyCertDer],
-        crls: [crlData],
-      );
+        final material = ValidationMaterial(
+          certificates: [dummyCertDer],
+          crls: [crlData],
+        );
 
-      // Upgrade to C-LT
-      final ltUpgrader = CadesLtUpgrader();
-      final clt = ltUpgrader.upgrade(originalBes, material);
+        // Upgrade to C-LT
+        final ltUpgrader = CadesLtUpgrader();
+        final clt = ltUpgrader.upgrade(originalBes, material);
 
-      // Act: Upgrade to C-LTA
-      final ltaUpgrader = CadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
-      final lta = await ltaUpgrader.upgrade(clt);
+        // Act: Upgrade to C-LTA
+        final ltaUpgrader = CadesLtaUpgrader(
+          tspClient: tspClient,
+          tspUrl: tsaUrl,
+        );
+        final lta = await ltaUpgrader.upgrade(clt);
 
-      // Assert
-      final sd = CadesSignedData.parse(lta);
-      expect(sd.getUnsignedAttribute(Oid.archiveTimeStampV3), isNotNull);
-      // Verify prior attributes are still present
-      expect(sd.getUnsignedAttribute(Oid.certificateValues), isNotNull);
-      expect(sd.getUnsignedAttribute(Oid.revocationValues), isNotNull);
-    });
+        // Assert
+        final sd = CadesSignedData.parse(lta);
+        expect(sd.getUnsignedAttribute(Oid.archiveTimeStampV3), isNotNull);
+        // Verify prior attributes are still present
+        expect(sd.getUnsignedAttribute(Oid.certificateValues), isNotNull);
+        expect(sd.getUnsignedAttribute(Oid.revocationValues), isNotNull);
+      },
+    );
 
-    test('round-trip: parse upgraded C-LTA and re-encode is byte-identical', () async {
-      // Arrange
-      final originalBes = buildSyntheticCadesBes();
-      final ltUpgrader = CadesLtUpgrader();
+    test(
+      'round-trip: parse upgraded C-LTA and re-encode is byte-identical',
+      () async {
+        // Arrange
+        final originalBes = buildSyntheticCadesBes();
+        final ltUpgrader = CadesLtUpgrader();
 
-      final dummyCert = ASN1Sequence();
-      dummyCert.add(ASN1Integer(BigInt.from(1)));
-      final dummyCertDer = derEncode(dummyCert);
+        final dummyCert = ASN1Sequence();
+        dummyCert.add(ASN1Integer(BigInt.from(1)));
+        final dummyCertDer = derEncode(dummyCert);
 
-      final material = ValidationMaterial(
-        certificates: [dummyCertDer],
-      );
+        final material = ValidationMaterial(certificates: [dummyCertDer]);
 
-      final clt = ltUpgrader.upgrade(originalBes, material);
+        final clt = ltUpgrader.upgrade(originalBes, material);
 
-      // Act: Upgrade to C-LTA
-      final ltaUpgrader = CadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
-      final lta1 = await ltaUpgrader.upgrade(clt);
+        // Act: Upgrade to C-LTA
+        final ltaUpgrader = CadesLtaUpgrader(
+          tspClient: tspClient,
+          tspUrl: tsaUrl,
+        );
+        final lta1 = await ltaUpgrader.upgrade(clt);
 
-      // Re-parse and re-encode
-      final sd = CadesSignedData.parse(lta1);
-      final lta2 = sd.encode();
+        // Re-parse and re-encode
+        final sd = CadesSignedData.parse(lta1);
+        final lta2 = sd.encode();
 
-      // Assert: byte-identical
-      expect(lta2, equals(lta1));
-    });
+        // Assert: byte-identical
+        expect(lta2, equals(lta1));
+      },
+    );
 
     test('TSA rejection throws CadesException', () async {
       // Arrange
@@ -448,9 +473,7 @@ void main() {
       dummyCert.add(ASN1Integer(BigInt.from(1)));
       final dummyCertDer = derEncode(dummyCert);
 
-      final material = ValidationMaterial(
-        certificates: [dummyCertDer],
-      );
+      final material = ValidationMaterial(certificates: [dummyCertDer]);
 
       final clt = ltUpgrader.upgrade(originalBes, material);
 
@@ -460,10 +483,7 @@ void main() {
         tspUrl: tsaUrl,
       );
 
-      expect(
-        () => ltaUpgrader.upgrade(clt),
-        throwsA(isA<CadesException>()),
-      );
+      expect(() => ltaUpgrader.upgrade(clt), throwsA(isA<CadesException>()));
     });
 
     test('multi-upgrade replaces archive-time-stamp-v3', () async {
@@ -475,9 +495,7 @@ void main() {
       dummyCert.add(ASN1Integer(BigInt.from(1)));
       final dummyCertDer = derEncode(dummyCert);
 
-      final material = ValidationMaterial(
-        certificates: [dummyCertDer],
-      );
+      final material = ValidationMaterial(certificates: [dummyCertDer]);
 
       final clt = ltUpgrader.upgrade(originalBes, material);
 
@@ -552,7 +570,9 @@ void main() {
           return shelf.Response.notFound('');
         }
 
-        final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+        final body = await request.read().toList().then(
+          (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+        );
         final parser = ASN1Parser(body);
         final reqSeq = parser.nextObject() as ASN1Sequence;
 
@@ -600,7 +620,11 @@ void main() {
       }
 
       await server.close(force: true);
-      server = await shelf_io.serve(captureHandler, InternetAddress.loopbackIPv4, 0);
+      server = await shelf_io.serve(
+        captureHandler,
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
 
       final originalBes = buildSyntheticCadesBes();
@@ -610,9 +634,7 @@ void main() {
       dummyCert.add(ASN1Integer(BigInt.from(1)));
       final dummyCertDer = derEncode(dummyCert);
 
-      final material = ValidationMaterial(
-        certificates: [dummyCertDer],
-      );
+      final material = ValidationMaterial(certificates: [dummyCertDer]);
 
       final clt = ltUpgrader.upgrade(originalBes, material);
 
@@ -623,177 +645,207 @@ void main() {
       );
       await ltaUpgrader.upgrade(clt);
 
-       // Assert: Recompute the expected hash manually
-       final sd = CadesSignedData.parse(clt);
-       final encapContentInfoDer = sd.encapContentInfoForAtsV3;
-       final signedAttrsDer = sd.signedAttrsDer;
-       final signatureValueDer = sd.signatureValueDer;
-       final unsignedAttrsForArchive = sd.unsignedAttributesForArchiveTimestamp;
-       final unsignedAttrsDerList = unsignedAttrsForArchive.map((e) => e.value).toList();
-       unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
-       final unsignedAttrsConcatenated = Uint8List.fromList(
-         unsignedAttrsDerList.expand((bytes) => bytes).toList(),
-       );
+      // Assert: Recompute the expected hash manually
+      final sd = CadesSignedData.parse(clt);
+      final encapContentInfoDer = sd.encapContentInfoForAtsV3;
+      final signedAttrsDer = sd.signedAttrsDer;
+      final signatureValueDer = sd.signatureValueDer;
+      final unsignedAttrsForArchive = sd.unsignedAttributesForArchiveTimestamp;
+      final unsignedAttrsDerList = unsignedAttrsForArchive
+          .map((e) => e.value)
+          .toList();
+      unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
+      final unsignedAttrsConcatenated = Uint8List.fromList(
+        unsignedAttrsDerList.expand((bytes) => bytes).toList(),
+      );
 
-       final expectedInput = Uint8List.fromList([
-         ...encapContentInfoDer,
-         ...signedAttrsDer,
-         ...signatureValueDer,
-         ...unsignedAttrsConcatenated,
-       ]);
+      final expectedInput = Uint8List.fromList([
+        ...encapContentInfoDer,
+        ...signedAttrsDer,
+        ...signatureValueDer,
+        ...unsignedAttrsConcatenated,
+      ]);
 
-       final expectedHash = sha256Of(expectedInput);
+      final expectedHash = sha256Of(expectedInput);
 
-        expect(capturedHash, equals(expectedHash));
-     });
+      expect(capturedHash, equals(expectedHash));
+    });
 
-     test('upgrade to C-LTA includes ats-hash-index-v3 in inner TST', () async {
-       // Arrange: Set up a mock TSA server
-       var server = await shelf_io.serve((_) async {
-         return shelf.Response.ok('');
-       }, InternetAddress.loopbackIPv4, 0);
-       
-       final tspClient = TspClient();
-       var tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
-       
-        // Mock TSA handler that returns a proper TSP response
-        Future<shelf.Response> mockTsaHandler(shelf.Request request) async {
-          if (request.method != 'POST') {
-            return shelf.Response.notFound('');
-          }
-          
-          final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
-          final parser = ASN1Parser(body);
-          final reqSeq = parser.nextObject() as ASN1Sequence;
-          
-          final msgImprint = reqSeq.elements![1] as ASN1Sequence;
-          final hashedMessage = msgImprint.elements![1] as ASN1OctetString;
-          final hash = hashedMessage.octets!;
-          
-          // Build a synthetic TST
-          final genTime = DateTime.utc(2026, 5, 4, 12, 0, 0);
-          final token = _buildTstToken(
-            genTime: genTime,
-            hashOid: Oid.sha256,
-            hash: hash,
-          );
-          
-          final statusSeq = ASN1Sequence();
-          statusSeq.add(ASN1Integer(BigInt.zero));
-          final respSeq = ASN1Sequence();
-          respSeq.add(statusSeq);
-          respSeq.add(ASN1Parser(token).nextObject());
-          
-          return shelf.Response.ok(
-            respSeq.encode(),
-            headers: {'content-type': 'application/timestamp-reply'},
-          );
+    test('upgrade to C-LTA includes ats-hash-index-v3 in inner TST', () async {
+      // Arrange: Set up a mock TSA server
+      var server = await shelf_io.serve(
+        (_) async {
+          return shelf.Response.ok('');
+        },
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+
+      final tspClient = TspClient();
+      var tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
+
+      // Mock TSA handler that returns a proper TSP response
+      Future<shelf.Response> mockTsaHandler(shelf.Request request) async {
+        if (request.method != 'POST') {
+          return shelf.Response.notFound('');
         }
-        
-        await server.close(force: true);
-        server = await shelf_io.serve(mockTsaHandler, InternetAddress.loopbackIPv4, 0);
-       tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
-       
-       final originalBes = buildSyntheticCadesBes();
-       final ltUpgrader = CadesLtUpgrader();
-       
-       final dummyCert = ASN1Sequence();
-       dummyCert.add(ASN1Integer(BigInt.from(1)));
-       final dummyCertDer = derEncode(dummyCert);
-       
-       final material = ValidationMaterial(
-         certificates: [dummyCertDer],
-       );
-       
-       final clt = ltUpgrader.upgrade(originalBes, material);
-       
-       // Act: Upgrade to C-LTA
-       final ltaUpgrader = CadesLtaUpgrader(
-         tspClient: tspClient,
-         tspUrl: tsaUrl,
-       );
-       final lta = await ltaUpgrader.upgrade(clt);
-       
-       // Assert: Parse the upgraded signature and verify ats-hash-index-v3 is present
-       final ltaSd = CadesSignedData.parse(lta);
-       final atsV3Attr = ltaSd.getUnsignedAttribute(Oid.archiveTimeStampV3);
-       expect(atsV3Attr, isNotNull);
-       
-       // Extract the inner TST from the archive-time-stamp-v3 attribute
-       final atsV3Set = derDecode(atsV3Attr!) as ASN1Set;
-       expect(atsV3Set.elements, isNotNull);
-       expect(atsV3Set.elements!.length, equals(1));
-       
-       // Parse the inner TST as a ContentInfo
-       final innerTstBytes = derEncode(atsV3Set.elements![0]);
-       final innerTstContentInfo = derDecode(innerTstBytes) as ASN1Sequence;
-       
-       // Extract the SignedData from [0] EXPLICIT
-       if (innerTstContentInfo.elements != null && innerTstContentInfo.elements!.length >= 2) {
-         final signedDataElem = innerTstContentInfo.elements![1];
-         if (signedDataElem.tag == 0xA0) {
-           final innerSignedData = derDecode(signedDataElem.valueBytes ?? Uint8List(0)) as ASN1Sequence;
-           
-           // Extract SignerInfos (last element)
-           if (innerSignedData.elements != null && innerSignedData.elements!.isNotEmpty) {
-             final signerInfosElem = innerSignedData.elements!.last;
-             if (signerInfosElem is ASN1Set && signerInfosElem.elements != null && signerInfosElem.elements!.isNotEmpty) {
-               final signerInfo = signerInfosElem.elements![0] as ASN1Sequence;
-               
-               // Look for ats-hash-index-v3 in unsignedAttrs [1]
-               bool foundAtsHashIndex = false;
-               for (final elem in signerInfo.elements!) {
-                 if (elem.tag == 0xA1) {
-                   // Found unsignedAttrs [1]
-                   final unsignedAttrsBytes = elem.valueBytes ?? Uint8List(0);
-                   final p = ASN1Parser(unsignedAttrsBytes);
-                   while (p.hasNext()) {
-                     final attr = p.nextObject() as ASN1Sequence;
-                     if (attr.elements != null && attr.elements!.isNotEmpty) {
-                       final oid = attr.elements![0] as ASN1ObjectIdentifier;
-                       if (oid.objectIdentifierAsString == Oid.atsHashIndexV3) {
-                         foundAtsHashIndex = true;
-                         
-                         // Verify the structure: SEQUENCE with [AlgorithmIdentifier, SEQUENCE OF, SEQUENCE OF, SEQUENCE OF]
-                         if (attr.elements!.length >= 2) {
-                           final attrValuesSet = attr.elements![1] as ASN1Set;
-                           if (attrValuesSet.elements != null && attrValuesSet.elements!.isNotEmpty) {
-                             final atsHashIndexSeq = attrValuesSet.elements![0] as ASN1Sequence;
-                             expect(atsHashIndexSeq.elements, isNotNull);
-                             expect(atsHashIndexSeq.elements!.length, equals(4)); // AlgId + 3 SEQUENCE OF
-                             
-                             // Verify first element is AlgorithmIdentifier
-                             final algId = atsHashIndexSeq.elements![0] as ASN1Sequence;
-                             expect(algId.elements, isNotNull);
-                             expect(algId.elements!.length, greaterThanOrEqualTo(1));
-                             
-                             // Verify remaining elements are SEQUENCE OF OCTET STRING
-                             for (int i = 1; i < 4; i++) {
-                               final seqOf = atsHashIndexSeq.elements![i] as ASN1Sequence;
-                               expect(seqOf.elements, isNotNull);
-                               // Each element should be an OCTET STRING (hash)
-                               for (final elem in seqOf.elements!) {
-                                 expect(elem, isA<ASN1OctetString>());
-                               }
-                             }
-                           }
-                         }
-                         break;
-                       }
-                     }
-                   }
-                   break;
-                 }
-               }
-               expect(foundAtsHashIndex, isTrue, reason: 'ats-hash-index-v3 not found in inner TST');
-             }
-           }
-         }
-       }
-       
-       await server.close(force: true);
-     });
-   });
+
+        final body = await request.read().toList().then(
+          (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+        );
+        final parser = ASN1Parser(body);
+        final reqSeq = parser.nextObject() as ASN1Sequence;
+
+        final msgImprint = reqSeq.elements![1] as ASN1Sequence;
+        final hashedMessage = msgImprint.elements![1] as ASN1OctetString;
+        final hash = hashedMessage.octets!;
+
+        // Build a synthetic TST
+        final genTime = DateTime.utc(2026, 5, 4, 12, 0, 0);
+        final token = _buildTstToken(
+          genTime: genTime,
+          hashOid: Oid.sha256,
+          hash: hash,
+        );
+
+        final statusSeq = ASN1Sequence();
+        statusSeq.add(ASN1Integer(BigInt.zero));
+        final respSeq = ASN1Sequence();
+        respSeq.add(statusSeq);
+        respSeq.add(ASN1Parser(token).nextObject());
+
+        return shelf.Response.ok(
+          respSeq.encode(),
+          headers: {'content-type': 'application/timestamp-reply'},
+        );
+      }
+
+      await server.close(force: true);
+      server = await shelf_io.serve(
+        mockTsaHandler,
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
+
+      final originalBes = buildSyntheticCadesBes();
+      final ltUpgrader = CadesLtUpgrader();
+
+      final dummyCert = ASN1Sequence();
+      dummyCert.add(ASN1Integer(BigInt.from(1)));
+      final dummyCertDer = derEncode(dummyCert);
+
+      final material = ValidationMaterial(certificates: [dummyCertDer]);
+
+      final clt = ltUpgrader.upgrade(originalBes, material);
+
+      // Act: Upgrade to C-LTA
+      final ltaUpgrader = CadesLtaUpgrader(
+        tspClient: tspClient,
+        tspUrl: tsaUrl,
+      );
+      final lta = await ltaUpgrader.upgrade(clt);
+
+      // Assert: Parse the upgraded signature and verify ats-hash-index-v3 is present
+      final ltaSd = CadesSignedData.parse(lta);
+      final atsV3Attr = ltaSd.getUnsignedAttribute(Oid.archiveTimeStampV3);
+      expect(atsV3Attr, isNotNull);
+
+      // Extract the inner TST from the archive-time-stamp-v3 attribute
+      final atsV3Set = derDecode(atsV3Attr!) as ASN1Set;
+      expect(atsV3Set.elements, isNotNull);
+      expect(atsV3Set.elements!.length, equals(1));
+
+      // Parse the inner TST as a ContentInfo
+      final innerTstBytes = derEncode(atsV3Set.elements![0]);
+      final innerTstContentInfo = derDecode(innerTstBytes) as ASN1Sequence;
+
+      // Extract the SignedData from [0] EXPLICIT
+      if (innerTstContentInfo.elements != null &&
+          innerTstContentInfo.elements!.length >= 2) {
+        final signedDataElem = innerTstContentInfo.elements![1];
+        if (signedDataElem.tag == 0xA0) {
+          final innerSignedData =
+              derDecode(signedDataElem.valueBytes ?? Uint8List(0))
+                  as ASN1Sequence;
+
+          // Extract SignerInfos (last element)
+          if (innerSignedData.elements != null &&
+              innerSignedData.elements!.isNotEmpty) {
+            final signerInfosElem = innerSignedData.elements!.last;
+            if (signerInfosElem is ASN1Set &&
+                signerInfosElem.elements != null &&
+                signerInfosElem.elements!.isNotEmpty) {
+              final signerInfo = signerInfosElem.elements![0] as ASN1Sequence;
+
+              // Look for ats-hash-index-v3 in unsignedAttrs [1]
+              bool foundAtsHashIndex = false;
+              for (final elem in signerInfo.elements!) {
+                if (elem.tag == 0xA1) {
+                  // Found unsignedAttrs [1]
+                  final unsignedAttrsBytes = elem.valueBytes ?? Uint8List(0);
+                  final p = ASN1Parser(unsignedAttrsBytes);
+                  while (p.hasNext()) {
+                    final attr = p.nextObject() as ASN1Sequence;
+                    if (attr.elements != null && attr.elements!.isNotEmpty) {
+                      final oid = attr.elements![0] as ASN1ObjectIdentifier;
+                      if (oid.objectIdentifierAsString == Oid.atsHashIndexV3) {
+                        foundAtsHashIndex = true;
+
+                        // Verify the structure: SEQUENCE with [AlgorithmIdentifier, SEQUENCE OF, SEQUENCE OF, SEQUENCE OF]
+                        if (attr.elements!.length >= 2) {
+                          final attrValuesSet = attr.elements![1] as ASN1Set;
+                          if (attrValuesSet.elements != null &&
+                              attrValuesSet.elements!.isNotEmpty) {
+                            final atsHashIndexSeq =
+                                attrValuesSet.elements![0] as ASN1Sequence;
+                            expect(atsHashIndexSeq.elements, isNotNull);
+                            expect(
+                              atsHashIndexSeq.elements!.length,
+                              equals(4),
+                            ); // AlgId + 3 SEQUENCE OF
+
+                            // Verify first element is AlgorithmIdentifier
+                            final algId =
+                                atsHashIndexSeq.elements![0] as ASN1Sequence;
+                            expect(algId.elements, isNotNull);
+                            expect(
+                              algId.elements!.length,
+                              greaterThanOrEqualTo(1),
+                            );
+
+                            // Verify remaining elements are SEQUENCE OF OCTET STRING
+                            for (int i = 1; i < 4; i++) {
+                              final seqOf =
+                                  atsHashIndexSeq.elements![i] as ASN1Sequence;
+                              expect(seqOf.elements, isNotNull);
+                              // Each element should be an OCTET STRING (hash)
+                              for (final elem in seqOf.elements!) {
+                                expect(elem, isA<ASN1OctetString>());
+                              }
+                            }
+                          }
+                        }
+                        break;
+                      }
+                    }
+                  }
+                  break;
+                }
+              }
+              expect(
+                foundAtsHashIndex,
+                isTrue,
+                reason: 'ats-hash-index-v3 not found in inner TST',
+              );
+            }
+          }
+        }
+      }
+
+      await server.close(force: true);
+    });
+  });
 }
 
 /// Lexicographic comparison of byte arrays (unsigned).

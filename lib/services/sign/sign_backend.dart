@@ -24,7 +24,8 @@ abstract class SignBackend {
 
 /// Production implementation using OpenCiePkcs11.
 class Pkcs11SignBackend implements SignBackend {
-  Pkcs11SignBackend([OpenCiePkcs11? pkcs11]) : _pkcs11 = pkcs11 ?? OpenCiePkcs11.instance;
+  Pkcs11SignBackend([OpenCiePkcs11? pkcs11])
+    : _pkcs11 = pkcs11 ?? OpenCiePkcs11.instance;
 
   final OpenCiePkcs11 _pkcs11;
 

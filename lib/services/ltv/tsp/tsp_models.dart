@@ -13,8 +13,10 @@ enum TspStatus {
   const TspStatus(this.value);
   final int value;
 
-  static TspStatus fromValue(int v) =>
-      TspStatus.values.firstWhere((s) => s.value == v, orElse: () => TspStatus.rejection);
+  static TspStatus fromValue(int v) => TspStatus.values.firstWhere(
+    (s) => s.value == v,
+    orElse: () => TspStatus.rejection,
+  );
 }
 
 /// RFC 3161 TimeStampReq data.
@@ -81,5 +83,6 @@ class TspResponse {
   final Uint8List? respNonce;
 
   /// Convenience: true if status is granted or grantedWithMods.
-  bool get isSuccess => status == TspStatus.granted || status == TspStatus.grantedWithMods;
+  bool get isSuccess =>
+      status == TspStatus.granted || status == TspStatus.grantedWithMods;
 }

@@ -24,16 +24,19 @@ class CieConfirmRemoveDialog extends StatelessWidget {
       content: Text(l10n.cieRemoveConfirm(card.displayName, card.pan)),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.commonCancel)),
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
         FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () {
-              Navigator.pop(context);
-              onConfirm();
-            },
-            child: Text(l10n.cieRemoveButton)),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+            onConfirm();
+          },
+          child: Text(l10n.cieRemoveButton),
+        ),
       ],
     );
   }

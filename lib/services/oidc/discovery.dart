@@ -52,8 +52,7 @@ class OidcDiscovery {
   final Map<String, Object?> raw;
 
   /// Returns `true` iff the provider advertises support for PKCE S256.
-  bool get supportsPkceS256 =>
-      codeChallengeMethodsSupported.contains('S256');
+  bool get supportsPkceS256 => codeChallengeMethodsSupported.contains('S256');
 
   /// Parses a decoded discovery JSON document.
   factory OidcDiscovery.fromJson(Map<String, Object?> json) {
@@ -82,8 +81,7 @@ class OidcDiscovery {
       );
     }
 
-    Uri? optUri(Object? v) =>
-        v is String && v.isNotEmpty ? Uri.parse(v) : null;
+    Uri? optUri(Object? v) => v is String && v.isNotEmpty ? Uri.parse(v) : null;
     List<String> strList(Object? v) => v is List
         ? v.whereType<String>().toList(growable: false)
         : const <String>[];
@@ -97,10 +95,12 @@ class OidcDiscovery {
       endSessionEndpoint: optUri(json['end_session_endpoint']),
       scopesSupported: strList(json['scopes_supported']),
       responseTypesSupported: strList(json['response_types_supported']),
-      idTokenSigningAlgValuesSupported:
-          strList(json['id_token_signing_alg_values_supported']),
-      codeChallengeMethodsSupported:
-          strList(json['code_challenge_methods_supported']),
+      idTokenSigningAlgValuesSupported: strList(
+        json['id_token_signing_alg_values_supported'],
+      ),
+      codeChallengeMethodsSupported: strList(
+        json['code_challenge_methods_supported'],
+      ),
       raw: json,
     );
   }
@@ -119,8 +119,8 @@ class OidcDiscovery {
 /// callers may serialise [OidcDiscovery.raw] themselves.
 class OidcDiscoveryClient {
   OidcDiscoveryClient({http.Client? httpClient, Duration? ttl})
-      : _http = httpClient ?? http.Client(),
-        _ttl = ttl ?? const Duration(hours: 1);
+    : _http = httpClient ?? http.Client(),
+      _ttl = ttl ?? const Duration(hours: 1);
 
   static final OidcDiscoveryClient instance = OidcDiscoveryClient();
 
@@ -155,9 +155,7 @@ class OidcDiscoveryClient {
     }
     final body = json.decode(res.body);
     if (body is! Map<String, Object?>) {
-      throw const OidcDiscoveryException(
-        'Discovery body is not a JSON object',
-      );
+      throw const OidcDiscoveryException('Discovery body is not a JSON object');
     }
 
     final disc = OidcDiscovery.fromJson(body);

@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/l10n/app_localizations_ext.dart';
@@ -88,7 +87,6 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
   bool _wizardSkipped = false;
   StreamSubscription<String?>? _readerSub;
 
-
   @override
   void initState() {
     super.initState();
@@ -110,7 +108,12 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       if (mounted) setState(() => _nfcAvailable = available);
     } else {
       _readerSub = OpenCiePkcs11.instance.watchReaders().listen((name) {
-        if (mounted) setState(() { _readerName = name; _readerChecked = true; });
+        if (mounted) {
+          setState(() {
+            _readerName = name;
+            _readerChecked = true;
+          });
+        }
       });
     }
   }
@@ -144,14 +147,16 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       final available = await NfcService.instance.isAvailable;
       if (!available && mounted) {
         final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(l10n.cieNfcNotAvailable),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: l10n.nfcEnableButton,
-            onPressed: NfcService.instance.openNfcSettings,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.cieNfcNotAvailable),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: l10n.nfcEnableButton,
+              onPressed: NfcService.instance.openNfcSettings,
+            ),
           ),
-        ));
+        );
         return;
       }
     }
@@ -159,8 +164,11 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     setState(() => _isProcessing = true);
 
     // (isWaiting, progress 0-1, progressMessage)
-    final nfcNotifier =
-        ValueNotifier<(bool, double, String)>((Platform.isAndroid, 0.0, ''));
+    final nfcNotifier = ValueNotifier<(bool, double, String)>((
+      Platform.isAndroid,
+      0.0,
+      '',
+    ));
     bool dialogOpen = false;
     Future<void>? dialogFuture;
 
@@ -193,8 +201,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       final l10n = AppLocalizations.of(context);
       try {
         await operation((percent, message) {
-          nfcNotifier.value =
-              (false, percent, l10n.localizeProgress(message));
+          nfcNotifier.value = (false, percent, l10n.localizeProgress(message));
         });
       } finally {
         if (Platform.isAndroid) await NfcService.instance.stopSession();
@@ -230,11 +237,13 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         nfcNotifier.dispose();
         if (mounted) {
           setState(() => _isProcessing = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(AppLocalizations.of(context).errCardError),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).errCardError),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
         }
         completer.complete();
       },
@@ -244,19 +253,20 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: Theme.of(context).colorScheme.error,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
   }
 
   void _showSuccessSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Future<void> _showEnrollDialog() async {
@@ -277,8 +287,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           pan: '',
           pin: pin,
           // cie_enable reports 0–100; map to 0–0.40
-          onProgress: (p) =>
-              onProgress(p.percent / 100.0 * 0.40, p.message),
+          onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
         );
         if (result.isSuccess && result.enrolledPan != null) {
           var card = EnrolledCard(
@@ -291,19 +300,25 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           card = await _enrichCardWithCert(card);
           onProgress(0.50, l10n.cieEnrollingProgress);
           // Chip read: 50–100%
-          card = await _enrichCardWithChip(card, pin,
-              onProgress: (p) =>
-                  onProgress(0.50 + p.percent / 100.0 * 0.50, p.message));
+          card = await _enrichCardWithChip(
+            card,
+            pin,
+            onProgress: (p) =>
+                onProgress(0.50 + p.percent / 100.0 * 0.50, p.message),
+          );
           enrolledCard = card;
         } else if (!result.isSuccess) {
           _showErrorSnackBar(
-              result.isPinIncorrect
-                  ? result.remainingAttempts != null
+            result.isPinIncorrect
+                ? result.remainingAttempts != null
                       ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
                       : l10n.signIncorrectPin
-                  : result.isPinLocked
-                      ? l10n.ciePinLockedUsePuk
-                      : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
+                : result.isPinLocked
+                ? l10n.ciePinLockedUsePuk
+                : l10n.cieEnrolmentFailed(
+                    l10n.humanizeError(result.returnValue),
+                  ),
+          );
         }
       });
     } else {
@@ -312,8 +327,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         final result = await OpenCiePkcs11.instance.enable(
           pan: '',
           pin: pin,
-          onProgress: (p) =>
-              onProgress(p.percent / 100.0 * 0.40, p.message),
+          onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
         );
         if (result.isSuccess && result.enrolledPan != null) {
           var card = EnrolledCard(
@@ -327,13 +341,16 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           enrolledCard = card;
         } else if (!result.isSuccess) {
           _showErrorSnackBar(
-              result.isPinIncorrect
-                  ? result.remainingAttempts != null
+            result.isPinIncorrect
+                ? result.remainingAttempts != null
                       ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
                       : l10n.signIncorrectPin
-                  : result.isPinLocked
-                      ? l10n.ciePinLockedUsePuk
-                      : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
+                : result.isPinLocked
+                ? l10n.ciePinLockedUsePuk
+                : l10n.cieEnrolmentFailed(
+                    l10n.humanizeError(result.returnValue),
+                  ),
+          );
         }
       });
 
@@ -341,9 +358,11 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         // Phase 2 — chip read (0–100% of second dialog).
         var card = enrolledCard!;
         await _withNfc(l10n.cieReadingChip, (onProgress) async {
-          card = await _enrichCardWithChip(card, pin,
-              onProgress: (p) =>
-                  onProgress(p.percent / 100.0, p.message));
+          card = await _enrichCardWithChip(
+            card,
+            pin,
+            onProgress: (p) => onProgress(p.percent / 100.0, p.message),
+          );
         });
         enrolledCard = card;
       }
@@ -353,19 +372,19 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
 
     // Persist the fully-enriched card.
     final card = enrolledCard!;
-    final cards =
-        List<EnrolledCard>.from(ref.read(settingsProvider).enrolledCards);
+    final cards = List<EnrolledCard>.from(
+      ref.read(settingsProvider).enrolledCards,
+    );
     final idx = cards.indexWhere((c) => c.pan == card.pan);
     if (idx >= 0) {
       cards[idx] = card;
     } else {
       cards.add(card);
     }
-    ref.read(settingsProvider.notifier).update(
-          (s) => s.copyWith(enrolledCards: cards),
-        );
-    _showSuccessSnackBar(
-        l10n.cieEnrolledSuccess(card.displayName));
+    ref
+        .read(settingsProvider.notifier)
+        .update((s) => s.copyWith(enrolledCards: cards));
+    _showSuccessSnackBar(l10n.cieEnrolledSuccess(card.displayName));
   }
 
   void _confirmRemove(BuildContext context, EnrolledCard card) {
@@ -377,14 +396,16 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         onConfirm: () {
           final rv = OpenCiePkcs11.instance.disable(card.pan);
           final cards = List<EnrolledCard>.from(
-              ref.read(settingsProvider).enrolledCards)
-            ..removeWhere((c) => c.pan == card.pan);
+            ref.read(settingsProvider).enrolledCards,
+          )..removeWhere((c) => c.pan == card.pan);
           ref
               .read(settingsProvider.notifier)
               .update((s) => s.copyWith(enrolledCards: cards));
-          _showSuccessSnackBar(rv == 0
-              ? l10n.cieRemovedSuccess(card.displayName)
-              : l10n.cieRemoveFailed(l10n.humanizeError(rv)));
+          _showSuccessSnackBar(
+            rv == 0
+                ? l10n.cieRemovedSuccess(card.displayName)
+                : l10n.cieRemoveFailed(l10n.humanizeError(rv)),
+          );
         },
       ),
     );
@@ -402,19 +423,22 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         final result = await OpenCiePkcs11.instance.changePin(
           currentPin: currentPin,
           newPin: newPin,
-          onProgress: (p) =>
-              onProgress(p.percent / 100.0, p.message),
+          onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
         if (result.isSuccess) {
           _showSuccessSnackBar(l10n.ciePinChanged);
         } else {
-          _showErrorSnackBar(result.isPinIncorrect
-              ? result.remainingAttempts != null
-                  ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                  : l10n.signIncorrectPin
-              : result.isPinLocked
-                  ? l10n.ciePinLockedUsePuk
-                  : l10n.ciePinChangeFailed(l10n.humanizeError(result.returnValue)));
+          _showErrorSnackBar(
+            result.isPinIncorrect
+                ? result.remainingAttempts != null
+                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
+                      : l10n.signIncorrectPin
+                : result.isPinLocked
+                ? l10n.ciePinLockedUsePuk
+                : l10n.ciePinChangeFailed(
+                    l10n.humanizeError(result.returnValue),
+                  ),
+          );
         }
       });
     });
@@ -432,14 +456,14 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         final result = await OpenCiePkcs11.instance.unblockPin(
           puk: puk,
           newPin: newPin,
-          onProgress: (p) =>
-              onProgress(p.percent / 100.0, p.message),
+          onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
         if (result.isSuccess) {
           _showSuccessSnackBar(l10n.ciePinUnblocked);
         } else {
           _showErrorSnackBar(
-              l10n.cieUnblockFailed(l10n.humanizeError(result.returnValue)));
+            l10n.cieUnblockFailed(l10n.humanizeError(result.returnValue)),
+          );
         }
       });
     });
@@ -474,11 +498,8 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                 onSkip: () => setState(() => _wizardSkipped = true),
               )
             : cards.isEmpty
-                ? _buildEmptyState(key: const ValueKey('empty'))
-                : _buildMainContent(
-                    key: const ValueKey('main'),
-                    cards: cards,
-                  ),
+            ? _buildEmptyState(key: const ValueKey('empty'))
+            : _buildMainContent(key: const ValueKey('main'), cards: cards),
       ),
     );
   }
@@ -527,9 +548,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                       icon: Icons.credit_card_rounded,
                       iconColor: cs.primary,
                       steps: [
-                        OcHelpStep(title: l10n.helpCieStep1Title, body: l10n.helpCieStep1Body, icon: Icons.nfc_rounded),
-                        OcHelpStep(title: l10n.helpCieStep2Title, body: l10n.helpCieStep2Body, icon: Icons.pin_rounded),
-                        OcHelpStep(title: l10n.helpCieStep3Title, body: l10n.helpCieStep3Body, icon: Icons.lock_open_rounded),
+                        OcHelpStep(
+                          title: l10n.helpCieStep1Title,
+                          body: l10n.helpCieStep1Body,
+                          icon: Icons.nfc_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpCieStep2Title,
+                          body: l10n.helpCieStep2Body,
+                          icon: Icons.pin_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpCieStep3Title,
+                          body: l10n.helpCieStep3Body,
+                          icon: Icons.lock_open_rounded,
+                        ),
                       ],
                     ),
                   ),
@@ -560,7 +593,8 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                   const SizedBox(height: 10),
                   Text(
                     'Registra la tua CIE per iniziare a firmare documenti',
-                    style: TextStyle(fontFamily: 'Inter', 
+                    style: TextStyle(
+                      fontFamily: 'Inter',
                       color: cs.onSurfaceVariant,
                       fontSize: 13,
                     ),
@@ -589,8 +623,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     return LayoutBuilder(
       key: key,
       builder: (context, constraints) {
-        final isDesktop =
-            constraints.maxWidth >= AppConstants.mediumBreakpoint;
+        final isDesktop = constraints.maxWidth >= AppConstants.mediumBreakpoint;
         if (isDesktop && cards.length == 1) {
           return _buildDesktopSingleCard(cards.first);
         } else if (isDesktop) {
@@ -649,9 +682,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                       icon: Icons.credit_card_rounded,
                       iconColor: cs.primary,
                       steps: [
-                        OcHelpStep(title: l10n.helpCieStep1Title, body: l10n.helpCieStep1Body, icon: Icons.nfc_rounded),
-                        OcHelpStep(title: l10n.helpCieStep2Title, body: l10n.helpCieStep2Body, icon: Icons.pin_rounded),
-                        OcHelpStep(title: l10n.helpCieStep3Title, body: l10n.helpCieStep3Body, icon: Icons.lock_open_rounded),
+                        OcHelpStep(
+                          title: l10n.helpCieStep1Title,
+                          body: l10n.helpCieStep1Body,
+                          icon: Icons.nfc_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpCieStep2Title,
+                          body: l10n.helpCieStep2Body,
+                          icon: Icons.pin_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpCieStep3Title,
+                          body: l10n.helpCieStep3Body,
+                          icon: Icons.lock_open_rounded,
+                        ),
                       ],
                     ),
                   ),
@@ -759,9 +804,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                     icon: Icons.credit_card_rounded,
                     iconColor: cs.primary,
                     steps: [
-                      OcHelpStep(title: l10n.helpCieStep1Title, body: l10n.helpCieStep1Body, icon: Icons.nfc_rounded),
-                      OcHelpStep(title: l10n.helpCieStep2Title, body: l10n.helpCieStep2Body, icon: Icons.pin_rounded),
-                      OcHelpStep(title: l10n.helpCieStep3Title, body: l10n.helpCieStep3Body, icon: Icons.lock_open_rounded),
+                      OcHelpStep(
+                        title: l10n.helpCieStep1Title,
+                        body: l10n.helpCieStep1Body,
+                        icon: Icons.nfc_rounded,
+                      ),
+                      OcHelpStep(
+                        title: l10n.helpCieStep2Title,
+                        body: l10n.helpCieStep2Body,
+                        icon: Icons.pin_rounded,
+                      ),
+                      OcHelpStep(
+                        title: l10n.helpCieStep3Title,
+                        body: l10n.helpCieStep3Body,
+                        icon: Icons.lock_open_rounded,
+                      ),
                     ],
                   ),
                 ),
@@ -789,10 +846,12 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                             _CieStats(card: card),
                             const SizedBox(height: 16),
                             _NfcPromptCard(
-                              nfcAvailable:
-                                  Platform.isAndroid ? _nfcAvailable : null,
-                              readerName:
-                                  Platform.isAndroid ? null : _readerName,
+                              nfcAvailable: Platform.isAndroid
+                                  ? _nfcAvailable
+                                  : null,
+                              readerName: Platform.isAndroid
+                                  ? null
+                                  : _readerName,
                               readerChecked:
                                   !Platform.isAndroid && _readerChecked,
                             ),
@@ -832,8 +891,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                           ),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
-                            onPressed:
-                                _isProcessing ? null : _showEnrollDialog,
+                            onPressed: _isProcessing ? null : _showEnrollDialog,
                             icon: const Icon(Icons.add_card_rounded),
                             label: Text(l10n.cieAddCard),
                             style: OutlinedButton.styleFrom(
@@ -954,28 +1012,28 @@ class _CieHero extends StatelessWidget {
                           ),
                         ],
                       ),
-                       const Spacer(),
-                       if (card.photoBytes != null)
-                         ClipRRect(
-                           borderRadius: BorderRadius.circular(6),
-                           child: Image.memory(
-                             card.photoBytes!,
-                             width: 44,
-                             height: 56,
-                             fit: BoxFit.cover,
-                              errorBuilder: (context, error, stack) => const Icon(
-                               Icons.contactless_rounded,
-                               size: 24,
-                               color: Colors.white,
-                             ),
-                           ),
-                         )
-                       else
-                         const Icon(
-                           Icons.contactless_rounded,
-                           size: 24,
-                           color: Colors.white,
-                         ),
+                      const Spacer(),
+                      if (card.photoBytes != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.memory(
+                            card.photoBytes!,
+                            width: 44,
+                            height: 56,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stack) => const Icon(
+                              Icons.contactless_rounded,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.contactless_rounded,
+                          size: 24,
+                          color: Colors.white,
+                        ),
                     ],
                   ),
                   Column(
@@ -1004,15 +1062,15 @@ class _CieHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                       if (card.displayName.trim().isNotEmpty)
-                         Text(
-                           card.displayName.trim().toUpperCase(),
-                           style: TextStyle(
-                             fontFamily: 'JetBrainsMono',
-                             color: Colors.white.withValues(alpha: 0.85),
-                             fontSize: 11,
-                           ),
-                         ),
+                      if (card.displayName.trim().isNotEmpty)
+                        Text(
+                          card.displayName.trim().toUpperCase(),
+                          style: TextStyle(
+                            fontFamily: 'JetBrainsMono',
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 11,
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -1067,7 +1125,10 @@ class _CieStats extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       children: [
         _StatCard(
-            label: 'STATO', value: 'ATTIVA', valueColor: ColorSchemes.valid),
+          label: 'STATO',
+          value: 'ATTIVA',
+          valueColor: ColorSchemes.valid,
+        ),
         _StatCard(
           label: 'SERIALE',
           value: _shortSerial.isNotEmpty ? _shortSerial : '—',
@@ -1186,11 +1247,7 @@ class _CieHeroCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _StatCard({required this.label, required this.value, this.valueColor});
 
   final String label;
   final String value;
@@ -1286,10 +1343,12 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
     if (_step != _WizardStep.detectReader || _autoAdvancing) return;
 
     final isDesktop = widget.nfcAvailable == null;
-    final readerReady =
-        isDesktop ? widget.readerName != null : widget.nfcAvailable == true;
-    final wasReady =
-        isDesktop ? old.readerName != null : old.nfcAvailable == true;
+    final readerReady = isDesktop
+        ? widget.readerName != null
+        : widget.nfcAvailable == true;
+    final wasReady = isDesktop
+        ? old.readerName != null
+        : old.nfcAvailable == true;
 
     if (readerReady && !wasReady) {
       _autoAdvancing = true;
@@ -1340,7 +1399,12 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
       final l10n = AppLocalizations.of(context);
       // Helper to update wizard progress bar + message.
       void setProgress(double frac, String msg) {
-        if (mounted) setState(() { _enrollProgress = frac; _enrollMessage = msg; });
+        if (mounted) {
+          setState(() {
+            _enrollProgress = frac;
+            _enrollMessage = msg;
+          });
+        }
       }
 
       final result = await OpenCiePkcs11.instance.enable(
@@ -1368,7 +1432,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         // chip reading is skipped here and can be triggered later.
         if (!Platform.isAndroid) {
           // Chip read: 50–100%
-          pendingCard = await _enrichCardWithChip(pendingCard, pin,
+          pendingCard = await _enrichCardWithChip(
+            pendingCard,
+            pin,
             onProgress: (p) => setProgress(
               0.50 + p.percent / 100.0 * 0.50,
               l10n.localizeProgress(p.message),
@@ -1383,11 +1449,11 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         setState(() {
           _enrollError = result.isPinIncorrect
               ? result.remainingAttempts != null
-                  ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                  : l10n.signIncorrectPin
+                    ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
+                    : l10n.signIncorrectPin
               : result.isPinLocked
-                  ? l10n.ciePinLockedUsePuk
-                  : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue));
+              ? l10n.ciePinLockedUsePuk
+              : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue));
         });
       }
     } finally {
@@ -1421,12 +1487,13 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
   void _finish() {
     final card = _pendingCard;
     if (card != null) {
-      final cards =
-          List<EnrolledCard>.from(ref.read(settingsProvider).enrolledCards);
+      final cards = List<EnrolledCard>.from(
+        ref.read(settingsProvider).enrolledCards,
+      );
       cards.add(card);
-      ref.read(settingsProvider.notifier).update(
-            (s) => s.copyWith(enrolledCards: cards),
-          );
+      ref
+          .read(settingsProvider.notifier)
+          .update((s) => s.copyWith(enrolledCards: cards));
     } else {
       widget.onSkip();
     }
@@ -1435,7 +1502,8 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final canGoBack = _step == _WizardStep.detectReader ||
+    final canGoBack =
+        _step == _WizardStep.detectReader ||
         _step == _WizardStep.enrol ||
         (_step == _WizardStep.waitCard && !_enrolling);
     return KeyboardListener(
@@ -1486,52 +1554,64 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                     child: IconButton(
                       icon: const Icon(Icons.arrow_back_rounded),
                       onPressed: _goBack,
-                      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).backButtonTooltip,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
                     ),
                   ),
                 // ── Content column ──────────────────────────────────────
                 Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 28,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildStepDots(),
-                    const SizedBox(height: 8),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      transitionBuilder: (child, anim) => FadeTransition(
-                        opacity: CurvedAnimation(
-                            parent: anim, curve: Curves.easeOut),
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0.04, 0),
-                            end: Offset.zero,
-                          ).animate(CurvedAnimation(
-                              parent: anim, curve: Curves.easeOut)),
-                          child: child,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildStepDots(),
+                      const SizedBox(height: 8),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 350),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: anim,
+                            curve: Curves.easeOut,
+                          ),
+                          child: SlideTransition(
+                            position:
+                                Tween<Offset>(
+                                  begin: const Offset(0.04, 0),
+                                  end: Offset.zero,
+                                ).animate(
+                                  CurvedAnimation(
+                                    parent: anim,
+                                    curve: Curves.easeOut,
+                                  ),
+                                ),
+                            child: child,
+                          ),
                         ),
+                        child: switch (_step) {
+                          _WizardStep.welcome => _buildWelcome(),
+                          _WizardStep.detectReader => _buildDetectReader(),
+                          _WizardStep.enrol => _buildEnrol(),
+                          _WizardStep.waitCard => _buildWaitCard(),
+                          _WizardStep.success => _buildSuccess(),
+                        },
                       ),
-                      child: switch (_step) {
-                        _WizardStep.welcome => _buildWelcome(),
-                        _WizardStep.detectReader => _buildDetectReader(),
-                        _WizardStep.enrol => _buildEnrol(),
-                        _WizardStep.waitCard => _buildWaitCard(),
-                        _WizardStep.success => _buildSuccess(),
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -1575,10 +1655,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                theme.colorScheme.primary,
-                theme.colorScheme.tertiary,
-              ],
+              colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
             ),
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
@@ -1589,8 +1666,11 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
               ),
             ],
           ),
-          child: const Icon(Icons.credit_card_rounded,
-              color: Colors.white, size: 52),
+          child: const Icon(
+            Icons.credit_card_rounded,
+            color: Colors.white,
+            size: 52,
+          ),
         ),
         const SizedBox(height: 36),
         Text(
@@ -1603,8 +1683,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           Platform.isAndroid
               ? l10n.wizardSetupBodyNfc
               : l10n.wizardSetupBodyDesktop,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 44),
@@ -1612,14 +1693,10 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           onPressed: () => setState(() => _step = _WizardStep.detectReader),
           icon: const Icon(Icons.arrow_forward_rounded),
           label: Text(l10n.wizardGetStarted),
-          style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52)),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 12),
-        TextButton(
-          onPressed: widget.onSkip,
-          child: Text(l10n.wizardSkip),
-        ),
+        TextButton(onPressed: widget.onSkip, child: Text(l10n.wizardSkip)),
         const SizedBox(height: 40),
       ],
     );
@@ -1630,10 +1707,10 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
     final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
     final isDesktop = widget.nfcAvailable == null;
-    final readerReady =
-        isDesktop ? widget.readerName != null : widget.nfcAvailable == true;
-    final icon =
-        isDesktop ? Icons.usb_rounded : Icons.contactless_rounded;
+    final readerReady = isDesktop
+        ? widget.readerName != null
+        : widget.nfcAvailable == true;
+    final icon = isDesktop ? Icons.usb_rounded : Icons.contactless_rounded;
 
     final String headline;
     final String statusText;
@@ -1701,8 +1778,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           Text(
             hintText,
             style: theme.textTheme.bodySmall?.copyWith(
-              color:
-                  theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
             ),
             textAlign: TextAlign.center,
           ),
@@ -1714,7 +1790,8 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             icon: const Icon(Icons.arrow_forward_rounded),
             label: Text(AppLocalizations.of(context).wizardNext),
             style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52)),
+              minimumSize: const Size.fromHeight(52),
+            ),
           )
         else if (!isDesktop)
           FilledButton.icon(
@@ -1722,7 +1799,8 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             icon: const Icon(Icons.settings_outlined),
             label: Text(AppLocalizations.of(context).nfcEnableButton),
             style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52)),
+              minimumSize: const Size.fromHeight(52),
+            ),
           ),
         const SizedBox(height: 12),
         TextButton(
@@ -1739,10 +1817,12 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
     final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
     final isDesktop = widget.nfcAvailable == null;
-    final deviceLabel =
-        isDesktop ? (widget.readerName ?? l10n.wizardSmartCardReader) : 'NFC';
-    final deviceIcon =
-        isDesktop ? Icons.usb_rounded : Icons.contactless_rounded;
+    final deviceLabel = isDesktop
+        ? (widget.readerName ?? l10n.wizardSmartCardReader)
+        : 'NFC';
+    final deviceIcon = isDesktop
+        ? Icons.usb_rounded
+        : Icons.contactless_rounded;
 
     return Column(
       key: const ValueKey('enrol'),
@@ -1758,8 +1838,11 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                 color: theme.colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(deviceIcon,
-                  color: theme.colorScheme.primary, size: 18),
+              child: Icon(
+                deviceIcon,
+                color: theme.colorScheme.primary,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 10),
             Flexible(
@@ -1783,8 +1866,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         const SizedBox(height: 8),
         Text(
           l10n.wizardEnrolBody,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 28),
@@ -1814,8 +1898,10 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                 labelText: l10n.ciePinAll8Digits,
                 prefixIcon: const Icon(Icons.pin_rounded),
                 suffixIcon: val.text.length == 8
-                    ? const Icon(Icons.check_circle_rounded,
-                        color: Colors.green)
+                    ? const Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.green,
+                      )
                     : null,
               ),
               validator: (v) =>
@@ -1837,14 +1923,10 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           },
           icon: const Icon(Icons.arrow_forward_rounded),
           label: Text(l10n.wizardNext),
-          style:
-              FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 12),
-        TextButton(
-          onPressed: widget.onSkip,
-          child: Text(l10n.wizardSkip),
-        ),
+        TextButton(onPressed: widget.onSkip, child: Text(l10n.wizardSkip)),
         const SizedBox(height: 40),
       ],
     );
@@ -1878,10 +1960,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                 ringCount: 4,
                 color: hasError ? theme.colorScheme.error : null,
               ),
-              OcGlowChip(
-                size: 80,
-                icon: Icons.contactless_rounded,
-              ),
+              OcGlowChip(size: 80, icon: Icons.contactless_rounded),
             ],
           ),
         ),
@@ -1889,7 +1968,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         Text(
           _enrolling
               ? l10n.cieEnrollingProgress
-              : (isPcsc ? l10n.wizardPlaceCardTitlePcsc : l10n.wizardPlaceCardTitle),
+              : (isPcsc
+                    ? l10n.wizardPlaceCardTitlePcsc
+                    : l10n.wizardPlaceCardTitle),
           style: AppTheme.headlineBold(cs),
           textAlign: TextAlign.center,
         ),
@@ -1925,14 +2006,18 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             ),
             child: Row(
               children: [
-                Icon(Icons.error_outline_rounded,
-                    color: theme.colorScheme.onErrorContainer, size: 18),
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: theme.colorScheme.onErrorContainer,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _enrollError!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer),
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
               ],
@@ -1947,7 +2032,8 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             icon: const Icon(Icons.refresh_rounded),
             label: Text(l10n.wizardPlaceCardRetry),
             style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52)),
+              minimumSize: const Size.fromHeight(52),
+            ),
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -1957,8 +2043,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         ] else ...[
           Text(
             isPcsc ? l10n.wizardPlaceCardBodyPcsc : l10n.wizardPlaceCardBody,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -1999,8 +2086,11 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                 ),
               ],
             ),
-            child: const Icon(Icons.check_rounded,
-                color: Colors.white, size: 54),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.white,
+              size: 54,
+            ),
           ),
         ),
         const SizedBox(height: 32),
@@ -2014,8 +2104,9 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           if (card.name.trim().isNotEmpty)
             Text(
               card.name.trim(),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
           const SizedBox(height: 4),
@@ -2033,8 +2124,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
           onPressed: _finish,
           icon: const Icon(Icons.check_circle_outline_rounded),
           label: Text(AppLocalizations.of(context).wizardDone),
-          style:
-              FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 40),
       ],
@@ -2113,8 +2203,7 @@ class _NfcPromptCardState extends State<_NfcPromptCard>
       }
     }
 
-    final showEnableButton =
-        !isDesktop && widget.nfcAvailable == false;
+    final showEnableButton = !isDesktop && widget.nfcAvailable == false;
 
     return Card(
       color: theme.colorScheme.surfaceContainerLow,
@@ -2124,10 +2213,8 @@ class _NfcPromptCardState extends State<_NfcPromptCard>
           children: [
             AnimatedBuilder(
               animation: _controller,
-              builder: (context, child) => Opacity(
-                opacity: 0.4 + _controller.value * 0.6,
-                child: child,
-              ),
+              builder: (context, child) =>
+                  Opacity(opacity: 0.4 + _controller.value * 0.6, child: child),
               child: Icon(
                 isDesktop ? Icons.usb : Icons.contactless,
                 size: 40,
@@ -2141,13 +2228,17 @@ class _NfcPromptCardState extends State<_NfcPromptCard>
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  Text(statusText,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    statusText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),

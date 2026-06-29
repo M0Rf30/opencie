@@ -98,11 +98,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
               return AlertDialog(
                 backgroundColor: cs.surfaceContainer,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24)),
-                contentPadding:
-                    const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                actionsPadding:
-                    const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -111,8 +110,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                     const SizedBox(height: 8),
                     Text(
                       l10n.signEnterPinTitle,
-                      style: AppTheme.headlineBold(cs)
-                          .copyWith(fontSize: 20),
+                      style: AppTheme.headlineBold(cs).copyWith(fontSize: 20),
                     ),
                   ],
                 ),
@@ -132,7 +130,8 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                   decoration: InputDecoration(
                     hintText: '••••••••',
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
                 actions: [
@@ -149,8 +148,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                         child: OcGradientButton(
                           label: l10n.handoffSasConfirmMatch,
                           onPressed: ready
-                              ? () =>
-                                  Navigator.pop(ctx, controller.text)
+                              ? () => Navigator.pop(ctx, controller.text)
                               : null,
                         ),
                       ),
@@ -180,8 +178,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
   Uint8List _hexToBytes(String hex) {
     final result = Uint8List(hex.length ~/ 2);
     for (var i = 0; i < result.length; i++) {
-      result[i] =
-          int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+      result[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
     }
     return result;
   }
@@ -195,8 +192,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
     if (pin == null) return;
 
     // 2. NFC dialog
-    final nfcNotifier =
-        ValueNotifier<(bool, double, String)>((true, 0.0, ''));
+    final nfcNotifier = ValueNotifier<(bool, double, String)>((true, 0.0, ''));
     bool dialogOpen = true;
 
     void closeDialog() {
@@ -232,8 +228,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       final tempDir = await getTemporaryDirectory();
       final hashBytes = _hexToBytes(descriptor.sha256Hex);
       final inputPath = '${tempDir.path}/handoff_input.bin';
-      final outputPath =
-          '${tempDir.path}/handoff_signed.$signatureType';
+      final outputPath = '${tempDir.path}/handoff_signed.$signatureType';
       await File(inputPath).writeAsBytes(hashBytes);
 
       // 4. Drive the CIE card
@@ -273,24 +268,29 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         if (mounted) setState(() {});
       } else if (result.isPinIncorrect) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              result.remainingAttempts != null
-                  ? l10n.signIncorrectPinWithAttempts(
-                      result.remainingAttempts!)
-                  : l10n.signIncorrectPin,
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result.remainingAttempts != null
+                    ? l10n.signIncorrectPinWithAttempts(
+                        result.remainingAttempts!,
+                      )
+                    : l10n.signIncorrectPin,
+              ),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: cs.error,
             ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: cs.error,
-          ));
+          );
         }
       } else if (result.isPinLocked) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(l10n.signPinLocked),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: cs.error,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.signPinLocked),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: cs.error,
+            ),
+          );
         }
         await _session.abort('pin_locked');
       } else {
@@ -304,11 +304,13 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       } catch (_) {}
       if (mounted) {
         final cs2 = Theme.of(context).colorScheme;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${l10n.handoffError}: $e'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: cs2.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${l10n.handoffError}: $e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: cs2.error,
+          ),
+        );
       }
     }
   }
@@ -393,14 +395,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       PhoneHandoffState.preparingAnswer => _buildPreparingAnswer(l10n, cs),
       PhoneHandoffState.showingQr => _buildShowingQr(l10n, cs),
       // _sasConfirmed is true here; wait for descriptor frame
-      PhoneHandoffState.awaitingSasConfirm =>
-        _buildPreparingAnswer(l10n, cs),
-      PhoneHandoffState.descriptorReceived =>
-        _buildDescriptorPreview(l10n, cs),
-      PhoneHandoffState.signing =>
-        _buildSigningOrDone(l10n, cs, signing: true),
-      PhoneHandoffState.done =>
-        _buildSigningOrDone(l10n, cs, signing: false),
+      PhoneHandoffState.awaitingSasConfirm => _buildPreparingAnswer(l10n, cs),
+      PhoneHandoffState.descriptorReceived => _buildDescriptorPreview(l10n, cs),
+      PhoneHandoffState.signing => _buildSigningOrDone(l10n, cs, signing: true),
+      PhoneHandoffState.done => _buildSigningOrDone(l10n, cs, signing: false),
       PhoneHandoffState.error => _buildError(l10n, cs),
     };
   }
@@ -414,16 +412,19 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 8),
-          Text(l10n.handoffPhoneScanTitle,
-              style: AppTheme.headlineBold(cs),
-              textAlign: TextAlign.center),
+          Text(
+            l10n.handoffPhoneScanTitle,
+            style: AppTheme.headlineBold(cs),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
           Text(
             l10n.handoffPhoneScanBody,
             style: TextStyle(
-                fontFamily: 'Inter',
-                color: cs.onSurfaceVariant,
-                fontSize: 14),
+              fontFamily: 'Inter',
+              color: cs.onSurfaceVariant,
+              fontSize: 14,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -450,11 +451,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                     },
                   ),
                   // Brand mark overlay
-                  const Positioned(
-                    top: 12,
-                    right: 12,
-                    child: OcMark(size: 28),
-                  ),
+                  const Positioned(top: 12, right: 12, child: OcMark(size: 28)),
                 ],
               ),
             ),
@@ -482,9 +479,11 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       children: [
         const CircularProgressIndicator(),
         const SizedBox(height: 20),
-        Text('Preparazione…',
-            style: AppTheme.headlineBold(cs),
-            textAlign: TextAlign.center),
+        Text(
+          'Preparazione…',
+          style: AppTheme.headlineBold(cs),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
@@ -500,16 +499,19 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 8),
-          Text(l10n.handoffPhoneShowQr2Title,
-              style: AppTheme.headlineBold(cs),
-              textAlign: TextAlign.center),
+          Text(
+            l10n.handoffPhoneShowQr2Title,
+            style: AppTheme.headlineBold(cs),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
           Text(
             l10n.handoffPhoneShowQr2Body,
             style: TextStyle(
-                fontFamily: 'Inter',
-                color: cs.onSurfaceVariant,
-                fontSize: 14),
+              fontFamily: 'Inter',
+              color: cs.onSurfaceVariant,
+              fontSize: 14,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -542,10 +544,12 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
           OutlinedButton.icon(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: qr2));
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(l10n.handoffPhoneCopiedQr2),
-                behavior: SnackBarBehavior.floating,
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.handoffPhoneCopiedQr2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             },
             icon: const Icon(Icons.copy_all_outlined, size: 16),
             label: Text(l10n.handoffPhoneCopyQr2),
@@ -578,43 +582,50 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
           const SizedBox(height: 8),
           OcSectionLabel('SICUREZZA'),
           const SizedBox(height: 12),
-          Text(l10n.handoffSasConfirmTitle,
-              style: AppTheme.headlineBold(cs),
-              textAlign: TextAlign.center),
+          Text(
+            l10n.handoffSasConfirmTitle,
+            style: AppTheme.headlineBold(cs),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
           Text(
             l10n.handoffSasConfirmBody,
             style: TextStyle(
-                fontFamily: 'Inter',
-                color: cs.onSurfaceVariant,
-                fontSize: 14,
-                height: 1.5),
+              fontFamily: 'Inter',
+              color: cs.onSurfaceVariant,
+              fontSize: 14,
+              height: 1.5,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
 
           // ── Safety warning strip ──────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: ColorSchemes.accent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: ColorSchemes.accent.withValues(alpha: 0.30)),
+                color: ColorSchemes.accent.withValues(alpha: 0.30),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.shield_outlined,
-                    color: ColorSchemes.accent, size: 18),
+                const Icon(
+                  Icons.shield_outlined,
+                  color: ColorSchemes.accent,
+                  size: 18,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     l10n.handoffSafetyWarning,
                     style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        height: 1.4),
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ],
@@ -631,7 +642,8 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
               color: ColorSchemes.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: ColorSchemes.primary.withValues(alpha: 0.32)),
+                color: ColorSchemes.primary.withValues(alpha: 0.32),
+              ),
             ),
             child: Wrap(
               spacing: 24,
@@ -665,8 +677,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                     _session.abort('sas_mismatch');
                     Navigator.pop(context);
                   },
-                  child: Text(l10n.handoffSasConfirmMismatch,
-                      textAlign: TextAlign.center),
+                  child: Text(
+                    l10n.handoffSasConfirmMismatch,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -692,12 +706,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         : 'bin';
     final shortSha = d.sha256Hex.length >= 16
         ? '${d.sha256Hex.substring(0, 8)}…'
-            '${d.sha256Hex.substring(d.sha256Hex.length - 8)}'
+              '${d.sha256Hex.substring(d.sha256Hex.length - 8)}'
         : d.sha256Hex;
     final sizeKb = d.byteSize ~/ 1024;
-    final pageInfo = d.pageCount != null
-        ? '${d.pageCount} pagine'
-        : '— pagine';
+    final pageInfo = d.pageCount != null ? '${d.pageCount} pagine' : '— pagine';
 
     return SingleChildScrollView(
       key: const ValueKey('descriptor'),
@@ -705,8 +717,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-          Text(l10n.handoffPhoneDocumentPreviewTitle,
-              style: AppTheme.headlineBold(cs)),
+          Text(
+            l10n.handoffPhoneDocumentPreviewTitle,
+            style: AppTheme.headlineBold(cs),
+          ),
           const SizedBox(height: 20),
 
           // ── Document card ─────────────────────────────────────────────────
@@ -810,12 +824,13 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
   // ── State 6/7: Signing / Done ────────────────────────────────────────────
 
-  Widget _buildSigningOrDone(AppLocalizations l10n, ColorScheme cs,
-      {required bool signing}) {
-    final tone =
-        signing ? OcStatusTone.warning : OcStatusTone.valid;
-    final haloColor =
-        signing ? ColorSchemes.primary : ColorSchemes.valid;
+  Widget _buildSigningOrDone(
+    AppLocalizations l10n,
+    ColorScheme cs, {
+    required bool signing,
+  }) {
+    final tone = signing ? OcStatusTone.warning : OcStatusTone.valid;
+    final haloColor = signing ? ColorSchemes.primary : ColorSchemes.valid;
 
     return Column(
       key: ValueKey(signing ? 'signing' : 'done'),
@@ -866,14 +881,15 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       children: [
         OcStatusDisc(
           tone: OcStatusTone.invalid,
-          icon: const Icon(Icons.close_rounded,
-              color: Colors.white, size: 36),
+          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 36),
           size: 92,
         ),
         const SizedBox(height: 20),
-        Text(l10n.handoffError,
-            style: AppTheme.headlineBold(cs),
-            textAlign: TextAlign.center),
+        Text(
+          l10n.handoffError,
+          style: AppTheme.headlineBold(cs),
+          textAlign: TextAlign.center,
+        ),
         if (_session.errorMessage != null) ...[
           const SizedBox(height: 8),
           OcMonoText(

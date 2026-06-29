@@ -59,8 +59,7 @@ class _SignPageState extends ConsumerState<SignPage> {
   bool _isDragging = false;
 
   /// Notifier for the NFC modal dialog state: (isWaiting, progress, message).
-  final _nfcNotifier =
-      ValueNotifier<(bool, double, String)>((false, 0.0, ''));
+  final _nfcNotifier = ValueNotifier<(bool, double, String)>((false, 0.0, ''));
   bool _nfcDialogOpen = false;
 
   /// PC/SC reader name (desktop only).
@@ -80,11 +79,9 @@ class _SignPageState extends ConsumerState<SignPage> {
     super.dispose();
   }
 
-  bool get _isPdfFile =>
-      _selectedFile?.toLowerCase().endsWith('.pdf') ?? false;
+  bool get _isPdfFile => _selectedFile?.toLowerCase().endsWith('.pdf') ?? false;
 
-  bool get _isXmlFile =>
-      _selectedFile?.toLowerCase().endsWith('.xml') ?? false;
+  bool get _isXmlFile => _selectedFile?.toLowerCase().endsWith('.xml') ?? false;
 
   bool get _readerReady => Platform.isAndroid || _readerName != null;
 
@@ -161,7 +158,9 @@ class _SignPageState extends ConsumerState<SignPage> {
     final isPdf = _selectedFile?.toLowerCase().endsWith('.pdf') ?? false;
     if (!isPdf && options.format == SignatureFormat.pades) {
       options = options.copyWith(
-          format: SignatureFormat.cades, graphicSignature: false);
+        format: SignatureFormat.cades,
+        graphicSignature: false,
+      );
       setState(() => _options = options);
     }
 
@@ -275,8 +274,11 @@ class _SignPageState extends ConsumerState<SignPage> {
         h: options.graphicSignature ? options.height : 0,
         imageData: options.graphicSignature ? options.imageData : null,
         onProgress: (p) {
-          _nfcNotifier.value =
-              (false, p.percent / 100.0, l10n.localizeProgress(p.message));
+          _nfcNotifier.value = (
+            false,
+            p.percent / 100.0,
+            l10n.localizeProgress(p.message),
+          );
         },
       );
 
@@ -302,8 +304,9 @@ class _SignPageState extends ConsumerState<SignPage> {
             }
           }
           try {
-            await _nfcChannel.invokeMethod<bool>(
-                'scanMediaFile', {'path': outputPath});
+            await _nfcChannel.invokeMethod<bool>('scanMediaFile', {
+              'path': outputPath,
+            });
           } catch (_) {}
         }
       } else if (result.isPinIncorrect) {
@@ -330,7 +333,8 @@ class _SignPageState extends ConsumerState<SignPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                l10n.signFailed(l10n.humanizeError(result.returnValue))),
+              l10n.signFailed(l10n.humanizeError(result.returnValue)),
+            ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
@@ -376,7 +380,9 @@ class _SignPageState extends ConsumerState<SignPage> {
   }
 
   Future<String> _resolveOutputPath(
-      String inputPath, SignatureOptions options) async {
+    String inputPath,
+    SignatureOptions options,
+  ) async {
     final inputFile = File(inputPath);
     final inputName = inputFile.uri.pathSegments.last;
     final baseName = options.format == SignatureFormat.pades
@@ -415,11 +421,10 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   // ── PIN dialog ──────────────────────────────────────────────────────────────
 
-  Future<String?> _showPinDialog() =>
-      showDialog<String>(
-        context: context,
-        builder: (_) => const SignPinDialog(),
-      );
+  Future<String?> _showPinDialog() => showDialog<String>(
+    context: context,
+    builder: (_) => const SignPinDialog(),
+  );
 
   // ── Success dialog ──────────────────────────────────────────────────────────
 
@@ -479,8 +484,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final recent = ref.watch(recentSignedFilesProvider);
-    final hasCard =
-        ref.watch(settingsProvider).enrolledCards.isNotEmpty;
+    final hasCard = ref.watch(settingsProvider).enrolledCards.isNotEmpty;
 
     return SafeArea(
       child: Column(
@@ -499,7 +503,10 @@ class _SignPageState extends ConsumerState<SignPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(l10n.signTitle, style: AppTheme.displayBold(cs)),
+                              Text(
+                                l10n.signTitle,
+                                style: AppTheme.displayBold(cs),
+                              ),
                               const SizedBox(height: 6),
                               Text(
                                 l10n.signSubtitleFull,
@@ -519,7 +526,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute<void>(builder: (_) => const BatchSignPage()),
+                              MaterialPageRoute<void>(
+                                builder: (_) => const BatchSignPage(),
+                              ),
                             );
                           },
                         ),
@@ -533,9 +542,21 @@ class _SignPageState extends ConsumerState<SignPage> {
                               icon: Icons.draw_rounded,
                               iconColor: cs.primary,
                               steps: [
-                                OcHelpStep(title: l10n.helpSignStep1Title, body: l10n.helpSignStep1Body, icon: Icons.folder_open_rounded),
-                                OcHelpStep(title: l10n.helpSignStep2Title, body: l10n.helpSignStep2Body, icon: Icons.tune_rounded),
-                                OcHelpStep(title: l10n.helpSignStep3Title, body: l10n.helpSignStep3Body, icon: Icons.nfc_rounded),
+                                OcHelpStep(
+                                  title: l10n.helpSignStep1Title,
+                                  body: l10n.helpSignStep1Body,
+                                  icon: Icons.folder_open_rounded,
+                                ),
+                                OcHelpStep(
+                                  title: l10n.helpSignStep2Title,
+                                  body: l10n.helpSignStep2Body,
+                                  icon: Icons.tune_rounded,
+                                ),
+                                OcHelpStep(
+                                  title: l10n.helpSignStep3Title,
+                                  body: l10n.helpSignStep3Body,
+                                  icon: Icons.nfc_rounded,
+                                ),
                               ],
                             ),
                           ),
@@ -547,9 +568,7 @@ class _SignPageState extends ConsumerState<SignPage> {
 
                 // Enrollment warning
                 if (!hasCard)
-                  SliverToBoxAdapter(
-                    child: _buildEnrollmentBanner(context),
-                  ),
+                  SliverToBoxAdapter(child: _buildEnrollmentBanner(context)),
 
                 // Document hero
                 SliverToBoxAdapter(
@@ -563,16 +582,14 @@ class _SignPageState extends ConsumerState<SignPage> {
                 if (_selectedFile != null)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                       child: Column(
                         children: [
                           Text(
                             _selectedFile!.split('/').last,
-                            style: TextStyle(fontFamily: 'Inter', 
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
                             ),
@@ -583,9 +600,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                           const SizedBox(height: 4),
                           OcMonoText(
                             _fileSizeCaption(_selectedFile!),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ],
@@ -600,8 +617,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                     _selectedFile!.toLowerCase().endsWith('.pdf'))
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                       child: PdfSignaturePlacer(
                         pdfPath: _selectedFile!,
                         page: _options.page,
@@ -610,25 +626,26 @@ class _SignPageState extends ConsumerState<SignPage> {
                         sigW: _options.width,
                         sigH: _options.height,
                         imageData: _options.imageData,
-                        onChanged: ({
-                          required int page,
-                          required double x,
-                          required double y,
-                          required double w,
-                          required double h,
-                          Uint8List? imageData,
-                        }) {
-                          setState(() {
-                            _options = _options.copyWith(
-                              page: page,
-                              x: x,
-                              y: y,
-                              width: w,
-                              height: h,
-                              imageData: imageData,
-                            );
-                          });
-                        },
+                        onChanged:
+                            ({
+                              required int page,
+                              required double x,
+                              required double y,
+                              required double w,
+                              required double h,
+                              Uint8List? imageData,
+                            }) {
+                              setState(() {
+                                _options = _options.copyWith(
+                                  page: page,
+                                  x: x,
+                                  y: y,
+                                  width: w,
+                                  height: h,
+                                  imageData: imageData,
+                                );
+                              });
+                            },
                       ),
                     ),
                   ),
@@ -642,8 +659,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                     ),
                   ),
 
-                const SliverToBoxAdapter(
-                    child: SizedBox(height: 16)),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
               ],
             ),
           ),
@@ -664,12 +680,15 @@ class _SignPageState extends ConsumerState<SignPage> {
           color: theme.colorScheme.errorContainer,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: theme.colorScheme.error.withValues(alpha: 0.3)),
+            color: theme.colorScheme.error.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
-            Icon(Icons.credit_card_off,
-                color: theme.colorScheme.onErrorContainer),
+            Icon(
+              Icons.credit_card_off,
+              color: theme.colorScheme.onErrorContainer,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -768,14 +787,14 @@ class _SignPageState extends ConsumerState<SignPage> {
                         : Icons.cloud_upload_outlined,
                     key: ValueKey(_isDragging),
                     size: 44,
-                    color:
-                        _isDragging ? cs.primary : cs.onSurfaceVariant,
+                    color: _isDragging ? cs.primary : cs.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   l10n.signDragAndDropHint,
-                  style: TextStyle(fontFamily: 'Inter', 
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     color: cs.onSurfaceVariant,
                     fontSize: 14,
                   ),
@@ -789,7 +808,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                   style: OutlinedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                 ),
                 if (Platform.isAndroid) ...[
@@ -806,7 +827,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ],
@@ -850,8 +873,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                     children: [
                       // Faux page content
                       Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 16, 16, 56),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 56),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -861,30 +883,37 @@ class _SignPageState extends ConsumerState<SignPage> {
                               child: Container(
                                 height: 10,
                                 decoration: BoxDecoration(
-                                  color: ColorSchemes.primaryDeep
-                                      .withValues(alpha: 0.65),
-                                  borderRadius:
-                                      BorderRadius.circular(3),
+                                  color: ColorSchemes.primaryDeep.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 8),
                             // 11 body lines
                             for (final w in [
-                              0.92, 0.78, 0.85, 0.72, 0.88,
-                              0.68, 0.82, 0.90, 0.75, 0.86, 0.70
+                              0.92,
+                              0.78,
+                              0.85,
+                              0.72,
+                              0.88,
+                              0.68,
+                              0.82,
+                              0.90,
+                              0.75,
+                              0.86,
+                              0.70,
                             ])
                               Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.only(bottom: 6),
                                 child: FractionallySizedBox(
                                   widthFactor: w,
                                   child: Container(
                                     height: 7,
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFD8D8D8),
-                                      borderRadius:
-                                          BorderRadius.circular(2),
+                                      borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
                                 ),
@@ -907,12 +936,12 @@ class _SignPageState extends ConsumerState<SignPage> {
                           child: Container(
                             width: 92,
                             height: 36,
-                            color: ColorSchemes.primary
-                                .withValues(alpha: 0.06),
+                            color: ColorSchemes.primary.withValues(alpha: 0.06),
                             child: Center(
                               child: Text(
                                 'SIGN HERE',
-                                style: TextStyle(fontFamily: 'JetBrainsMono', 
+                                style: TextStyle(
+                                  fontFamily: 'JetBrainsMono',
                                   color: ColorSchemes.primary,
                                   fontSize: 8,
                                   fontWeight: FontWeight.w800,
@@ -930,14 +959,17 @@ class _SignPageState extends ConsumerState<SignPage> {
                         right: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: extColor,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             ext,
-                            style: TextStyle(fontFamily: 'JetBrainsMono', 
+                            style: TextStyle(
+                              fontFamily: 'JetBrainsMono',
                               color: Colors.white,
                               fontSize: 8,
                               fontWeight: FontWeight.w800,
@@ -952,19 +984,21 @@ class _SignPageState extends ConsumerState<SignPage> {
                         top: 4,
                         left: 4,
                         child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedFile = null),
+                          onTap: () => setState(() => _selectedFile = null),
                           child: Container(
                             width: 24,
                             height: 24,
                             decoration: BoxDecoration(
-                              color: cs.surfaceContainerHighest
-                                  .withValues(alpha: 0.85),
+                              color: cs.surfaceContainerHighest.withValues(
+                                alpha: 0.85,
+                              ),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(Icons.close_rounded,
-                                size: 14,
-                                color: cs.onSurface),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 14,
+                              color: cs.onSurface,
+                            ),
                           ),
                         ),
                       ),
@@ -986,8 +1020,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainer,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border(top: BorderSide(color: cs.outlineVariant)),
       ),
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 16),
@@ -1018,7 +1051,8 @@ class _SignPageState extends ConsumerState<SignPage> {
                 cs,
                 label: l10n.signGraphicSignature,
                 enabled: _options.format == SignatureFormat.pades,
-                value: _options.graphicSignature &&
+                value:
+                    _options.graphicSignature &&
                     _options.format == SignatureFormat.pades,
                 onToggled: _onGraphicToggled,
               ),
@@ -1039,10 +1073,9 @@ class _SignPageState extends ConsumerState<SignPage> {
           OcGradientButton(
             label: l10n.signButton,
             icon: Icons.contactless_rounded,
-            onPressed:
-                _selectedFile != null && !_isSigning && !_waitingCard
-                    ? _startSigning
-                    : null,
+            onPressed: _selectedFile != null && !_isSigning && !_waitingCard
+                ? _startSigning
+                : null,
           ),
         ],
       ),
@@ -1079,13 +1112,13 @@ class _SignPageState extends ConsumerState<SignPage> {
                   child: Text(
                     // "PAdES (PDF)" → "PAdES"
                     format.displayName.split(' ').first,
-                    style: TextStyle(fontFamily: 'Inter', 
+                    style: TextStyle(
+                      fontFamily: 'Inter',
                       color: isDisabled
-                          ? cs.onSurfaceVariant
-                              .withValues(alpha: 0.35)
+                          ? cs.onSurfaceVariant.withValues(alpha: 0.35)
                           : isSelected
-                              ? cs.onSurface
-                              : cs.onSurfaceVariant,
+                          ? cs.onSurface
+                          : cs.onSurfaceVariant,
                       fontWeight: isSelected
                           ? FontWeight.w700
                           : FontWeight.w400,
@@ -1118,7 +1151,8 @@ class _SignPageState extends ConsumerState<SignPage> {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontFamily: 'Inter', 
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   color: cs.onSurface,
                   fontWeight: FontWeight.w500,
                   fontSize: 14,
@@ -1138,8 +1172,9 @@ class _SignPageState extends ConsumerState<SignPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
-    final enrolledCard =
-        settings.enrolledCards.isNotEmpty ? settings.enrolledCards.first : null;
+    final enrolledCard = settings.enrolledCards.isNotEmpty
+        ? settings.enrolledCards.first
+        : null;
     final hasCard = enrolledCard != null;
     final recent = ref.watch(recentSignedFilesProvider);
 
@@ -1150,8 +1185,7 @@ class _SignPageState extends ConsumerState<SignPage> {
           // ── Left: Document queue ──────────────────────────────────
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 28, vertical: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1163,7 +1197,10 @@ class _SignPageState extends ConsumerState<SignPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(l10n.signTitle, style: AppTheme.displayBold(cs)),
+                            Text(
+                              l10n.signTitle,
+                              style: AppTheme.displayBold(cs),
+                            ),
                             const SizedBox(height: 6),
                             Text(
                               l10n.signSubtitleFull,
@@ -1183,7 +1220,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute<void>(builder: (_) => const BatchSignPage()),
+                            MaterialPageRoute<void>(
+                              builder: (_) => const BatchSignPage(),
+                            ),
                           );
                         },
                       ),
@@ -1197,9 +1236,21 @@ class _SignPageState extends ConsumerState<SignPage> {
                             icon: Icons.draw_rounded,
                             iconColor: cs.primary,
                             steps: [
-                              OcHelpStep(title: l10n.helpSignStep1Title, body: l10n.helpSignStep1Body, icon: Icons.folder_open_rounded),
-                              OcHelpStep(title: l10n.helpSignStep2Title, body: l10n.helpSignStep2Body, icon: Icons.tune_rounded),
-                              OcHelpStep(title: l10n.helpSignStep3Title, body: l10n.helpSignStep3Body, icon: Icons.nfc_rounded),
+                              OcHelpStep(
+                                title: l10n.helpSignStep1Title,
+                                body: l10n.helpSignStep1Body,
+                                icon: Icons.folder_open_rounded,
+                              ),
+                              OcHelpStep(
+                                title: l10n.helpSignStep2Title,
+                                body: l10n.helpSignStep2Body,
+                                icon: Icons.tune_rounded,
+                              ),
+                              OcHelpStep(
+                                title: l10n.helpSignStep3Title,
+                                body: l10n.helpSignStep3Body,
+                                icon: Icons.nfc_rounded,
+                              ),
                             ],
                           ),
                         ),
@@ -1231,21 +1282,25 @@ class _SignPageState extends ConsumerState<SignPage> {
                         // Header row
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           color: cs.surfaceContainerHigh,
                           child: Row(
                             children: [
-                              Expanded(
-                                  child: OcSectionLabel('DOCUMENTO')),
+                              Expanded(child: OcSectionLabel('DOCUMENTO')),
                               SizedBox(
-                                  width: 100,
-                                  child: OcSectionLabel('FORMATO')),
+                                width: 100,
+                                child: OcSectionLabel('FORMATO'),
+                              ),
                               SizedBox(
-                                  width: 90,
-                                  child: OcSectionLabel('DIMENSIONE')),
+                                width: 90,
+                                child: OcSectionLabel('DIMENSIONE'),
+                              ),
                               SizedBox(
-                                  width: 80,
-                                  child: OcSectionLabel('STATO')),
+                                width: 80,
+                                child: OcSectionLabel('STATO'),
+                              ),
                             ],
                           ),
                         ),
@@ -1253,8 +1308,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                         // File row (if selected)
                         if (_selectedFile != null) ...[
                           _buildDesktopFileRow(context, cs, l10n),
-                          Divider(
-                              height: 1, color: cs.outlineVariant),
+                          Divider(height: 1, color: cs.outlineVariant),
                         ],
 
                         // Drop hint row
@@ -1268,13 +1322,10 @@ class _SignPageState extends ConsumerState<SignPage> {
                             onDragDone: (details) {
                               setState(() => _isDragging = false);
                               if (details.files.isNotEmpty) {
-                                final path =
-                                    details.files.first.path;
+                                final path = details.files.first.path;
                                 setState(() {
                                   _selectedFile = path;
-                                  if (!path
-                                          .toLowerCase()
-                                          .endsWith('.pdf') &&
+                                  if (!path.toLowerCase().endsWith('.pdf') &&
                                       _options.format ==
                                           SignatureFormat.pades) {
                                     _options = _options.copyWith(
@@ -1287,21 +1338,25 @@ class _SignPageState extends ConsumerState<SignPage> {
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 16),
+                                horizontal: 14,
+                                vertical: 16,
+                              ),
                               color: _isDragging
                                   ? cs.primary.withValues(alpha: 0.06)
                                   : Colors.transparent,
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add_circle_outline,
-                                      size: 16,
-                                      color: cs.onSurfaceVariant),
+                                  Icon(
+                                    Icons.add_circle_outline,
+                                    size: 16,
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     l10n.signDragAndDropHint,
-                                    style: TextStyle(fontFamily: 'Inter', 
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
                                       color: cs.onSurfaceVariant,
                                       fontSize: 13,
                                     ),
@@ -1329,25 +1384,26 @@ class _SignPageState extends ConsumerState<SignPage> {
                       sigW: _options.width,
                       sigH: _options.height,
                       imageData: _options.imageData,
-                      onChanged: ({
-                        required int page,
-                        required double x,
-                        required double y,
-                        required double w,
-                        required double h,
-                        Uint8List? imageData,
-                      }) {
-                        setState(() {
-                          _options = _options.copyWith(
-                            page: page,
-                            x: x,
-                            y: y,
-                            width: w,
-                            height: h,
-                            imageData: imageData,
-                          );
-                        });
-                      },
+                      onChanged:
+                          ({
+                            required int page,
+                            required double x,
+                            required double y,
+                            required double w,
+                            required double h,
+                            Uint8List? imageData,
+                          }) {
+                            setState(() {
+                              _options = _options.copyWith(
+                                page: page,
+                                x: x,
+                                y: y,
+                                width: w,
+                                height: h,
+                                imageData: imageData,
+                              );
+                            });
+                          },
                     ),
                   ],
 
@@ -1365,8 +1421,7 @@ class _SignPageState extends ConsumerState<SignPage> {
           SizedBox(
             width: 320,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1396,36 +1451,35 @@ class _SignPageState extends ConsumerState<SignPage> {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    (enrolledCard.displayName
-                                            .isNotEmpty
+                                    (enrolledCard.displayName.isNotEmpty
                                         ? enrolledCard.displayName[0]
                                         : 'C'),
-                                    style: TextStyle(fontFamily: 'Inter', 
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 15),
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       enrolledCard.displayName,
-                                      style: TextStyle(fontFamily: 'Inter', 
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
                                         color: cs.onSurface,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14,
                                       ),
                                       maxLines: 1,
-                                      overflow:
-                                          TextOverflow.ellipsis,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    if (enrolledCard.serial
-                                        .isNotEmpty)
+                                    if (enrolledCard.serial.isNotEmpty)
                                       OcMonoText(
                                         enrolledCard.serial,
                                         color: cs.onSurfaceVariant,
@@ -1438,12 +1492,16 @@ class _SignPageState extends ConsumerState<SignPage> {
                           )
                         : Row(
                             children: [
-                              Icon(Icons.credit_card_off_rounded,
-                                  color: cs.error, size: 20),
+                              Icon(
+                                Icons.credit_card_off_rounded,
+                                color: cs.error,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 l10n.signNoCardEnrolled,
-                                style: TextStyle(fontFamily: 'Inter', 
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
                                   color: cs.error,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -1469,31 +1527,26 @@ class _SignPageState extends ConsumerState<SignPage> {
                         _OptionsRow(
                           icon: Icons.description_outlined,
                           label: l10n.signFormat,
-                          value: _options.format.displayName
-                              .split(' ')
-                              .first,
+                          value: _options.format.displayName.split(' ').first,
                         ),
                         Divider(height: 1, color: cs.outlineVariant),
                         _OptionsRow(
                           icon: Icons.schedule_rounded,
                           label: l10n.signAddTimestamp,
-                          value: _options.addTimestamp
-                              ? 'FreeTSA'
-                              : '—',
+                          value: _options.addTimestamp ? 'FreeTSA' : '—',
                         ),
                         Divider(height: 1, color: cs.outlineVariant),
                         _OptionsRow(
                           icon: Icons.folder_outlined,
                           label: 'Salva in',
-                          value: ref
-                                      .read(settingsProvider)
-                                      .destinationFolder !=
+                          value:
+                              ref.read(settingsProvider).destinationFolder !=
                                   null
                               ? ref
-                                  .read(settingsProvider)
-                                  .destinationFolder!
-                                  .split('/')
-                                  .last
+                                    .read(settingsProvider)
+                                    .destinationFolder!
+                                    .split('/')
+                                    .last
                               : '/OpenCIE',
                         ),
                       ],
@@ -1514,9 +1567,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                         context,
                         cs,
                         label: l10n.signGraphicSignature,
-                        enabled:
-                            _options.format == SignatureFormat.pades,
-                        value: _options.graphicSignature &&
+                        enabled: _options.format == SignatureFormat.pades,
+                        value:
+                            _options.graphicSignature &&
                             _options.format == SignatureFormat.pades,
                         onToggled: _onGraphicToggled,
                       ),
@@ -1541,7 +1594,8 @@ class _SignPageState extends ConsumerState<SignPage> {
                   OcGradientButton(
                     label: l10n.signButton,
                     icon: Icons.contactless_rounded,
-                    onPressed: _selectedFile != null &&
+                    onPressed:
+                        _selectedFile != null &&
                             !_isSigning &&
                             !_waitingCard &&
                             _readerReady
@@ -1557,9 +1611,8 @@ class _SignPageState extends ConsumerState<SignPage> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute<void>(
-                          builder: (_) => DesktopHandoffPage(
-                            filePath: _selectedFile!,
-                          ),
+                          builder: (_) =>
+                              DesktopHandoffPage(filePath: _selectedFile!),
                         ),
                       ),
                       icon: const Icon(Icons.smartphone_rounded, size: 18),
@@ -1576,15 +1629,17 @@ class _SignPageState extends ConsumerState<SignPage> {
   }
 
   Widget _buildDesktopFileRow(
-      BuildContext context, ColorScheme cs, AppLocalizations l10n) {
+    BuildContext context,
+    ColorScheme cs,
+    AppLocalizations l10n,
+  ) {
     final path = _selectedFile!;
     final name = path.split('/').last;
     final ext = name.split('.').last.toUpperCase();
 
     return Container(
       color: cs.primary.withValues(alpha: 0.06),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
           OcFileTile(extension: ext, width: 28, height: 34),
@@ -1592,10 +1647,12 @@ class _SignPageState extends ConsumerState<SignPage> {
           Expanded(
             child: Text(
               name,
-              style: TextStyle(fontFamily: 'Inter', 
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13),
+              style: TextStyle(
+                fontFamily: 'Inter',
+                color: cs.onSurface,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1609,42 +1666,42 @@ class _SignPageState extends ConsumerState<SignPage> {
           ),
           SizedBox(
             width: 90,
-            child: OcMonoText(
-              _fileSizeCaption(path),
-              fontSize: 11,
+            child: OcMonoText(_fileSizeCaption(path), fontSize: 11),
+          ),
+          SizedBox(
+            width: 80,
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _readerReady
+                        ? ColorSchemes.valid
+                        : cs.onSurfaceVariant,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _readerReady ? 'Pronto' : 'In attesa',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    color: _readerReady
+                        ? ColorSchemes.valid
+                        : cs.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-           SizedBox(
-             width: 80,
-             child: Row(
-               children: [
-                 Container(
-                     width: 6,
-                     height: 6,
-                     decoration: BoxDecoration(
-                         color: _readerReady
-                             ? ColorSchemes.valid
-                             : cs.onSurfaceVariant,
-                         shape: BoxShape.circle)),
-                 const SizedBox(width: 6),
-                 Text(
-                   _readerReady ? 'Pronto' : 'In attesa',
-                   style: TextStyle(fontFamily: 'Inter', 
-                       color: _readerReady
-                           ? ColorSchemes.valid
-                           : cs.onSurfaceVariant,
-                       fontSize: 12,
-                       fontWeight: FontWeight.w600),
-                 ),
-               ],
-             ),
-           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 16),
             onPressed: () => setState(() => _selectedFile = null),
             padding: EdgeInsets.zero,
-            constraints:
-                const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
         ],
       ),
@@ -1678,7 +1735,8 @@ class _SignPageState extends ConsumerState<SignPage> {
             Expanded(
               child: Text(
                 readerLabel,
-                style: TextStyle(fontFamily: 'Inter', 
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   color: cs.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -1711,7 +1769,8 @@ class _SignPageState extends ConsumerState<SignPage> {
             Expanded(
               child: Text(
                 'Nessun lettore rilevato',
-                style: TextStyle(fontFamily: 'Inter', 
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   color: cs.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -1726,8 +1785,7 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   // ── Recent files ────────────────────────────────────────────────────────────
 
-  Widget _buildRecentSection(
-      BuildContext context, List<RecentFile> recent) {
+  Widget _buildRecentSection(BuildContext context, List<RecentFile> recent) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
 
@@ -1737,9 +1795,12 @@ class _SignPageState extends ConsumerState<SignPage> {
         Row(
           children: [
             Expanded(
-              child: Text(l10n.signRecentlySigned,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600)),
+              child: Text(
+                l10n.signRecentlySigned,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             TextButton.icon(
               onPressed: () =>
@@ -1747,7 +1808,8 @@ class _SignPageState extends ConsumerState<SignPage> {
               icon: const Icon(Icons.delete_sweep, size: 18),
               label: Text(l10n.commonClear),
               style: TextButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error),
+                foregroundColor: theme.colorScheme.error,
+              ),
             ),
           ],
         ),
@@ -1757,8 +1819,7 @@ class _SignPageState extends ConsumerState<SignPage> {
           child: Column(
             children: [
               for (var i = 0; i < recent.length; i++) ...[
-                if (i > 0)
-                  const Divider(height: 1, indent: 56, endIndent: 16),
+                if (i > 0) const Divider(height: 1, indent: 56, endIndent: 16),
                 _buildRecentTile(recent[i], theme, l10n),
               ],
             ],
@@ -1769,22 +1830,30 @@ class _SignPageState extends ConsumerState<SignPage> {
   }
 
   Widget _buildRecentTile(
-      RecentFile file, ThemeData theme, AppLocalizations l10n) {
+    RecentFile file,
+    ThemeData theme,
+    AppLocalizations l10n,
+  ) {
     final extColor = _extColor(file.extension, theme);
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: extColor.withValues(alpha: 0.12),
-        child: Text(file.extension,
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: extColor)),
+        child: Text(
+          file.extension,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: extColor,
+          ),
+        ),
       ),
-      title: Text(file.fileName,
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(_formatRelative(file.addedAt, l10n),
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      title: Text(file.fileName, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        _formatRelative(file.addedAt, l10n),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => setState(() {
         _selectedFile = file.path;
@@ -1850,14 +1919,12 @@ class _SignMiniToggle extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: value ? cs.primary : cs.surfaceContainerHigh,
-        border:
-            value ? null : Border.all(color: cs.outlineVariant),
+        border: value ? null : Border.all(color: cs.outlineVariant),
       ),
       child: AnimatedAlign(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        alignment:
-            value ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           width: 12,
           height: 12,
@@ -1887,8 +1954,7 @@ class _OptionsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
           Icon(icon, size: 18, color: cs.primary),
@@ -1896,10 +1962,12 @@ class _OptionsRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontFamily: 'Inter', 
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13),
+              style: TextStyle(
+                fontFamily: 'Inter',
+                color: cs.onSurface,
+                fontWeight: FontWeight.w500,
+                fontSize: 13,
+              ),
             ),
           ),
           OcMonoText(value, fontSize: 11, color: cs.onSurfaceVariant),

@@ -27,9 +27,13 @@ class AtsHashIndexBuilder {
     required List<Uint8List> crls,
     required List<Uint8List> unsignedAttrValues,
   }) {
-    final certHashes = certificates.map((c) => hashOf(c, hashAlgorithmOid)).toList();
+    final certHashes = certificates
+        .map((c) => hashOf(c, hashAlgorithmOid))
+        .toList();
     final crlHashes = crls.map((c) => hashOf(c, hashAlgorithmOid)).toList();
-    final attrHashes = unsignedAttrValues.map((a) => hashOf(a, hashAlgorithmOid)).toList();
+    final attrHashes = unsignedAttrValues
+        .map((a) => hashOf(a, hashAlgorithmOid))
+        .toList();
 
     // Sort each list by byte order, ascending
     certHashes.sort((a, b) => _lexCompare(a, b));

@@ -110,7 +110,9 @@ class MockIdpServer {
 
   Response _jwks(Request req) {
     return Response.ok(
-      json.encode({'keys': [_keyPair.jwk]}),
+      json.encode({
+        'keys': [_keyPair.jwk],
+      }),
       headers: {'content-type': 'application/json'},
     );
   }
@@ -138,7 +140,8 @@ class MockIdpServer {
         state = payload['state'] as String? ?? state;
         nonce = payload['nonce'] as String? ?? nonce;
         codeChallenge = payload['code_challenge'] as String? ?? codeChallenge;
-        codeChallengeMethod = payload['code_challenge_method'] as String? ?? codeChallengeMethod;
+        codeChallengeMethod =
+            payload['code_challenge_method'] as String? ?? codeChallengeMethod;
         scope = payload['scope'] as String? ?? scope;
         acrValues = payload['acr_values'] as String? ?? acrValues;
       } catch (e) {
@@ -194,7 +197,8 @@ class MockIdpServer {
 
     // Handle private_key_jwt client authentication
     if (clientAssertionType != null) {
-      if (clientAssertionType != 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer') {
+      if (clientAssertionType !=
+          'urn:ietf:params:oauth:client-assertion-type:jwt-bearer') {
         return _jsonError(400, 'invalid_client');
       }
       if (clientAssertion == null) {
@@ -274,11 +278,13 @@ class MockIdpServer {
         claims['email'] = 'mock@example.com';
       case MockIdpProfile.spid:
         // SPID: URI-keyed claims only, no standard name/email
-        claims['https://attributes.spid.gov.it/fiscalNumber'] = user.fiscalNumber;
+        claims['https://attributes.spid.gov.it/fiscalNumber'] =
+            user.fiscalNumber;
         claims['https://attributes.spid.gov.it/name'] = user.name;
         claims['https://attributes.spid.gov.it/familyName'] = user.familyName;
         claims['https://attributes.spid.gov.it/dateOfBirth'] = user.dateOfBirth;
-        claims['https://attributes.spid.gov.it/placeOfBirth'] = user.placeOfBirth;
+        claims['https://attributes.spid.gov.it/placeOfBirth'] =
+            user.placeOfBirth;
         claims['https://attributes.spid.gov.it/gender'] = user.gender;
         claims['https://attributes.spid.gov.it/email'] = user.email;
       case MockIdpProfile.cie:
@@ -288,7 +294,8 @@ class MockIdpServer {
         claims['birthdate'] = user.dateOfBirth;
         claims['email'] = user.email;
         claims['gender'] = user.gender;
-        claims['https://attributes.eid.gov.it/fiscal_number'] = user.fiscalNumber;
+        claims['https://attributes.eid.gov.it/fiscal_number'] =
+            user.fiscalNumber;
     }
 
     return Response.ok(
@@ -307,16 +314,18 @@ class MockIdpServer {
         'sub': user.subject,
         'aud': authReq.clientId,
         'iat': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
-        'exp': DateTime.now().toUtc().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000,
+        'exp':
+            DateTime.now()
+                .toUtc()
+                .add(const Duration(hours: 1))
+                .millisecondsSinceEpoch ~/
+            1000,
         if (authReq.nonce != null) 'nonce': authReq.nonce,
         'acr': acrValue,
       },
       header: {'kid': _keyPair.kid},
     );
-    return jwt.sign(
-      _keyPair.privateKey,
-      algorithm: JWTAlgorithm.RS256,
-    );
+    return jwt.sign(_keyPair.privateKey, algorithm: JWTAlgorithm.RS256);
   }
 
   Response _federation(Request req) {
@@ -333,8 +342,10 @@ class MockIdpServer {
       'exp': now + (365 * 24 * 3600), // 365 days
       'organization_type': 'public',
     };
-    final trustMarkJwt = JWT(trustMarkPayload, header: {'kid': _keyPair.kid, 'alg': 'RS256'})
-        .sign(_keyPair.privateKey, algorithm: JWTAlgorithm.RS256);
+    final trustMarkJwt = JWT(
+      trustMarkPayload,
+      header: {'kid': _keyPair.kid, 'alg': 'RS256'},
+    ).sign(_keyPair.privateKey, algorithm: JWTAlgorithm.RS256);
 
     // Build entity configuration payload
     final payload = {
@@ -343,12 +354,14 @@ class MockIdpServer {
       'iat': now,
       'exp': exp,
       'jwks': {
-        'keys': [_keyPair.jwk]
+        'keys': [_keyPair.jwk],
       },
       'metadata': {
         'openid_provider': {
           'issuer': base,
-          'authorization_endpoint': baseUrl!.replace(path: '/authorize').toString(),
+          'authorization_endpoint': baseUrl!
+              .replace(path: '/authorize')
+              .toString(),
           'token_endpoint': baseUrl!.replace(path: '/token').toString(),
           'userinfo_endpoint': baseUrl!.replace(path: '/userinfo').toString(),
           'jwks_uri': baseUrl!.replace(path: '/jwks.json').toString(),
@@ -374,21 +387,21 @@ class MockIdpServer {
         {
           'id': 'https://registry.example.it/openid_provider/public/',
           'trust_mark': trustMarkJwt,
-        }
+        },
       ],
       'authority_hints': <String>[],
     };
 
-    final entityJwt = JWT(payload, header: {
-      'alg': 'RS256',
-      'kid': _keyPair.kid,
-      'typ': 'entity-statement+jwt',
-    }).sign(_keyPair.privateKey, algorithm: JWTAlgorithm.RS256);
+    final entityJwt = JWT(
+      payload,
+      header: {
+        'alg': 'RS256',
+        'kid': _keyPair.kid,
+        'typ': 'entity-statement+jwt',
+      },
+    ).sign(_keyPair.privateKey, algorithm: JWTAlgorithm.RS256);
 
-    return Response.ok(
-      entityJwt,
-      headers: {'content-type': 'application/jwt'},
-    );
+    return Response.ok(entityJwt, headers: {'content-type': 'application/jwt'});
   }
 
   Response _trustMarkStatus(Request req) {
@@ -397,7 +410,9 @@ class MockIdpServer {
     final sub = params['sub'];
     final base = baseUrl!.toString();
 
-    final active = trustMarkId == 'https://registry.example.it/openid_provider/public/' && sub == base;
+    final active =
+        trustMarkId == 'https://registry.example.it/openid_provider/public/' &&
+        sub == base;
 
     return Response.ok(
       json.encode({'active': active}),

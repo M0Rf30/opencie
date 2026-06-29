@@ -73,51 +73,54 @@ void main() {
       expect(session.attributes.email, 'mario.rossi@example.it');
     });
 
-    test('CIE L3 flow returns standard OIDC attrs + URI fiscal_number', () async {
-      final idp = MockIdpServer(profile: MockIdpProfile.cie);
-      await idp.start();
-      addTearDown(idp.stop);
+    test(
+      'CIE L3 flow returns standard OIDC attrs + URI fiscal_number',
+      () async {
+        final idp = MockIdpServer(profile: MockIdpProfile.cie);
+        await idp.start();
+        addTearDown(idp.stop);
 
-      final issuer = idp.baseUrl!.toString();
-      const clientId = 'https://rp.example.it/';
-      final redirectUri = '${idp.baseUrl}/callback';
+        final issuer = idp.baseUrl!.toString();
+        const clientId = 'https://rp.example.it/';
+        final redirectUri = '${idp.baseUrl}/callback';
 
-      Uri? capturedCallback;
+        Uri? capturedCallback;
 
-      final service = SpidAuthService(
-        profile: SpidProfile.cie,
-        level: SpidLevel.l3,
-        clientId: clientId,
-        redirectUri: redirectUri,
-        privateKey: clientKeyPair.privateKey,
-        kid: clientKeyPair.kid,
-        httpClient: client,
-        onLaunchUrl: (url) async {
-          final req = http.Request('GET', url)..followRedirects = false;
-          final res = await http.Response.fromStream(await client.send(req));
-          if (res.statusCode != 302) {
-            fail('Authorize did not redirect: ${res.statusCode} ${res.body}');
-          }
-          capturedCallback = Uri.parse(res.headers['location']!);
-          return true;
-        },
-        onListenForCallback: (redirectUri, state) async {
-          if (capturedCallback == null) fail('Callback URI not captured');
-          return OidcRedirectListener.parseUri(capturedCallback!);
-        },
-      );
+        final service = SpidAuthService(
+          profile: SpidProfile.cie,
+          level: SpidLevel.l3,
+          clientId: clientId,
+          redirectUri: redirectUri,
+          privateKey: clientKeyPair.privateKey,
+          kid: clientKeyPair.kid,
+          httpClient: client,
+          onLaunchUrl: (url) async {
+            final req = http.Request('GET', url)..followRedirects = false;
+            final res = await http.Response.fromStream(await client.send(req));
+            if (res.statusCode != 302) {
+              fail('Authorize did not redirect: ${res.statusCode} ${res.body}');
+            }
+            capturedCallback = Uri.parse(res.headers['location']!);
+            return true;
+          },
+          onListenForCallback: (redirectUri, state) async {
+            if (capturedCallback == null) fail('Callback URI not captured');
+            return OidcRedirectListener.parseUri(capturedCallback!);
+          },
+        );
 
-      final session = await service.authenticate(issuer: issuer);
+        final session = await service.authenticate(issuer: issuer);
 
-      expect(session.profile, SpidProfile.cie);
-      expect(session.level, SpidLevel.l3);
-      expect(session.session.idToken.acr, SpidLevel.l3.acrValue);
+        expect(session.profile, SpidProfile.cie);
+        expect(session.level, SpidLevel.l3);
+        expect(session.session.idToken.acr, SpidLevel.l3.acrValue);
 
-      // CIE: standard OIDC + URI fiscal number normalized into attributes.
-      expect(session.attributes.fiscalNumber, 'TINIT-RSSMRA80A01H501U');
-      expect(session.attributes.name, 'Mario');
-      expect(session.attributes.familyName, 'Rossi');
-      expect(session.attributes.email, 'mario.rossi@example.it');
-    });
+        // CIE: standard OIDC + URI fiscal number normalized into attributes.
+        expect(session.attributes.fiscalNumber, 'TINIT-RSSMRA80A01H501U');
+        expect(session.attributes.name, 'Mario');
+        expect(session.attributes.familyName, 'Rossi');
+        expect(session.attributes.email, 'mario.rossi@example.it');
+      },
+    );
   });
 }

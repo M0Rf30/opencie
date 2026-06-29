@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 
-
 import '../core/theme/color_schemes.dart';
 
 /// Filled primary action button with a vertical gradient and glow shadow.
@@ -39,10 +38,7 @@ class OcGradientButton extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: disabled
-                  ? [
-                      cs.surfaceContainerHigh,
-                      cs.surfaceContainer,
-                    ]
+                  ? [cs.surfaceContainerHigh, cs.surfaceContainer]
                   : ColorSchemes.ctaGradient,
             ),
             boxShadow: disabled
@@ -61,15 +57,18 @@ class OcGradientButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon,
-                    size: 20,
-                    color: disabled ? cs.onSurfaceVariant : Colors.white),
+                Icon(
+                  icon,
+                  size: 20,
+                  color: disabled ? cs.onSurfaceVariant : Colors.white,
+                ),
                 const SizedBox(width: 10),
               ],
               Flexible(
                 child: Text(
                   label,
-                  style: TextStyle(fontFamily: 'Inter', 
+                  style: TextStyle(
+                    fontFamily: 'Inter',
                     color: disabled ? cs.onSurfaceVariant : Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,

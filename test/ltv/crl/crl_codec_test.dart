@@ -13,7 +13,7 @@ void main() {
   group('CrlCodec', () {
     /// Build a minimal synthetic CRL DER for testing.
     Uint8List buildMinimalCrl({
-      required String thisUpdateTime,  // e.g., '260101000000Z'
+      required String thisUpdateTime, // e.g., '260101000000Z'
       String? nextUpdateTime,
       bool useGeneralizedTime = false,
     }) {
@@ -44,7 +44,9 @@ void main() {
       final issuerRdn = ASN1Sequence();
       final issuerSet = ASN1Set();
       final issuerAttr = ASN1Sequence();
-      issuerAttr.add(ASN1ObjectIdentifier.fromIdentifierString('2.5.4.3')); // CN
+      issuerAttr.add(
+        ASN1ObjectIdentifier.fromIdentifierString('2.5.4.3'),
+      ); // CN
       issuerAttr.add(ASN1UTF8String(utf8StringValue: 'Test CA'));
       issuerSet.add(issuerAttr);
       issuerRdn.add(issuerSet);
@@ -60,7 +62,9 @@ void main() {
       // nextUpdate Time OPTIONAL
       if (nextUpdateTime != null) {
         if (useGeneralizedTime) {
-          tbsCertList.add(ASN1GeneralizedTime(DateTime.utc(2027, 1, 1, 0, 0, 0)));
+          tbsCertList.add(
+            ASN1GeneralizedTime(DateTime.utc(2027, 1, 1, 0, 0, 0)),
+          );
         } else {
           tbsCertList.add(ASN1UtcTime(DateTime.utc(2027, 1, 1, 0, 0, 0)));
         }
@@ -92,10 +96,10 @@ void main() {
     });
 
     test('parseCrl with nextUpdate returns non-null nextUpdate', () {
-       final crlDer = buildMinimalCrl(
-         thisUpdateTime: '260101000000Z',
-         nextUpdateTime: '270101000000Z',
-       );
+      final crlDer = buildMinimalCrl(
+        thisUpdateTime: '260101000000Z',
+        nextUpdateTime: '270101000000Z',
+      );
       final crl = parseCrl(crlDer);
 
       expect(crl, isNotNull);
@@ -112,11 +116,11 @@ void main() {
     });
 
     test('parseCrl with GeneralizedTime parses correctly', () {
-       // Note: GeneralizedTime parsing requires proper ASN1 tag handling by pointycastle.
-       // For now, we test that the codec doesn't crash on GeneralizedTime input.
-       // The actual parsing is tested via the OCSP codec which uses GeneralizedTime extensively.
-       final crlDer = buildMinimalCrl(
-         thisUpdateTime: '20260101000000Z',
+      // Note: GeneralizedTime parsing requires proper ASN1 tag handling by pointycastle.
+      // For now, we test that the codec doesn't crash on GeneralizedTime input.
+      // The actual parsing is tested via the OCSP codec which uses GeneralizedTime extensively.
+      final crlDer = buildMinimalCrl(
+        thisUpdateTime: '20260101000000Z',
         useGeneralizedTime: true,
       );
       final crl = parseCrl(crlDer);
@@ -149,10 +153,10 @@ void main() {
     });
 
     test('isFresh returns true when nextUpdate is in future', () {
-       final crlDer = buildMinimalCrl(
-         thisUpdateTime: '260101000000Z',
-         nextUpdateTime: '270101000000Z',
-       );
+      final crlDer = buildMinimalCrl(
+        thisUpdateTime: '260101000000Z',
+        nextUpdateTime: '270101000000Z',
+      );
       final crl = parseCrl(crlDer)!;
 
       // nextUpdate is 2027-01-01, so it should be fresh now (2026)
@@ -160,10 +164,10 @@ void main() {
     });
 
     test('isFresh returns false when nextUpdate is in past', () {
-       final crlDer = buildMinimalCrl(
-         thisUpdateTime: '260101000000Z',
-         nextUpdateTime: '270101000000Z',
-       );
+      final crlDer = buildMinimalCrl(
+        thisUpdateTime: '260101000000Z',
+        nextUpdateTime: '270101000000Z',
+      );
       final crl = parseCrl(crlDer)!;
 
       // nextUpdate is 2027-01-01, so it should not be fresh in 2028
@@ -171,7 +175,15 @@ void main() {
     });
 
     test('pemOrDerToDer returns input unchanged for DER', () {
-      final derBytes = Uint8List.fromList([0x30, 0x05, 0x02, 0x01, 0x00, 0x05, 0x00]);
+      final derBytes = Uint8List.fromList([
+        0x30,
+        0x05,
+        0x02,
+        0x01,
+        0x00,
+        0x05,
+        0x00,
+      ]);
       final result = pemOrDerToDer(derBytes);
 
       expect(result, equals(derBytes));
@@ -179,9 +191,18 @@ void main() {
 
     test('pemOrDerToDer decodes PEM-armored CRL', () {
       // Create a simple DER and wrap it in PEM
-      final derBytes = Uint8List.fromList([0x30, 0x05, 0x02, 0x01, 0x00, 0x05, 0x00]);
+      final derBytes = Uint8List.fromList([
+        0x30,
+        0x05,
+        0x02,
+        0x01,
+        0x00,
+        0x05,
+        0x00,
+      ]);
       final base64Body = base64Encode(derBytes);
-      final pemStr = '-----BEGIN X509 CRL-----\n$base64Body\n-----END X509 CRL-----';
+      final pemStr =
+          '-----BEGIN X509 CRL-----\n$base64Body\n-----END X509 CRL-----';
       final pemBytes = Uint8List.fromList(pemStr.codeUnits);
 
       final result = pemOrDerToDer(pemBytes);
@@ -190,7 +211,15 @@ void main() {
     });
 
     test('pemOrDerToDer decodes PEM with BEGIN CRL-----', () {
-      final derBytes = Uint8List.fromList([0x30, 0x05, 0x02, 0x01, 0x00, 0x05, 0x00]);
+      final derBytes = Uint8List.fromList([
+        0x30,
+        0x05,
+        0x02,
+        0x01,
+        0x00,
+        0x05,
+        0x00,
+      ]);
       final base64Body = base64Encode(derBytes);
       final pemStr = '-----BEGIN CRL-----\n$base64Body\n-----END CRL-----';
       final pemBytes = Uint8List.fromList(pemStr.codeUnits);
@@ -201,7 +230,8 @@ void main() {
     });
 
     test('pemOrDerToDer returns null on malformed PEM base64', () {
-      final pemStr = '-----BEGIN X509 CRL-----\nNOT_VALID_BASE64!!!\n-----END X509 CRL-----';
+      final pemStr =
+          '-----BEGIN X509 CRL-----\nNOT_VALID_BASE64!!!\n-----END X509 CRL-----';
       final pemBytes = Uint8List.fromList(pemStr.codeUnits);
 
       final result = pemOrDerToDer(pemBytes);
@@ -210,14 +240,28 @@ void main() {
     });
 
     test('pemOrDerToDer handles PEM with line breaks in base64', () {
-      final derBytes = Uint8List.fromList([0x30, 0x05, 0x02, 0x01, 0x00, 0x05, 0x00]);
+      final derBytes = Uint8List.fromList([
+        0x30,
+        0x05,
+        0x02,
+        0x01,
+        0x00,
+        0x05,
+        0x00,
+      ]);
       final base64Body = base64Encode(derBytes);
       // Split base64 into multiple lines
       final lines = <String>[];
       for (int i = 0; i < base64Body.length; i += 20) {
-        lines.add(base64Body.substring(i, i + 20 > base64Body.length ? base64Body.length : i + 20));
+        lines.add(
+          base64Body.substring(
+            i,
+            i + 20 > base64Body.length ? base64Body.length : i + 20,
+          ),
+        );
       }
-      final pemStr = '-----BEGIN X509 CRL-----\n${lines.join('\n')}\n-----END X509 CRL-----';
+      final pemStr =
+          '-----BEGIN X509 CRL-----\n${lines.join('\n')}\n-----END X509 CRL-----';
       final pemBytes = Uint8List.fromList(pemStr.codeUnits);
 
       final result = pemOrDerToDer(pemBytes);

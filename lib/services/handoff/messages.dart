@@ -45,11 +45,11 @@ enum HandoffMessageType {
 
 extension on HandoffMessageType {
   String get wire => switch (this) {
-        HandoffMessageType.descriptor => 'descriptor',
-        HandoffMessageType.pinOk => 'pin_ok',
-        HandoffMessageType.signature => 'signature',
-        HandoffMessageType.abort => 'abort',
-      };
+    HandoffMessageType.descriptor => 'descriptor',
+    HandoffMessageType.pinOk => 'pin_ok',
+    HandoffMessageType.signature => 'signature',
+    HandoffMessageType.abort => 'abort',
+  };
 }
 
 /// Top-level frame after AEAD decryption.
@@ -98,12 +98,12 @@ class HandoffMessage {
 /// methods).
 extension HandoffMessageTypeWire on HandoffMessageType {
   static HandoffMessageType? fromWire(String s) => switch (s) {
-        'descriptor' => HandoffMessageType.descriptor,
-        'pin_ok' => HandoffMessageType.pinOk,
-        'signature' => HandoffMessageType.signature,
-        'abort' => HandoffMessageType.abort,
-        _ => null,
-      };
+    'descriptor' => HandoffMessageType.descriptor,
+    'pin_ok' => HandoffMessageType.pinOk,
+    'signature' => HandoffMessageType.signature,
+    'abort' => HandoffMessageType.abort,
+    _ => null,
+  };
 }
 
 // ───────────────────────────── typed payloads ─────────────────────────────
@@ -140,14 +140,13 @@ class DescriptorPayload {
   final String? mimeType;
 
   Map<String, dynamic> toJson() => {
-        'name': fileName,
-        'size': byteSize,
-        'sha256': sha256Hex,
-        if (pageCount != null) 'pages': pageCount,
-        if (mimeType != null) 'mime': mimeType,
-        if (thumbnailPng != null)
-          'thumb_b64': base64Encode(thumbnailPng!),
-      };
+    'name': fileName,
+    'size': byteSize,
+    'sha256': sha256Hex,
+    if (pageCount != null) 'pages': pageCount,
+    if (mimeType != null) 'mime': mimeType,
+    if (thumbnailPng != null) 'thumb_b64': base64Encode(thumbnailPng!),
+  };
 
   static DescriptorPayload fromJson(Map<String, dynamic> j) {
     final name = j['name'];
@@ -179,12 +178,12 @@ class PinOkPayload {
   final int? attemptsLeft;
 
   Map<String, dynamic> toJson() => {
-        if (attemptsLeft != null) 'attempts_left': attemptsLeft,
-      };
+    if (attemptsLeft != null) 'attempts_left': attemptsLeft,
+  };
 
   static PinOkPayload fromJson(Map<String, dynamic> j) => PinOkPayload(
-        attemptsLeft: j['attempts_left'] is int ? j['attempts_left'] as int : null,
-      );
+    attemptsLeft: j['attempts_left'] is int ? j['attempts_left'] as int : null,
+  );
 
   HandoffMessage toMessage() =>
       HandoffMessage(type: HandoffMessageType.pinOk, data: toJson());
@@ -201,9 +200,9 @@ class SignaturePayload {
   final String? format;
 
   Map<String, dynamic> toJson() => {
-        'cms_b64': base64Encode(cmsBytes),
-        if (format != null) 'format': format,
-      };
+    'cms_b64': base64Encode(cmsBytes),
+    if (format != null) 'format': format,
+  };
 
   static SignaturePayload fromJson(Map<String, dynamic> j) {
     final b64 = j['cms_b64'];
@@ -226,13 +225,11 @@ class AbortPayload {
 
   final String? reason;
 
-  Map<String, dynamic> toJson() => {
-        if (reason != null) 'reason': reason,
-      };
+  Map<String, dynamic> toJson() => {if (reason != null) 'reason': reason};
 
   static AbortPayload fromJson(Map<String, dynamic> j) => AbortPayload(
-        reason: j['reason'] is String ? j['reason'] as String : null,
-      );
+    reason: j['reason'] is String ? j['reason'] as String : null,
+  );
 
   HandoffMessage toMessage() =>
       HandoffMessage(type: HandoffMessageType.abort, data: toJson());

@@ -9,11 +9,7 @@ class OcHelpStep {
   final String body;
   final IconData? icon;
 
-  const OcHelpStep({
-    required this.title,
-    required this.body,
-    this.icon,
-  });
+  const OcHelpStep({required this.title, required this.body, this.icon});
 }
 
 /// A contextual help bottom sheet that explains a feature in numbered steps.
@@ -172,9 +168,11 @@ class OcHelpSheet extends StatelessWidget {
                                 Row(
                                   children: [
                                     if (step.icon != null) ...[
-                                      Icon(step.icon,
-                                          size: 16,
-                                          color: cs.onSurfaceVariant),
+                                      Icon(
+                                        step.icon,
+                                        size: 16,
+                                        color: cs.onSurfaceVariant,
+                                      ),
                                       const SizedBox(width: 6),
                                     ],
                                     Expanded(

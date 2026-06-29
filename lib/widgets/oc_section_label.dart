@@ -50,10 +50,10 @@ class OcMonoText extends StatelessWidget {
       text,
       maxLines: maxLines,
       overflow: overflow,
-      style: AppTheme.monoBody(cs, color: color).copyWith(
-        fontSize: fontSize,
-        fontWeight: weight,
-      ),
+      style: AppTheme.monoBody(
+        cs,
+        color: color,
+      ).copyWith(fontSize: fontSize, fontWeight: weight),
     );
   }
 }

@@ -27,11 +27,7 @@ import '../../widgets/oc_status_disc.dart';
 /// signed. The page drives a [DesktopHandoffSession] from idle through done
 /// or error, writing the resulting .p7m file to disk alongside the source.
 class DesktopHandoffPage extends StatefulWidget {
-  const DesktopHandoffPage({
-    super.key,
-    required this.filePath,
-    this.fileName,
-  });
+  const DesktopHandoffPage({super.key, required this.filePath, this.fileName});
 
   final String filePath;
   final String? fileName;
@@ -119,8 +115,7 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  String get _displayFileName =>
-      widget.fileName ?? p.basename(widget.filePath);
+  String get _displayFileName => widget.fileName ?? p.basename(widget.filePath);
 
   String get _fileSizeKb {
     try {
@@ -281,11 +276,7 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
               return SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    left,
-                    const SizedBox(height: 32),
-                    right,
-                  ],
+                  children: [left, const SizedBox(height: 32), right],
                 ),
               );
             },
@@ -539,8 +530,7 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
     ColorScheme cs,
   ) {
     final isSigning = _session.state == DesktopHandoffState.signing;
-    final label =
-        isSigning ? l10n.handoffSigning : l10n.handoffWaitingForPin;
+    final label = isSigning ? l10n.handoffSigning : l10n.handoffWaitingForPin;
 
     return Column(
       key: const ValueKey('signing'),

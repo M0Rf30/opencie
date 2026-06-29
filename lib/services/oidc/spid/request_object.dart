@@ -51,15 +51,8 @@ class SpidRequestObject {
 
     final jwt = JWT(
       payload,
-      header: {
-        'kid': kid,
-        'alg': 'RS256',
-        'typ': 'oauth-authz-req+jwt',
-      },
+      header: {'kid': kid, 'alg': 'RS256', 'typ': 'oauth-authz-req+jwt'},
     );
-    return jwt.sign(
-      privateKey,
-      algorithm: JWTAlgorithm.RS256,
-    );
+    return jwt.sign(privateKey, algorithm: JWTAlgorithm.RS256);
   }
 }

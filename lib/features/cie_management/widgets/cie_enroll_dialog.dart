@@ -55,8 +55,7 @@ class _CieEnrollDialogState extends State<CieEnrollDialog> {
               labelText: l10n.ciePinAll8Digits,
               prefixIcon: const Icon(Icons.pin),
               suffixIcon: val.text.length == 8
-                  ? const Icon(Icons.check_circle_rounded,
-                      color: Colors.green)
+                  ? const Icon(Icons.check_circle_rounded, color: Colors.green)
                   : null,
             ),
             validator: (v) =>
@@ -66,11 +65,10 @@ class _CieEnrollDialogState extends State<CieEnrollDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.commonCancel)),
-        FilledButton(
-            onPressed: _submit,
-            child: Text(l10n.cieEnrolButton)),
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.cieEnrolButton)),
       ],
     );
   }

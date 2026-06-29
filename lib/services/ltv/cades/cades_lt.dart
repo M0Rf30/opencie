@@ -43,13 +43,17 @@ class CadesLtUpgrader {
     }
 
     // Check if we have any validation material after dedup
-    if (dedupedCerts.isEmpty && material.crls.isEmpty && material.ocspResponses.isEmpty) {
+    if (dedupedCerts.isEmpty &&
+        material.crls.isEmpty &&
+        material.ocspResponses.isEmpty) {
       throw CadesException('no validation material to embed');
     }
 
     // Build certificate-values attribute if we have certs
     if (dedupedCerts.isNotEmpty) {
-      final certValuesAttrValueSetDer = _buildCertificateValuesAttribute(dedupedCerts);
+      final certValuesAttrValueSetDer = _buildCertificateValuesAttribute(
+        dedupedCerts,
+      );
       sd.setUnsignedAttribute(Oid.certificateValues, certValuesAttrValueSetDer);
     }
 
@@ -59,7 +63,10 @@ class CadesLtUpgrader {
         material.crls,
         material.ocspResponses,
       );
-      sd.setUnsignedAttribute(Oid.revocationValues, revocationValuesAttrValueSetDer);
+      sd.setUnsignedAttribute(
+        Oid.revocationValues,
+        revocationValuesAttrValueSetDer,
+      );
     }
 
     return sd.encode();
@@ -112,7 +119,9 @@ class CadesLtUpgrader {
       final ocspValsSeq = ASN1Sequence();
       for (final ocspResp in ocspResponses) {
         if (ocspResp.rawResponse != null) {
-          final basicOcspResponseDer = extractBasicOcspResponse(ocspResp.rawResponse!);
+          final basicOcspResponseDer = extractBasicOcspResponse(
+            ocspResp.rawResponse!,
+          );
           if (basicOcspResponseDer != null) {
             final basicOcspObj = derDecode(basicOcspResponseDer);
             ocspValsSeq.add(basicOcspObj);

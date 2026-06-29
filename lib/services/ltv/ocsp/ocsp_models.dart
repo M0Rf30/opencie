@@ -105,7 +105,8 @@ class OcspResponse {
   });
 
   final OcspResponseStatus status;
-  final Uint8List? rawResponse; // the full DER (for embedding in PAdES DSS / CAdES)
+  final Uint8List?
+  rawResponse; // the full DER (for embedding in PAdES DSS / CAdES)
   final List<OcspSingleResponse> responses;
   final Uint8List? respNonce; // OCSP nonce extension if echoed
   final DateTime? producedAt;

@@ -37,10 +37,7 @@ void main() {
     test('happy path: B-B → B-LTA', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -63,10 +60,7 @@ void main() {
     test('DocTimeStamp /Contents is hex-encoded and non-zero', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -75,7 +69,9 @@ void main() {
       final ltaPdfStr = String.fromCharCodes(ltaPdf);
 
       // Find /Contents <...>
-      final contentsMatch = RegExp(r'/Contents\s*<([0-9A-Fa-f]+)>').firstMatch(ltaPdfStr);
+      final contentsMatch = RegExp(
+        r'/Contents\s*<([0-9A-Fa-f]+)>',
+      ).firstMatch(ltaPdfStr);
       expect(contentsMatch, isNotNull);
 
       final contentsHex = contentsMatch!.group(1)!;
@@ -91,10 +87,7 @@ void main() {
     test('DocTimeStamp /ByteRange is valid', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -103,9 +96,9 @@ void main() {
       final ltaPdfStr = String.fromCharCodes(ltaPdf);
 
       // Find /ByteRange [0 a b c]
-      final byteRangeMatch = RegExp(r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]')
-          .allMatches(ltaPdfStr)
-          .toList();
+      final byteRangeMatch = RegExp(
+        r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]',
+      ).allMatches(ltaPdfStr).toList();
 
       // Should have at least 1 ByteRange (the DocTimeStamp)
       expect(byteRangeMatch.length, greaterThanOrEqualTo(1));
@@ -131,10 +124,7 @@ void main() {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
 
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -145,9 +135,9 @@ void main() {
       expect(ltaPdfStr, contains('/ByteRange'));
 
       // Extract the DocTimeStamp /ByteRange from the result
-      final byteRangeMatches = RegExp(r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]')
-          .allMatches(ltaPdfStr)
-          .toList();
+      final byteRangeMatches = RegExp(
+        r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]',
+      ).allMatches(ltaPdfStr).toList();
 
       expect(byteRangeMatches.length, greaterThanOrEqualTo(1));
 
@@ -171,10 +161,7 @@ void main() {
     test('original signature is byte-preserved', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -183,7 +170,7 @@ void main() {
       // Note: The original PDF is preserved in the incremental update,
       // but the patching may affect bytes after the original if they're in the new section
       expect(ltaPdf.length, greaterThan(pdf.length));
-      
+
       // The original PDF header should be preserved
       expect(ltaPdf.sublist(0, 10), equals(pdf.sublist(0, 10)));
     });
@@ -203,19 +190,17 @@ void main() {
       }
 
       await server.close(force: true);
-      server = await shelf_io.serve(tsaRejectionHandler, InternetAddress.loopbackIPv4, 0);
+      server = await shelf_io.serve(
+        tsaRejectionHandler,
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
 
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act & Assert
-      expect(
-        () => upgrader.upgrade(pdf),
-        throwsA(isA<PadesException>()),
-      );
+      expect(() => upgrader.upgrade(pdf), throwsA(isA<PadesException>()));
     });
 
     test('oversized TST throws PadesException', () async {
@@ -228,7 +213,9 @@ void main() {
           return shelf.Response.notFound('');
         }
 
-        final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+        final body = await request.read().toList().then(
+          (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+        );
 
         // Parse the request to extract hash
         final parser = ASN1Parser(body);
@@ -242,7 +229,11 @@ void main() {
       }
 
       await server.close(force: true);
-      server = await shelf_io.serve(tsaOversizedHandler, InternetAddress.loopbackIPv4, 0);
+      server = await shelf_io.serve(
+        tsaOversizedHandler,
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
 
       final upgrader = PadesLtaUpgrader(
@@ -252,19 +243,13 @@ void main() {
       );
 
       // Act & Assert
-      expect(
-        () => upgrader.upgrade(pdf),
-        throwsA(isA<PadesException>()),
-      );
+      expect(() => upgrader.upgrade(pdf), throwsA(isA<PadesException>()));
     });
 
     test('round-trip parse: B-LTA result is valid PDF', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
@@ -326,7 +311,9 @@ void main() {
           return shelf.Response.notFound('');
         }
 
-        final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+        final body = await request.read().toList().then(
+          (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+        );
 
         // Parse the request to extract hash
         final parser = ASN1Parser(body);
@@ -339,24 +326,29 @@ void main() {
       }
 
       await server.close(force: true);
-      server = await shelf_io.serve(tsaCaptureHandler, InternetAddress.loopbackIPv4, 0);
+      server = await shelf_io.serve(
+        tsaCaptureHandler,
+        InternetAddress.loopbackIPv4,
+        0,
+      );
       tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
 
-      final upgrader = PadesLtaUpgrader(
-        tspClient: tspClient,
-        tspUrl: tsaUrl,
-      );
+      final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
 
       // Act
       final ltaPdf = await upgrader.upgrade(pdf);
 
       // Assert: Extract the DocTimeStamp /ByteRange from the result
       final ltaPdfStr = String.fromCharCodes(ltaPdf);
-      final byteRangeMatches = RegExp(r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]')
-          .allMatches(ltaPdfStr)
-          .toList();
+      final byteRangeMatches = RegExp(
+        r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]',
+      ).allMatches(ltaPdfStr).toList();
 
-      expect(byteRangeMatches.length, greaterThanOrEqualTo(1), reason: 'Should have at least one ByteRange');
+      expect(
+        byteRangeMatches.length,
+        greaterThanOrEqualTo(1),
+        reason: 'Should have at least one ByteRange',
+      );
 
       // Last ByteRange is the DocTimeStamp
       final lastMatch = byteRangeMatches.last;
@@ -373,11 +365,16 @@ void main() {
       final computedHash = sha256Digest.process(hashBuilder.toBytes());
 
       // Verify that the computed hash matches what the TSA received
-      expect(capturedHash, isNotNull, reason: 'TSA should have received a hash');
+      expect(
+        capturedHash,
+        isNotNull,
+        reason: 'TSA should have received a hash',
+      );
       expect(
         computedHash,
         capturedHash,
-        reason: 'Hash computed from result ByteRange should match the hash the TSA signed. '
+        reason:
+            'Hash computed from result ByteRange should match the hash the TSA signed. '
             'This verifies that ByteRange was patched BEFORE hashing (P0-1 fix).',
       );
     });
@@ -391,7 +388,9 @@ shelf.Handler _createTsaHandler() {
       return shelf.Response.notFound('');
     }
 
-    final body = await request.read().toList().then((chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()));
+    final body = await request.read().toList().then(
+      (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
+    );
 
     // Parse the request to extract hash
     final parser = ASN1Parser(body);
@@ -412,7 +411,7 @@ shelf.Response _buildTsaResponse(Uint8List hash) {
   // Build TimeStampResp: SEQUENCE { status PKIStatusInfo, timeStampToken }
   final statusSeq = ASN1Sequence();
   statusSeq.add(ASN1Integer(BigInt.zero)); // granted
-  
+
   final respSeq = ASN1Sequence();
   respSeq.add(statusSeq);
   respSeq.add(ASN1Parser(tstToken).nextObject());
@@ -431,7 +430,9 @@ Uint8List _buildMinimalTimeStampToken(Uint8List hash) {
   // TSTInfo: SEQUENCE { version, policy, messageImprint, serialNumber, genTime }
   final tstInfo = ASN1Sequence();
   tstInfo.add(ASN1Integer(BigInt.one)); // version
-  tstInfo.add(ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4])); // id-ct-TSTInfo
+  tstInfo.add(
+    ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4]),
+  ); // id-ct-TSTInfo
   tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
   tstInfo.add(ASN1GeneralizedTime(DateTime.now())); // genTime
 
@@ -442,14 +443,18 @@ Uint8List _buildMinimalTimeStampToken(Uint8List hash) {
   // digestAlgorithms: SET OF AlgorithmIdentifier
   final digestAlgos = ASN1Set();
   final sha256Algo = ASN1Sequence();
-  sha256Algo.add(ASN1ObjectIdentifier([2, 16, 840, 1, 101, 3, 4, 2, 1])); // SHA-256
+  sha256Algo.add(
+    ASN1ObjectIdentifier([2, 16, 840, 1, 101, 3, 4, 2, 1]),
+  ); // SHA-256
   sha256Algo.add(ASN1Null());
   digestAlgos.add(sha256Algo);
   signedData.add(digestAlgos);
 
   // contentInfo: SEQUENCE { contentType, content [0] }
   final contentInfo = ASN1Sequence();
-  contentInfo.add(ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4])); // id-ct-TSTInfo
+  contentInfo.add(
+    ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4]),
+  ); // id-ct-TSTInfo
   contentInfo.add(ASN1OctetString(octets: tstInfo.encode()));
   signedData.add(contentInfo);
 
@@ -463,7 +468,7 @@ Uint8List _buildMinimalTimeStampToken(Uint8List hash) {
 shelf.Response _buildTsaRejectionResponse() {
   final statusSeq = ASN1Sequence();
   statusSeq.add(ASN1Integer(BigInt.from(2))); // rejection
-  
+
   final respSeq = ASN1Sequence();
   respSeq.add(statusSeq);
 
@@ -508,7 +513,7 @@ shelf.Response _buildTsaResponseWithOversizedTst(Uint8List hash) {
   // Build TimeStampResp
   final statusSeq = ASN1Sequence();
   statusSeq.add(ASN1Integer(BigInt.zero)); // granted
-  
+
   final respSeq = ASN1Sequence();
   respSeq.add(statusSeq);
   respSeq.add(ASN1Parser(tstToken).nextObject());

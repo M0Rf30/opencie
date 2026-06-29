@@ -12,8 +12,10 @@ import 'tsp_models.dart';
 
 /// HTTP client for RFC 3161 Time-Stamp Authorities.
 class TspClient {
-  TspClient({http.Client? httpClient, this.timeout = const Duration(seconds: 30)})
-      : _httpClient = httpClient ?? http.Client();
+  TspClient({
+    http.Client? httpClient,
+    this.timeout = const Duration(seconds: 30),
+  }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
   final Duration timeout;
@@ -89,23 +91,31 @@ class TspClient {
     if (resp.respNonce != null && !bytesEqual(resp.respNonce!, nonce)) {
       return TspResponse(
         status: TspStatus.rejection,
-        statusStrings: ['nonce mismatch: sent ${nonce.length} bytes, got ${resp.respNonce!.length} bytes'],
+        statusStrings: [
+          'nonce mismatch: sent ${nonce.length} bytes, got ${resp.respNonce!.length} bytes',
+        ],
       );
     }
 
     // 7. Verify messageImprint hash
-    if (resp.messageImprintHash != null && !bytesEqual(resp.messageImprintHash!, hash)) {
+    if (resp.messageImprintHash != null &&
+        !bytesEqual(resp.messageImprintHash!, hash)) {
       return TspResponse(
         status: TspStatus.rejection,
-        statusStrings: ['hash mismatch: sent ${hash.length} bytes, got ${resp.messageImprintHash!.length} bytes'],
+        statusStrings: [
+          'hash mismatch: sent ${hash.length} bytes, got ${resp.messageImprintHash!.length} bytes',
+        ],
       );
     }
 
     // 8. Verify messageImprint hash algorithm OID
-    if (resp.messageImprintHashOid != null && resp.messageImprintHashOid != hashAlgorithmOid) {
+    if (resp.messageImprintHashOid != null &&
+        resp.messageImprintHashOid != hashAlgorithmOid) {
       return TspResponse(
         status: TspStatus.rejection,
-        statusStrings: ['hash algorithm mismatch: sent $hashAlgorithmOid, got ${resp.messageImprintHashOid}'],
+        statusStrings: [
+          'hash algorithm mismatch: sent $hashAlgorithmOid, got ${resp.messageImprintHashOid}',
+        ],
       );
     }
 

@@ -14,8 +14,8 @@ class _PdfObject {
   });
   final int objNum;
   final int gen;
-  final String body;  // dict entries, e.g. "/Type /DSS /Certs [...]"
-  final Uint8List? streamBytes;  // if null, not a stream object
+  final String body; // dict entries, e.g. "/Type /DSS /Certs [...]"
+  final Uint8List? streamBytes; // if null, not a stream object
 }
 
 /// Helper to build incremental update bytes.
@@ -44,7 +44,10 @@ class PdfIncrementalWriter {
   }
 
   /// Adds a stream object. Returns its [PdfRef].
-  PdfRef addStreamObject(Map<String, String> dictEntries, Uint8List streamBytes) {
+  PdfRef addStreamObject(
+    Map<String, String> dictEntries,
+    Uint8List streamBytes,
+  ) {
     _initNextObjNum();
     final ref = PdfRef(_nextObjNum, 0);
 
@@ -71,7 +74,9 @@ class PdfIncrementalWriter {
   /// Updates an existing object. Returns its [PdfRef] (same num, same gen).
   PdfRef updateObject(PdfRef oldRef, String body) {
     _initNextObjNum();
-    _objects.add(_PdfObject(objNum: oldRef.objNum, gen: oldRef.gen, body: body));
+    _objects.add(
+      _PdfObject(objNum: oldRef.objNum, gen: oldRef.gen, body: body),
+    );
     return oldRef;
   }
 

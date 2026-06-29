@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 /// SPID profile type.
-enum SpidProfile {
-  spid,
-  cie,
-}
+enum SpidProfile { spid, cie }
 
 /// SPID claim URI constants.
 abstract class SpidClaim {
@@ -88,14 +85,14 @@ class SpidUserAttributes {
   }
 
   Map<String, dynamic> toJson() => {
-        if (fiscalNumber != null) 'fiscal_number': fiscalNumber,
-        if (name != null) 'name': name,
-        if (familyName != null) 'family_name': familyName,
-        if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
-        if (placeOfBirth != null) 'place_of_birth': placeOfBirth,
-        if (gender != null) 'gender': gender,
-        if (email != null) 'email': email,
-        if (address != null) 'address': address,
-        if (digitalAddress != null) 'digital_address': digitalAddress,
-      };
+    if (fiscalNumber != null) 'fiscal_number': fiscalNumber,
+    if (name != null) 'name': name,
+    if (familyName != null) 'family_name': familyName,
+    if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
+    if (placeOfBirth != null) 'place_of_birth': placeOfBirth,
+    if (gender != null) 'gender': gender,
+    if (email != null) 'email': email,
+    if (address != null) 'address': address,
+    if (digitalAddress != null) 'digital_address': digitalAddress,
+  };
 }

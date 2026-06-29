@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 /// Fetches the OIDC UserInfo endpoint.
 class UserInfoClient {
   UserInfoClient({http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final http.Client _http;
 
@@ -24,9 +24,7 @@ class UserInfoClient {
       },
     );
     if (res.statusCode != 200) {
-      throw UserInfoException(
-        'UserInfo HTTP ${res.statusCode}: ${res.body}',
-      );
+      throw UserInfoException('UserInfo HTTP ${res.statusCode}: ${res.body}');
     }
     final body = json.decode(res.body);
     if (body is! Map<String, Object?>) {

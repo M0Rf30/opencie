@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 
-
 import '../core/theme/app_theme.dart';
 
 /// Generic action row inside a grouped surface card.
@@ -58,7 +57,8 @@ class OcActionRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(fontFamily: 'Inter', 
+                    style: TextStyle(
+                      fontFamily: 'Inter',
                       color: cs.onSurface,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -69,9 +69,12 @@ class OcActionRow extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: subtitleMono
-                          ? AppTheme.monoBody(cs, color: cs.onSurfaceVariant)
-                              .copyWith(fontSize: 11)
-                          : TextStyle(fontFamily: 'Inter', 
+                          ? AppTheme.monoBody(
+                              cs,
+                              color: cs.onSurfaceVariant,
+                            ).copyWith(fontSize: 11)
+                          : TextStyle(
+                              fontFamily: 'Inter',
                               color: cs.onSurfaceVariant,
                               fontSize: 12,
                             ),
@@ -85,8 +88,11 @@ class OcActionRow extends StatelessWidget {
               trailing!,
             ] else if (onTap != null) ...[
               const SizedBox(width: 12),
-              Icon(Icons.chevron_right_rounded,
-                  color: cs.onSurfaceVariant, size: 22),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: cs.onSurfaceVariant,
+                size: 22,
+              ),
             ],
           ],
         ),
@@ -106,13 +112,15 @@ class OcGroupCard extends StatelessWidget {
     final separated = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       if (i > 0) {
-        separated.add(Divider(
-          height: 1,
-          thickness: 1,
-          color: cs.outlineVariant,
-          indent: 14,
-          endIndent: 14,
-        ));
+        separated.add(
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: cs.outlineVariant,
+            indent: 14,
+            endIndent: 14,
+          ),
+        );
       }
       separated.add(children[i]);
     }

@@ -51,7 +51,9 @@ class IdToken {
     final kid = header?['kid'] as String?;
 
     if (kid == null || kid.isEmpty) {
-      throw const IdTokenVerificationException('ID token missing kid in header');
+      throw const IdTokenVerificationException(
+        'ID token missing kid in header',
+      );
     }
 
     final jwk = await jwks.getKey(jwksUri, kid);
@@ -96,10 +98,7 @@ class IdToken {
     }
 
     DateTime? optDt(Object? v) => v is num
-        ? DateTime.fromMillisecondsSinceEpoch(
-            (v * 1000).toInt(),
-            isUtc: true,
-          )
+        ? DateTime.fromMillisecondsSinceEpoch((v * 1000).toInt(), isUtc: true)
         : null;
 
     return IdToken(

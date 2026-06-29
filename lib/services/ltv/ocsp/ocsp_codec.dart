@@ -93,7 +93,7 @@ OcspResponse parseOcspResponse(Uint8List der) {
 
     // Parse responseStatus
     final statusObj = obj.elements![0];
-    
+
     int statusValue = 2; // default to internalError
     if (statusObj is ASN1Enumerated) {
       statusValue = statusObj.integer?.toInt() ?? 2;
@@ -121,7 +121,9 @@ OcspResponse parseOcspResponse(Uint8List der) {
 
     ASN1Sequence responseBytesSeq;
     try {
-      final responseBytesContent = ASN1Parser(responseBytes.valueBytes ?? Uint8List(0)).nextObject();
+      final responseBytesContent = ASN1Parser(
+        responseBytes.valueBytes ?? Uint8List(0),
+      ).nextObject();
       if (responseBytesContent is! ASN1Sequence) {
         return OcspResponse(status: OcspResponseStatus.internalError);
       }
@@ -130,7 +132,8 @@ OcspResponse parseOcspResponse(Uint8List der) {
       return OcspResponse(status: OcspResponseStatus.internalError);
     }
 
-    if (responseBytesSeq.elements == null || responseBytesSeq.elements!.isEmpty) {
+    if (responseBytesSeq.elements == null ||
+        responseBytesSeq.elements!.isEmpty) {
       return OcspResponse(status: OcspResponseStatus.internalError);
     }
 
@@ -171,7 +174,8 @@ OcspResponse parseOcspResponse(Uint8List der) {
       return OcspResponse(status: OcspResponseStatus.internalError);
     }
 
-    if (basicOcspResponse.elements == null || basicOcspResponse.elements!.isEmpty) {
+    if (basicOcspResponse.elements == null ||
+        basicOcspResponse.elements!.isEmpty) {
       return OcspResponse(status: OcspResponseStatus.internalError);
     }
 
@@ -199,7 +203,8 @@ OcspResponse parseOcspResponse(Uint8List der) {
       if (elem.tag == 0xA0) {
         // [0] EXPLICIT version (skip, default v1)
         idx++;
-      } else if (idx == 1 && (elem is ASN1Sequence || elem.tag == 0xA1 || elem.tag == 0xA2)) {
+      } else if (idx == 1 &&
+          (elem is ASN1Sequence || elem.tag == 0xA1 || elem.tag == 0xA2)) {
         // responderID (ResponderID is a CHOICE, either [1] or [2], or a Name SEQUENCE)
         // For now, skip responderID parsing
         idx++;
@@ -213,7 +218,9 @@ OcspResponse parseOcspResponse(Uint8List der) {
         idx++;
       } else if (elem.tag == 0xA1) {
         // [1] EXPLICIT responseExtensions
-        respNonce = _extractNonceFromExtensions(elem.valueBytes ?? Uint8List(0));
+        respNonce = _extractNonceFromExtensions(
+          elem.valueBytes ?? Uint8List(0),
+        );
         idx++;
       }
     }
@@ -258,7 +265,9 @@ List<OcspSingleResponse> _parseSingleResponses(ASN1Sequence responsesSeq) {
   }
 
   for (final elem in responsesSeq.elements!) {
-    if (elem is! ASN1Sequence || elem.elements == null || elem.elements!.isEmpty) {
+    if (elem is! ASN1Sequence ||
+        elem.elements == null ||
+        elem.elements!.isEmpty) {
       continue;
     }
 
@@ -333,7 +342,9 @@ OcspSingleResponse? _parseSingleResponse(ASN1Sequence singleRespSeq) {
   // Extract revocationTime and reason from RevokedInfo if status is revoked
   if (status == OcspCertStatus.revoked && certStatusObj.tag == 0xA1) {
     try {
-      final revokedInfoObj = derDecode(certStatusObj.valueBytes ?? Uint8List(0));
+      final revokedInfoObj = derDecode(
+        certStatusObj.valueBytes ?? Uint8List(0),
+      );
       if (revokedInfoObj is ASN1Sequence && revokedInfoObj.elements != null) {
         // RevokedInfo ::= SEQUENCE { revocationTime GeneralizedTime, revocationReason [0] EXPLICIT CRLReason OPTIONAL }
         if (revokedInfoObj.elements!.isNotEmpty) {
@@ -346,7 +357,9 @@ OcspSingleResponse? _parseSingleResponse(ASN1Sequence singleRespSeq) {
           final reasonElem = revokedInfoObj.elements![1];
           if (reasonElem.tag == 0xA0) {
             try {
-              final reasonObj = derDecode(reasonElem.valueBytes ?? Uint8List(0));
+              final reasonObj = derDecode(
+                reasonElem.valueBytes ?? Uint8List(0),
+              );
               if (reasonObj is ASN1Enumerated) {
                 revocationReason = reasonObj.integer?.toInt();
               }
@@ -379,7 +392,9 @@ OcspCertId? _parseCertId(ASN1Sequence certIdSeq) {
 
   // Parse hashAlgorithm AlgorithmIdentifier
   final hashAlgObj = certIdSeq.elements![0];
-  if (hashAlgObj is! ASN1Sequence || hashAlgObj.elements == null || hashAlgObj.elements!.isEmpty) {
+  if (hashAlgObj is! ASN1Sequence ||
+      hashAlgObj.elements == null ||
+      hashAlgObj.elements!.isEmpty) {
     return null;
   }
 
@@ -443,14 +458,16 @@ Uint8List? _extractNonceFromExtensions(Uint8List extBytes) {
     if (extBytes.isEmpty) {
       return null;
     }
-    
+
     final extSeq = derDecode(extBytes);
     if (extSeq is! ASN1Sequence || extSeq.elements == null) {
       return null;
     }
 
     for (final elem in extSeq.elements!) {
-      if (elem is! ASN1Sequence || elem.elements == null || elem.elements!.isEmpty) {
+      if (elem is! ASN1Sequence ||
+          elem.elements == null ||
+          elem.elements!.isEmpty) {
         continue;
       }
 
@@ -502,16 +519,18 @@ Uint8List? _extractNonceFromExtensions(Uint8List extBytes) {
 }
 
 /// Extracts the DER-encoded BasicOCSPResponse from an OCSPResponse DER blob.
-/// 
+///
 /// OCSPResponse ::= SEQUENCE { responseStatus, responseBytes [0] EXPLICIT ResponseBytes OPTIONAL }
 /// ResponseBytes ::= SEQUENCE { responseType OID, response OCTET STRING }
 /// The response OCTET STRING contains the DER of BasicOCSPResponse.
-/// 
+///
 /// Returns the DER bytes of BasicOCSPResponse, or null if extraction fails.
 Uint8List? extractBasicOcspResponse(Uint8List ocspResponseDer) {
   try {
     final obj = derDecode(ocspResponseDer);
-    if (obj is! ASN1Sequence || obj.elements == null || obj.elements!.length < 2) {
+    if (obj is! ASN1Sequence ||
+        obj.elements == null ||
+        obj.elements!.length < 2) {
       return null;
     }
 
@@ -524,7 +543,9 @@ Uint8List? extractBasicOcspResponse(Uint8List ocspResponseDer) {
     // Parse responseBytes [0] EXPLICIT
     ASN1Sequence responseBytesSeq;
     try {
-      final responseBytesContent = ASN1Parser(responseBytes.valueBytes ?? Uint8List(0)).nextObject();
+      final responseBytesContent = ASN1Parser(
+        responseBytes.valueBytes ?? Uint8List(0),
+      ).nextObject();
       if (responseBytesContent is! ASN1Sequence) {
         return null;
       }
@@ -533,7 +554,8 @@ Uint8List? extractBasicOcspResponse(Uint8List ocspResponseDer) {
       return null;
     }
 
-    if (responseBytesSeq.elements == null || responseBytesSeq.elements!.length < 2) {
+    if (responseBytesSeq.elements == null ||
+        responseBytesSeq.elements!.length < 2) {
       return null;
     }
 

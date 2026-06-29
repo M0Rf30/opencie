@@ -22,9 +22,9 @@ class PdfXrefEntry {
     required this.inUse,
   });
   final int objNum;
-  final int offset;  // byte offset in file (for in-use entries)
+  final int offset; // byte offset in file (for in-use entries)
   final int gen;
-  final bool inUse;  // true = 'n', false = 'f'
+  final bool inUse; // true = 'n', false = 'f'
 }
 
 /// Parsed trailer info from a PDF.
@@ -36,11 +36,11 @@ class PdfTrailerInfo {
     this.id,
     required this.xrefEntries,
   });
-  final int prevXrefOffset;       // value of `startxref` near the end
-  final int size;                 // /Size from trailer
-  final PdfRef rootRef;           // /Root
-  final Uint8List? id;            // /ID (raw bytes of the array, or null)
-  final List<PdfXrefEntry> xrefEntries;  // all entries from the existing xref
+  final int prevXrefOffset; // value of `startxref` near the end
+  final int size; // /Size from trailer
+  final PdfRef rootRef; // /Root
+  final Uint8List? id; // /ID (raw bytes of the array, or null)
+  final List<PdfXrefEntry> xrefEntries; // all entries from the existing xref
 }
 
 /// Minimal PDF reader to extract what we need for incremental update.
@@ -104,7 +104,8 @@ class PdfReader {
   /// Returns the byte range of /Contents as a record with objNum, contentsStart, contentsEnd.
   /// contentsStart and contentsEnd point at the HEX bytes between `<` and `>` (exclusive of brackets).
   /// Returns null if not found.
-  ({int objNum, int contentsStart, int contentsEnd})? findSignatureContentsRange() {
+  ({int objNum, int contentsStart, int contentsEnd})?
+  findSignatureContentsRange() {
     final trailer = readTrailer();
 
     for (final entry in trailer.xrefEntries) {
@@ -289,7 +290,9 @@ class PdfReader {
     pos = _skipWhitespaceFrom(pos);
 
     // Expect <<
-    if (pos + 1 >= bytes.length || bytes[pos] != 0x3C || bytes[pos + 1] != 0x3C) {
+    if (pos + 1 >= bytes.length ||
+        bytes[pos] != 0x3C ||
+        bytes[pos + 1] != 0x3C) {
       throw PadesException('trailer dict does not start with <<');
     }
     pos += 2;
@@ -303,7 +306,9 @@ class PdfReader {
       pos = _skipWhitespaceFrom(pos);
 
       // Check for >>
-      if (pos + 1 < bytes.length && bytes[pos] == 0x3E && bytes[pos + 1] == 0x3E) {
+      if (pos + 1 < bytes.length &&
+          bytes[pos] == 0x3E &&
+          bytes[pos + 1] == 0x3E) {
         break;
       }
 
@@ -338,14 +343,16 @@ class PdfReader {
         pos = _skipWhitespaceFrom(pos + genStr.length);
 
         // Expect R
-        if (pos < bytes.length && bytes[pos] == 0x52) { // 'R'
+        if (pos < bytes.length && bytes[pos] == 0x52) {
+          // 'R'
           rootRef = PdfRef(objNum, gen);
           pos++;
         }
       } else if (key == 'ID') {
         // Expect [<...> <...>]
         pos = _skipWhitespaceFrom(pos);
-        if (pos < bytes.length && bytes[pos] == 0x5B) { // '['
+        if (pos < bytes.length && bytes[pos] == 0x5B) {
+          // '['
           final idStart = pos;
           pos++;
           int depth = 1;
@@ -367,11 +374,7 @@ class PdfReader {
       throw PadesException('trailer /Root not found');
     }
 
-    return {
-      'size': size,
-      'rootRef': rootRef,
-      'id': id,
-    };
+    return {'size': size, 'rootRef': rootRef, 'id': id};
   }
 
   /// Extract object body (dict or stream) starting at offset
@@ -411,7 +414,10 @@ class PdfReader {
   }
 
   /// Find /Contents <...> in object body and return (startOfHex, endOfHex)
-  ({int start, int end})? _findContentsHexRange(String objBody, int objStartOffset) {
+  ({int start, int end})? _findContentsHexRange(
+    String objBody,
+    int objStartOffset,
+  ) {
     const contentsKey = '/Contents';
     final idx = objBody.indexOf(contentsKey);
     if (idx < 0) return null;
@@ -510,7 +516,11 @@ class PdfReader {
   void _skipDictValue(int pos) {
     while (pos < bytes.length) {
       if (bytes[pos] == 0x2F) break; // next key
-      if (pos + 1 < bytes.length && bytes[pos] == 0x3E && bytes[pos + 1] == 0x3E) break;
+      if (pos + 1 < bytes.length &&
+          bytes[pos] == 0x3E &&
+          bytes[pos + 1] == 0x3E) {
+        break;
+      }
       pos++;
     }
   }
@@ -532,6 +542,14 @@ class PdfReader {
 
   /// Helper: is name character
   bool _isNameChar(int byte) {
-    return (byte >= 0x21 && byte <= 0x7E) && byte != 0x2F && byte != 0x3C && byte != 0x3E && byte != 0x5B && byte != 0x5D && byte != 0x7B && byte != 0x7D && byte != 0x25;
+    return (byte >= 0x21 && byte <= 0x7E) &&
+        byte != 0x2F &&
+        byte != 0x3C &&
+        byte != 0x3E &&
+        byte != 0x5B &&
+        byte != 0x5D &&
+        byte != 0x7B &&
+        byte != 0x7D &&
+        byte != 0x25;
   }
 }

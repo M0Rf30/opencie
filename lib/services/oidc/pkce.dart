@@ -102,10 +102,7 @@ class OidcAuthorizeRequest {
     if (extra != null) params.addAll(extra!);
 
     return authorizationEndpoint.replace(
-      queryParameters: {
-        ...authorizationEndpoint.queryParameters,
-        ...params,
-      },
+      queryParameters: {...authorizationEndpoint.queryParameters, ...params},
     );
   }
 }
@@ -133,5 +130,4 @@ Uint8List _randomBytes(int n) {
   return out;
 }
 
-String _b64Url(Uint8List bytes) =>
-    base64Url.encode(bytes).replaceAll('=', '');
+String _b64Url(Uint8List bytes) => base64Url.encode(bytes).replaceAll('=', '');

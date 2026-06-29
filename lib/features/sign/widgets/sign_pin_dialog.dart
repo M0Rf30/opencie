@@ -55,8 +55,10 @@ class _SignPinDialogState extends State<SignPinDialog> {
 
     void backspace() {
       if (_controller.text.isNotEmpty) {
-        _controller.text =
-            _controller.text.substring(0, _controller.text.length - 1);
+        _controller.text = _controller.text.substring(
+          0,
+          _controller.text.length - 1,
+        );
         setState(() {});
       }
     }
@@ -94,8 +96,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
       autofocus: true,
       onKeyEvent: onKeyEvent,
       child: Dialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: cs.surfaceContainer,
         insetPadding: EdgeInsets.symmetric(
           horizontal: isDesktop ? 40 : 24,
@@ -118,8 +119,10 @@ class _SignPinDialogState extends State<SignPinDialog> {
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 32, minHeight: 32),
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                     ),
                     const Spacer(),
                     OcSectionLabel('PASSO 01 / 03'),
@@ -136,8 +139,11 @@ class _SignPinDialogState extends State<SignPinDialog> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: cs.outlineVariant),
                   ),
-                  child: Icon(Icons.lock_outline_rounded,
-                      size: 26, color: cs.primary),
+                  child: Icon(
+                    Icons.lock_outline_rounded,
+                    size: 26,
+                    color: cs.primary,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 OcSectionLabel('PIN DELLA CARTA'),
@@ -152,10 +158,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
                 const SizedBox(height: 4),
                 Text(
                   l10n.signPinLast4Helper,
-                  style: TextStyle(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -172,9 +175,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
                       width: tileW,
                       height: tileH,
                       decoration: BoxDecoration(
-                        color: filled
-                            ? cs.primary
-                            : cs.surfaceContainerHigh,
+                        color: filled ? cs.primary : cs.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: filled ? cs.primary : cs.outlineVariant,
@@ -208,10 +209,18 @@ class _SignPinDialogState extends State<SignPinDialog> {
                   childAspectRatio: numpadRatio,
                   children: [
                     for (final key in [
-                      '1', '2', '3',
-                      '4', '5', '6',
-                      '7', '8', '9',
-                      '',  '0', '⌫',
+                      '1',
+                      '2',
+                      '3',
+                      '4',
+                      '5',
+                      '6',
+                      '7',
+                      '8',
+                      '9',
+                      '',
+                      '0',
+                      '⌫',
                     ])
                       if (key.isEmpty)
                         const SizedBox.shrink()

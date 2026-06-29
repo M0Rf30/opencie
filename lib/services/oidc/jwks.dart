@@ -57,8 +57,8 @@ class JwksKey {
 /// Fetches and caches a JWKS document. Keys are indexed by `kid`.
 class JwksClient {
   JwksClient({http.Client? httpClient, Duration? ttl})
-      : _http = httpClient ?? http.Client(),
-        _ttl = ttl ?? const Duration(hours: 1);
+    : _http = httpClient ?? http.Client(),
+      _ttl = ttl ?? const Duration(hours: 1);
 
   final http.Client _http;
   final Duration _ttl;
@@ -97,13 +97,16 @@ class JwksClient {
   }
 
   /// Returns the key matching [kid] or `null`.
-  Future<JwksKey?> getKey(Uri jwksUri, String kid,
-      {bool forceRefresh = false}) async {
+  Future<JwksKey?> getKey(
+    Uri jwksUri,
+    String kid, {
+    bool forceRefresh = false,
+  }) async {
     final keys = await fetch(jwksUri, forceRefresh: forceRefresh);
     return keys.cast<JwksKey?>().firstWhere(
-          (k) => k?.kid == kid,
-          orElse: () => null,
-        );
+      (k) => k?.kid == kid,
+      orElse: () => null,
+    );
   }
 
   void clearCache() => _cache.clear();

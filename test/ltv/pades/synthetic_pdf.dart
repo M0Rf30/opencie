@@ -9,18 +9,32 @@ import 'dart:typed_data';
 /// - Page (obj 3)
 /// - Signature dict (obj 4)
 /// - xref + trailer
-Uint8List buildSyntheticSignedPdf({
-  Uint8List? cmsContents,
-}) {
-  cmsContents ??= Uint8List.fromList([0x30, 0x80, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02]);
+Uint8List buildSyntheticSignedPdf({Uint8List? cmsContents}) {
+  cmsContents ??= Uint8List.fromList([
+    0x30,
+    0x80,
+    0x06,
+    0x09,
+    0x2A,
+    0x86,
+    0x48,
+    0x86,
+    0xF7,
+    0x0D,
+    0x01,
+    0x07,
+    0x02,
+  ]);
   // Encode CMS as hex
   final cmsHex = _bytesToHex(cmsContents);
 
   // Build objects
   final obj1 = '1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n';
   final obj2 = '2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n';
-  final obj3 = '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
-  final obj4 = '4 0 obj\n<</Type/Sig/Filter/Adobe.PPKLite/SubFilter/ETSI.CAdES.detached/Contents<$cmsHex>/ByteRange[0 100 200 50]>>\nendobj\n';
+  final obj3 =
+      '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
+  final obj4 =
+      '4 0 obj\n<</Type/Sig/Filter/Adobe.PPKLite/SubFilter/ETSI.CAdES.detached/Contents<$cmsHex>/ByteRange[0 100 200 50]>>\nendobj\n';
 
   // Build xref
   final header = '%PDF-1.7\n%\xE2\xE3\xCF\xD3\n';
@@ -34,7 +48,8 @@ Uint8List buildSyntheticSignedPdf({
 
   final xrefStart = offset4 + obj4.length;
 
-  final xref = 'xref\n'
+  final xref =
+      'xref\n'
       '0 5\n'
       '0000000000 65535 f \n'
       '${offset1.toString().padLeft(10, '0')} 00000 n \n'
@@ -42,7 +57,8 @@ Uint8List buildSyntheticSignedPdf({
       '${offset3.toString().padLeft(10, '0')} 00000 n \n'
       '${offset4.toString().padLeft(10, '0')} 00000 n \n';
 
-  final trailer = 'trailer\n'
+  final trailer =
+      'trailer\n'
       '<</Size 5/Root 1 0 R/ID[<4142434445464748494A4B4C4D4E4F50><4142434445464748494A4B4C4D4E4F50]>>\n'
       'startxref\n'
       '$xrefStart\n'

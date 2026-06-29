@@ -88,31 +88,38 @@ void main() {
       final header = '%PDF-1.7\n%\xE2\xE3\xCF\xD3\n';
       final obj1 = '1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n';
       final obj2 = '2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n';
-      final obj3 = '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
+      final obj3 =
+          '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
 
       final offset1 = header.length;
       final offset2 = offset1 + obj1.length;
       final offset3 = offset2 + obj2.length;
       final xrefStart = offset3 + obj3.length;
 
-      final xref = 'xref\n'
+      final xref =
+          'xref\n'
           '0 4\n'
           '0000000000 65535 f \n'
           '${offset1.toString().padLeft(10, '0')} 00000 n \n'
           '${offset2.toString().padLeft(10, '0')} 00000 n \n'
           '${offset3.toString().padLeft(10, '0')} 00000 n \n';
 
-      final trailer = 'trailer\n'
+      final trailer =
+          'trailer\n'
           '<</Size 4/Root 1 0 R/ID[<414243><414243>]>>\n'
           'startxref\n'
           '$xrefStart\n'
           '%%EOF\n';
 
-      final pdf = Uint8List.fromList((header + obj1 + obj2 + obj3 + xref + trailer).codeUnits);
+      final pdf = Uint8List.fromList(
+        (header + obj1 + obj2 + obj3 + xref + trailer).codeUnits,
+      );
       final upgrader = PadesLtUpgrader();
 
       final material = PdfValidationMaterial(
-        certificates: [Uint8List.fromList([0x30, 0x82])],
+        certificates: [
+          Uint8List.fromList([0x30, 0x82]),
+        ],
       );
 
       expect(
@@ -122,12 +129,23 @@ void main() {
     });
 
     test('signature contents hash is computed correctly', () {
-      final cmsBytes = Uint8List.fromList([0x30, 0x81, 0x82, 0x06, 0x09, 0x2A, 0x86, 0x48]);
+      final cmsBytes = Uint8List.fromList([
+        0x30,
+        0x81,
+        0x82,
+        0x06,
+        0x09,
+        0x2A,
+        0x86,
+        0x48,
+      ]);
       final pdf = buildSyntheticSignedPdf(cmsContents: cmsBytes);
       final upgrader = PadesLtUpgrader();
 
       final material = PdfValidationMaterial(
-        certificates: [Uint8List.fromList([0x30, 0x82])],
+        certificates: [
+          Uint8List.fromList([0x30, 0x82]),
+        ],
       );
 
       final upgraded = upgrader.upgrade(pdf, material);
@@ -142,7 +160,16 @@ void main() {
     });
 
     test('original signature is preserved', () {
-      final cmsBytes = Uint8List.fromList([0x30, 0x81, 0x82, 0x06, 0x09, 0x2A, 0x86, 0x48]);
+      final cmsBytes = Uint8List.fromList([
+        0x30,
+        0x81,
+        0x82,
+        0x06,
+        0x09,
+        0x2A,
+        0x86,
+        0x48,
+      ]);
       final pdf = buildSyntheticSignedPdf(cmsContents: cmsBytes);
 
       // Extract original signature contents
@@ -156,7 +183,9 @@ void main() {
 
       final upgrader = PadesLtUpgrader();
       final material = PdfValidationMaterial(
-        certificates: [Uint8List.fromList([0x30, 0x82])],
+        certificates: [
+          Uint8List.fromList([0x30, 0x82]),
+        ],
       );
 
       final upgraded = upgrader.upgrade(pdf, material);
@@ -178,7 +207,9 @@ void main() {
       final upgrader = PadesLtUpgrader();
 
       final material = PdfValidationMaterial(
-        certificates: [Uint8List.fromList([0x30, 0x82])],
+        certificates: [
+          Uint8List.fromList([0x30, 0x82]),
+        ],
       );
 
       final upgraded = upgrader.upgrade(pdf, material);
@@ -196,7 +227,9 @@ void main() {
       final upgrader = PadesLtUpgrader();
 
       final material = PdfValidationMaterial(
-        certificates: [Uint8List.fromList([0x30, 0x82])],
+        certificates: [
+          Uint8List.fromList([0x30, 0x82]),
+        ],
       );
 
       final upgraded = upgrader.upgrade(pdf, material);

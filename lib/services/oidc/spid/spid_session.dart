@@ -26,9 +26,9 @@ class SpidSession {
   String get accessToken => session.accessToken;
 
   Map<String, dynamic> toJson() => {
-        'session': session.toJson(),
-        'profile': profile.name,
-        if (level != null) 'level': level!.acrValue,
-        'attributes': attributes.toJson(),
-      };
+    'session': session.toJson(),
+    'profile': profile.name,
+    if (level != null) 'level': level!.acrValue,
+    'attributes': attributes.toJson(),
+  };
 }

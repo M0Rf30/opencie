@@ -57,8 +57,9 @@ class CieCertificateDialog extends StatelessWidget {
       ),
       actions: [
         FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.commonClose)),
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.commonClose),
+        ),
       ],
     );
   }
@@ -72,15 +73,22 @@ Widget _certRow(String label, String value, ThemeData theme) {
       children: [
         SizedBox(
           width: 64,
-          child: Text(label,
-              style: theme.textTheme.labelMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
         Expanded(
-            child: Text(value,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    fontFamily: 'JetBrainsMono'))),
+          child: Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontFamily: 'JetBrainsMono',
+            ),
+          ),
+        ),
       ],
     ),
   );

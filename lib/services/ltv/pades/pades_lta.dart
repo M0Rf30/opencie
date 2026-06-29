@@ -37,7 +37,9 @@ class PadesLtaUpgrader {
     this.contentsReserveBytes = 16384,
   }) {
     if (contentsReserveBytes % 2 != 0) {
-      throw PadesException('contentsReserveBytes must be even (is hex-encoded)');
+      throw PadesException(
+        'contentsReserveBytes must be even (is hex-encoded)',
+      );
     }
     if (contentsReserveBytes < 256) {
       throw PadesException('contentsReserveBytes must be at least 256');
@@ -78,12 +80,16 @@ class PadesLtaUpgrader {
     // Find the placeholder /ByteRange and /Contents in candidate bytes
     final byteRangeMatch = _findPlaceholderByteRange(candidateBytes);
     if (byteRangeMatch == null) {
-      throw PadesException('Could not find placeholder /ByteRange in candidate bytes');
+      throw PadesException(
+        'Could not find placeholder /ByteRange in candidate bytes',
+      );
     }
 
     final contentsMatch = _findPlaceholderContents(candidateBytes);
     if (contentsMatch == null) {
-      throw PadesException('Could not find placeholder /Contents in candidate bytes');
+      throw PadesException(
+        'Could not find placeholder /Contents in candidate bytes',
+      );
     }
 
     // Compute actual byte offsets
@@ -92,7 +98,7 @@ class PadesLtaUpgrader {
     // - Range 1: [0, contentsStart] (from start to '<' inclusive)
     // - Range 2: [contentsEnd, totalLen - contentsEnd] (from '>' to EOF)
     final contentsStart = contentsMatch.start; // position of '<'
-    final contentsEnd = contentsMatch.end;     // position after '>'
+    final contentsEnd = contentsMatch.end; // position after '>'
     final totalLen = candidateBytes.length;
 
     final byteRange = [0, contentsStart, contentsEnd, totalLen - contentsEnd];
@@ -193,7 +199,8 @@ class PadesLtaUpgrader {
         int end = i + prefixBytes.length;
 
         // Skip digits and spaces until we find ]
-        while (end < bytes.length && bytes[end] != 0x5D) { // 0x5D = ']'
+        while (end < bytes.length && bytes[end] != 0x5D) {
+          // 0x5D = ']'
           end++;
         }
 
@@ -232,7 +239,8 @@ class PadesLtaUpgrader {
           final byte = bytes[contentsEnd];
           if ((byte >= 0x30 && byte <= 0x39) || // 0-9
               (byte >= 0x41 && byte <= 0x46) || // A-F
-              (byte >= 0x61 && byte <= 0x66)) { // a-f
+              (byte >= 0x61 && byte <= 0x66)) {
+            // a-f
             contentsEnd++;
           } else {
             break;
@@ -240,7 +248,8 @@ class PadesLtaUpgrader {
         }
 
         // Expect '>'
-        if (contentsEnd < bytes.length && bytes[contentsEnd] == 0x3E) { // '>'
+        if (contentsEnd < bytes.length && bytes[contentsEnd] == 0x3E) {
+          // '>'
           return (start: contentsStart, end: contentsEnd + 1);
         }
       }
@@ -258,7 +267,8 @@ class PadesLtaUpgrader {
     List<int> byteRange,
   ) {
     // Format the new ByteRange with fixed-width numbers, including the /ByteRange prefix
-    final newByteRange = '/ByteRange [0 ${byteRange[1].toString().padLeft(10, '0')} '
+    final newByteRange =
+        '/ByteRange [0 ${byteRange[1].toString().padLeft(10, '0')} '
         '${byteRange[2].toString().padLeft(10, '0')} '
         '${byteRange[3].toString().padLeft(10, '0')}]';
 

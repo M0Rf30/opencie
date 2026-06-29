@@ -19,7 +19,9 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
   }
 
   void addFiles(List<String> paths, SignatureFormat format) {
-    final newItems = paths.map((path) => BatchSignItem(inputPath: path, format: format)).toList();
+    final newItems = paths
+        .map((path) => BatchSignItem(inputPath: path, format: format))
+        .toList();
     state = state.copyWith(items: [...state.items, ...newItems]);
   }
 
@@ -35,39 +37,36 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     state = const BatchSignState();
   }
 
-  Future<void> start({
-    required String pin,
-    required String pan,
-  }) async {
+  Future<void> start({required String pin, required String pan}) async {
     _subscription?.cancel();
 
     _service = BatchSignService();
     state = state.copyWith(isRunning: true);
 
-    _subscription = _service.run(
-      items: state.items,
-      pin: pin,
-      pan: pan,
-      outputPathBuilder: (inputPath, format) {
-        // Synchronous wrapper - we'll use the async version in a blocking way
-        // For batch signing, we resolve paths upfront
-        return _resolvePathSync(inputPath, format);
-      },
-    ).listen(
-      (newState) {
-        state = newState;
-      },
-      onError: (error) {
-        state = state.copyWith(isRunning: false);
-      },
-    );
+    _subscription = _service
+        .run(
+          items: state.items,
+          pin: pin,
+          pan: pan,
+          outputPathBuilder: (inputPath, format) {
+            // Synchronous wrapper - we'll use the async version in a blocking way
+            // For batch signing, we resolve paths upfront
+            return _resolvePathSync(inputPath, format);
+          },
+        )
+        .listen(
+          (newState) {
+            state = newState;
+          },
+          onError: (error) {
+            state = state.copyWith(isRunning: false);
+          },
+        );
   }
 
   void cancel() {
     _service.cancel();
   }
-
-
 
   /// Synchronous path resolution (simplified for batch mode).
   /// In production, paths should be pre-resolved before starting the batch.
@@ -76,7 +75,9 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     // resolved asynchronously before calling start()
     final lastSlash = inputPath.lastIndexOf('/');
     final dir = lastSlash >= 0 ? inputPath.substring(0, lastSlash) : '.';
-    final fileName = lastSlash >= 0 ? inputPath.substring(lastSlash + 1) : inputPath;
+    final fileName = lastSlash >= 0
+        ? inputPath.substring(lastSlash + 1)
+        : inputPath;
 
     final baseName = format == SignatureFormat.pades
         ? fileName

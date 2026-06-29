@@ -123,18 +123,9 @@ class AppSettings {
   }
 }
 
-enum ValidationType {
-  ocspOnly,
-  ocspFirst,
-  crlOnly,
-  crlFirst,
-}
+enum ValidationType { ocspOnly, ocspFirst, crlOnly, crlFirst }
 
-enum LogLevel {
-  off,
-  standard,
-  debug,
-}
+enum LogLevel { off, standard, debug }
 
 List<EnrolledCard> _parseEnrolledCards(Map<String, dynamic> map) {
   final raw = map['enrolledCards'];
@@ -171,7 +162,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     if (json != null) {
       try {
         final map = jsonDecode(json) as Map<String, dynamic>;
-        
+
         // Parse uiScale with clamping to valid values
         double parsedUiScale = 1.0;
         try {
@@ -182,7 +173,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         } catch (_) {
           parsedUiScale = 1.0;
         }
-        
+
         // Parse themeMode with fallback to system
         ThemeMode parsedThemeMode = ThemeMode.system;
         try {
@@ -193,7 +184,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         } catch (_) {
           parsedThemeMode = ThemeMode.system;
         }
-        
+
         state = AppSettings(
           locale: map['locale'] as String? ?? 'it',
           defaultPdfFormat: SignatureFormat.values.byName(
@@ -214,16 +205,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
               ? TsaConfig.fromJson(map['tsaConfig'] as Map<String, dynamic>)
               : const TsaConfig(),
           proxyConfig: map['proxyConfig'] != null
-              ? ProxyConfig.fromJson(
-                  map['proxyConfig'] as Map<String, dynamic>,
-                )
+              ? ProxyConfig.fromJson(map['proxyConfig'] as Map<String, dynamic>)
               : const ProxyConfig(),
           validationType: ValidationType.values.byName(
             map['validationType'] as String? ?? 'ocspFirst',
           ),
-          logLevel: LogLevel.values.byName(
-            map['logLevel'] as String? ?? 'off',
-          ),
+          logLevel: LogLevel.values.byName(map['logLevel'] as String? ?? 'off'),
           enrolledCards: _parseEnrolledCards(map),
           uiScale: parsedUiScale,
           themeMode: parsedThemeMode,
@@ -305,5 +292,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 }
 
-final settingsProvider =
-    NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
+  SettingsNotifier.new,
+);

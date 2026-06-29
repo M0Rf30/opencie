@@ -80,8 +80,19 @@ class VerifyInfo {
       final min = int.parse(s.substring(8, 10));
       final sec = int.parse(s.substring(10, 12));
       final months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '$day ${months[month]} $year, '
           '${hour.toString().padLeft(2, '0')}:'

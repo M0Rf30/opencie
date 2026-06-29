@@ -63,29 +63,20 @@ class PadesLtUpgrader {
     // (which is reserved for PDF compressed object streams). Use plain streams instead.
     final certRefs = <PdfRef>[];
     for (final cert in material.certificates) {
-      final ref = writer.addStreamObject(
-        {},
-        cert,
-      );
+      final ref = writer.addStreamObject({}, cert);
       certRefs.add(ref);
     }
 
     final crlRefs = <PdfRef>[];
     for (final crl in material.crls) {
-      final ref = writer.addStreamObject(
-        {},
-        crl.rawCrl,
-      );
+      final ref = writer.addStreamObject({}, crl.rawCrl);
       crlRefs.add(ref);
     }
 
     final ocspRefs = <PdfRef>[];
     for (final ocsp in material.ocspResponses) {
       if (ocsp.rawResponse != null) {
-        final ref = writer.addStreamObject(
-          {},
-          ocsp.rawResponse!,
-        );
+        final ref = writer.addStreamObject({}, ocsp.rawResponse!);
         ocspRefs.add(ref);
       }
     }
@@ -95,7 +86,13 @@ class PadesLtUpgrader {
     final vriRef = writer.addObject(vriDict);
 
     // Build DSS dict
-    final dssDict = _buildDssDict(certRefs, crlRefs, ocspRefs, vriRef, cmsSha1Hex);
+    final dssDict = _buildDssDict(
+      certRefs,
+      crlRefs,
+      ocspRefs,
+      vriRef,
+      cmsSha1Hex,
+    );
     final dssRef = writer.addObject(dssDict);
 
     // Update catalog with DSS reference
@@ -107,7 +104,11 @@ class PadesLtUpgrader {
   }
 
   /// Build VRI dict string
-  String _buildVriDict(List<PdfRef> certRefs, List<PdfRef> crlRefs, List<PdfRef> ocspRefs) {
+  String _buildVriDict(
+    List<PdfRef> certRefs,
+    List<PdfRef> crlRefs,
+    List<PdfRef> ocspRefs,
+  ) {
     final buf = StringBuffer();
     buf.write('<<');
     buf.write(' /Type /VRI');
@@ -202,13 +203,20 @@ class PadesLtUpgrader {
     }
 
     final dssRef_ = ' /DSS ${dssRef.objNum} ${dssRef.gen} R';
-    updated = updated.substring(0, closingIdx) + dssRef_ + updated.substring(closingIdx);
+    updated =
+        updated.substring(0, closingIdx) +
+        dssRef_ +
+        updated.substring(closingIdx);
 
     return updated;
   }
 
   /// Read object body from PDF given a reference
-  String? _readObjectBody(Uint8List pdfBytes, PdfTrailerInfo trailer, PdfRef ref) {
+  String? _readObjectBody(
+    Uint8List pdfBytes,
+    PdfTrailerInfo trailer,
+    PdfRef ref,
+  ) {
     // Find the xref entry for this object
     PdfXrefEntry? entry;
     for (final e in trailer.xrefEntries) {
@@ -226,7 +234,8 @@ class PadesLtUpgrader {
     int pos = entry.offset;
 
     // Skip "N M obj"
-    while (pos < pdfBytes.length && pdfBytes[pos] != 0x6F) { // 'o'
+    while (pos < pdfBytes.length && pdfBytes[pos] != 0x6F) {
+      // 'o'
       pos++;
     }
     if (pos + 3 > pdfBytes.length) return null;

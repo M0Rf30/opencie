@@ -23,15 +23,20 @@ class OcspException implements Exception {
 
 /// OCSP client for RFC 6960 Online Certificate Status Protocol.
 class OcspClient {
-  OcspClient({http.Client? httpClient, this.timeout = const Duration(seconds: 15)})
-      : _httpClient = httpClient ?? http.Client();
+  OcspClient({
+    http.Client? httpClient,
+    this.timeout = const Duration(seconds: 15),
+  }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
   final Duration timeout;
 
   /// Sends an OCSPRequest to [responderUrl]. Throws OcspException on transport errors.
   /// Returns OcspResponse with status != successful on protocol failures.
-  Future<OcspResponse> sendRequest(Uri responderUrl, Uint8List requestDer) async {
+  Future<OcspResponse> sendRequest(
+    Uri responderUrl,
+    Uint8List requestDer,
+  ) async {
     try {
       final response = await _httpClient
           .post(
@@ -140,7 +145,9 @@ class OcspClient {
     try {
       // Parse issuer cert
       final issuerObj = derDecode(issuerDer);
-      if (issuerObj is! ASN1Sequence || issuerObj.elements == null || issuerObj.elements!.isEmpty) {
+      if (issuerObj is! ASN1Sequence ||
+          issuerObj.elements == null ||
+          issuerObj.elements!.isEmpty) {
         return null;
       }
 
@@ -162,7 +169,9 @@ class OcspClient {
 
       // Extract issuer's subjectPublicKeyInfo (7th element, index 6)
       final issuerSpkiObj = issuerTbsCert.elements![6];
-      if (issuerSpkiObj is! ASN1Sequence || issuerSpkiObj.elements == null || issuerSpkiObj.elements!.length < 2) {
+      if (issuerSpkiObj is! ASN1Sequence ||
+          issuerSpkiObj.elements == null ||
+          issuerSpkiObj.elements!.length < 2) {
         return null;
       }
 
@@ -177,11 +186,16 @@ class OcspClient {
       if (issuerSpkBytes == null || issuerSpkBytes.isEmpty) {
         return null;
       }
-      final issuerKeyHash = hashOf(Uint8List.fromList(issuerSpkBytes), hashAlgorithmOid);
+      final issuerKeyHash = hashOf(
+        Uint8List.fromList(issuerSpkBytes),
+        hashAlgorithmOid,
+      );
 
       // Parse subject cert
       final certObj = derDecode(certDer);
-      if (certObj is! ASN1Sequence || certObj.elements == null || certObj.elements!.isEmpty) {
+      if (certObj is! ASN1Sequence ||
+          certObj.elements == null ||
+          certObj.elements!.isEmpty) {
         return null;
       }
 

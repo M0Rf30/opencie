@@ -22,7 +22,10 @@ Future<Uint8List> generateDefaultSignatureImage({
   const bg = Color(0xFFE8EAF6);
 
   canvas.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..color = bg);
-  canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), Radius.circular(radius)), Paint()..color = bg);
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), Radius.circular(radius)),
+    Paint()..color = bg,
+  );
 
   final iconBg = Paint()..color = primary;
   canvas.drawRRect(
@@ -35,10 +38,7 @@ Future<Uint8List> generateDefaultSignatureImage({
   );
 
   final iconPainter = TextPainter(
-    text: const TextSpan(
-      text: '🔏',
-      style: TextStyle(fontSize: 56, height: 1),
-    ),
+    text: const TextSpan(text: '🔏', style: TextStyle(fontSize: 56, height: 1)),
     textDirection: TextDirection.ltr,
   );
   iconPainter.layout();
@@ -62,7 +62,13 @@ Future<Uint8List> generateDefaultSignatureImage({
   final textLeft = iconZone + pad;
   final textWidth = w - textLeft - pad;
 
-  void drawLine(String text, double y, {double fontSize = 22, FontWeight weight = FontWeight.normal, Color? color}) {
+  void drawLine(
+    String text,
+    double y, {
+    double fontSize = 22,
+    FontWeight weight = FontWeight.normal,
+    Color? color,
+  }) {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
@@ -81,7 +87,12 @@ Future<Uint8List> generateDefaultSignatureImage({
     tp.paint(canvas, Offset(textLeft, y));
   }
 
-  drawLine('Firmato digitalmente con CIE', 20, fontSize: 20, weight: FontWeight.bold);
+  drawLine(
+    'Firmato digitalmente con CIE',
+    20,
+    fontSize: 20,
+    weight: FontWeight.bold,
+  );
 
   final name = signerCN?.isNotEmpty == true ? signerCN! : 'Titolare CIE';
   drawLine(name, 60, fontSize: 26, weight: FontWeight.w600);
@@ -92,7 +103,12 @@ Future<Uint8List> generateDefaultSignatureImage({
       '  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   drawLine('Data: $dateStr', 100, fontSize: 20, color: const Color(0xFF37474F));
 
-  drawLine('opencie · firma qualificata eIDAS', 134, fontSize: 16, color: const Color(0xFF78909C));
+  drawLine(
+    'opencie · firma qualificata eIDAS',
+    134,
+    fontSize: 16,
+    color: const Color(0xFF78909C),
+  );
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(w.toInt(), h.toInt());

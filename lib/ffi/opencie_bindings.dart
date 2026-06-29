@@ -24,7 +24,8 @@ typedef CK_RV_Dart = int;
 /// typedef CK_RV (*PROGRESS_CALLBACK)(int progress, const char* szMessage);
 typedef ProgressCallbackNative =
     UnsignedLong Function(Int32 progress, Pointer<Utf8> szMessage);
-typedef ProgressCallbackDart = int Function(int progress, Pointer<Utf8> szMessage);
+typedef ProgressCallbackDart =
+    int Function(int progress, Pointer<Utf8> szMessage);
 
 /// typedef CK_RV (*COMPLETED_CALLBACK)(const char* szPan, const char* szName,
 ///                                     const char* ef_seriale);
@@ -221,7 +222,6 @@ typedef CieExtractP7mNative =
 typedef CieExtractP7mDart =
     int Function(Pointer<Utf8> inFilePath, Pointer<Utf8> outFilePath);
 
-
 typedef CieReaderCountNative = Int32 Function();
 typedef CieReaderCountDart = int Function();
 
@@ -323,4 +323,3 @@ typedef CieReadDgsDart =
       Pointer<Uint8> photoOut,
       Pointer<Size> photoLen,
     );
-

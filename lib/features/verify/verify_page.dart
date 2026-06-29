@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/color_schemes.dart';
@@ -47,8 +46,9 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
     final result = await FilePicker.pickFiles(
       allowMultiple: false,
       type: Platform.isAndroid ? FileType.any : FileType.custom,
-      allowedExtensions:
-          Platform.isAndroid ? null : const ['pdf', 'p7m', 'p7s', 'xml'],
+      allowedExtensions: Platform.isAndroid
+          ? null
+          : const ['pdf', 'p7m', 'p7s', 'xml'],
     );
     if (result != null && result.paths.isNotEmpty) {
       final path = result.paths.first;
@@ -89,24 +89,30 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
         outputPath: outputPath,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(result.isSuccess
-              ? l10n.verifyExtractSuccess
-              : l10n.verifyExtractFailed),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: result.isSuccess
-              ? null
-              : Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.isSuccess
+                  ? l10n.verifyExtractSuccess
+                  : l10n.verifyExtractFailed,
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: result.isSuccess
+                ? null
+                : Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         final l10nInner = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(l10nInner.verifyExtractionError(e.toString())),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10nInner.verifyExtractionError(e.toString())),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
@@ -157,10 +163,9 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
           onBack: () => setState(() {
             _results = null;
           }),
-          onExtractP7m:
-              (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
-                  ? _extractP7m
-                  : null,
+          onExtractP7m: (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
+              ? _extractP7m
+              : null,
         );
       } else {
         return _BInvalidScreen(
@@ -169,10 +174,9 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
           onBack: () => setState(() {
             _results = null;
           }),
-          onExtractP7m:
-              (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
-                  ? _extractP7m
-                  : null,
+          onExtractP7m: (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
+              ? _extractP7m
+              : null,
         );
       }
     }
@@ -184,10 +188,9 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
       isDragging: _isDragging,
       onPickFile: _pickFile,
       onVerify: _verify,
-      onExtractP7m:
-          (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
-              ? _extractP7m
-              : null,
+      onExtractP7m: (_selectedFile?.toLowerCase().endsWith('.p7m') ?? false)
+          ? _extractP7m
+          : null,
       onSetFile: _setFile,
       onVerifyPath: _verifyPath,
       onDragEntered: () => setState(() => _isDragging = true),
@@ -282,9 +285,21 @@ class _BLandingPage extends ConsumerWidget {
                         icon: Icons.verified_rounded,
                         iconColor: cs.secondary,
                         steps: [
-                          OcHelpStep(title: l10n.helpVerifyStep1Title, body: l10n.helpVerifyStep1Body, icon: Icons.upload_file_rounded),
-                          OcHelpStep(title: l10n.helpVerifyStep2Title, body: l10n.helpVerifyStep2Body, icon: Icons.fact_check_rounded),
-                          OcHelpStep(title: l10n.helpVerifyStep3Title, body: l10n.helpVerifyStep3Body, icon: Icons.unarchive_rounded),
+                          OcHelpStep(
+                            title: l10n.helpVerifyStep1Title,
+                            body: l10n.helpVerifyStep1Body,
+                            icon: Icons.upload_file_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpVerifyStep2Title,
+                            body: l10n.helpVerifyStep2Body,
+                            icon: Icons.fact_check_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpVerifyStep3Title,
+                            body: l10n.helpVerifyStep3Body,
+                            icon: Icons.unarchive_rounded,
+                          ),
                         ],
                       ),
                     ),
@@ -359,7 +374,8 @@ class _BLandingPage extends ConsumerWidget {
                           ref.read(recentFilesProvider.notifier).clear(),
                       child: Text(
                         l10n.commonClear,
-                        style: TextStyle(fontFamily: 'Inter', 
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           color: cs.error,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -437,8 +453,11 @@ class _BVerifyScreen extends StatelessWidget {
         onBack: onBack,
         disc: OcStatusDisc(
           tone: OcStatusTone.valid,
-          icon: Icon(Icons.check_rounded,
-              color: Colors.white, size: _discIconSize),
+          icon: Icon(
+            Icons.check_rounded,
+            color: Colors.white,
+            size: _discIconSize,
+          ),
           size: 92,
         ),
         titleText: l10n.verifyValid,
@@ -497,8 +516,11 @@ class _BInvalidScreen extends StatelessWidget {
         disc: _ShakeOnAppear(
           child: OcStatusDisc(
             tone: OcStatusTone.invalid,
-            icon: Icon(Icons.close_rounded,
-                color: Colors.white, size: _discIconSize),
+            icon: Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: _discIconSize,
+            ),
             size: 92,
           ),
         ),
@@ -572,8 +594,7 @@ class _ResultScaffold extends StatelessWidget {
 
               // Content
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                    20, mq.padding.top + 12, 20, 0),
+                padding: EdgeInsets.fromLTRB(20, mq.padding.top + 12, 20, 0),
                 child: Column(
                   children: [
                     // ── Top action row ─────────────────────────────────
@@ -587,24 +608,43 @@ class _ResultScaffold extends StatelessWidget {
                         OcSectionLabel(l10n.verifyReportLabel),
                         const Spacer(),
                         PopupMenuButton<String>(
-                          icon: Icon(Icons.more_vert_rounded, size: 22, color: cs.onSurface),
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            size: 22,
+                            color: cs.onSurface,
+                          ),
                           style: ButtonStyle(
-                            backgroundColor: WidgetStatePropertyAll(cs.surfaceContainerHigh.withValues(alpha: 0.70)),
-                            shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                            fixedSize: const WidgetStatePropertyAll(Size(36, 36)),
-                            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+                            backgroundColor: WidgetStatePropertyAll(
+                              cs.surfaceContainerHigh.withValues(alpha: 0.70),
+                            ),
+                            shape: WidgetStatePropertyAll(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            fixedSize: const WidgetStatePropertyAll(
+                              Size(36, 36),
+                            ),
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.zero,
+                            ),
                           ),
                           itemBuilder: (_) => [
-                            PopupMenuItem(value: 'copy', child: Text(l10n.verifyCopyReport)),
+                            PopupMenuItem(
+                              value: 'copy',
+                              child: Text(l10n.verifyCopyReport),
+                            ),
                           ],
                           onSelected: (value) {
                             if (value == 'copy') {
                               final text = _buildReportText(result, l10n);
                               Clipboard.setData(ClipboardData(text: text));
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(l10n.verifyCopied),
-                                behavior: SnackBarBehavior.floating,
-                              ));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(l10n.verifyCopied),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
                             }
                           },
                         ),
@@ -628,9 +668,10 @@ class _ResultScaffold extends StatelessWidget {
                     // ── Mono subtitle ──────────────────────────────────
                     Text(
                       subtitleText,
-                      style: AppTheme.monoBody(cs,
-                              color: cs.onSurfaceVariant)
-                          .copyWith(fontSize: 13),
+                      style: AppTheme.monoBody(
+                        cs,
+                        color: cs.onSurfaceVariant,
+                      ).copyWith(fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
 
@@ -639,7 +680,10 @@ class _ResultScaffold extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         l10n.verifySignersCount(signerCount),
-                        style: AppTheme.monoBody(cs, color: cs.onSurfaceVariant).copyWith(fontSize: 12),
+                        style: AppTheme.monoBody(
+                          cs,
+                          color: cs.onSurfaceVariant,
+                        ).copyWith(fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -658,8 +702,9 @@ class _ResultScaffold extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
             decoration: BoxDecoration(
               color: cs.surfaceContainer,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
             ),
             padding: const EdgeInsets.all(18),
             child: detailPanel,
@@ -719,7 +764,8 @@ class _ValidDetailPanel extends StatelessWidget {
                 fileName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontFamily: 'Inter', 
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: cs.onSurface,
@@ -727,8 +773,7 @@ class _ValidDetailPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.open_in_new_rounded,
-                size: 22, color: cs.primary),
+            Icon(Icons.open_in_new_rounded, size: 22, color: cs.primary),
           ],
         ),
 
@@ -776,20 +821,17 @@ class _InvalidDetailPanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: invalidColor.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
-            border:
-                Border.all(color: invalidColor.withValues(alpha: 0.30)),
+            border: Border.all(color: invalidColor.withValues(alpha: 0.30)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              OcSectionLabel(
-                l10n.verifyHashMismatch,
-                color: invalidColor,
-              ),
+              OcSectionLabel(l10n.verifyHashMismatch, color: invalidColor),
               const SizedBox(height: 8),
               Text(
                 l10n.verifyHashMismatchBody,
-                style: TextStyle(fontFamily: 'Inter', 
+                style: TextStyle(
+                  fontFamily: 'Inter',
                   fontSize: 13,
                   color: cs.onSurface,
                   height: 1.5,
@@ -826,20 +868,18 @@ class _InvalidDetailPanel extends StatelessWidget {
                             0,
                             result.commonName.length > 20
                                 ? 20
-                                : result.commonName.length)
+                                : result.commonName.length,
+                          )
                         : '—',
                     cs.onSurface,
                     cs,
                   ),
-                  _diagRow(
-                    l10n.verifyCurrentHash,
-                    '—',
-                    invalidColor,
-                    cs,
-                  ),
+                  _diagRow(l10n.verifyCurrentHash, '—', invalidColor, cs),
                   _diagRow(
                     l10n.verifyCertChain,
-                    result.isCertificateValid ? l10n.verifyValidLabel : l10n.verifyInvalidLabel,
+                    result.isCertificateValid
+                        ? l10n.verifyValidLabel
+                        : l10n.verifyInvalidLabel,
                     result.isCertificateValid
                         ? ColorSchemes.valid
                         : invalidColor,
@@ -864,7 +904,12 @@ class _InvalidDetailPanel extends StatelessWidget {
     );
   }
 
-  TableRow _diagRow(String key, String value, Color valueColor, ColorScheme cs) {
+  TableRow _diagRow(
+    String key,
+    String value,
+    Color valueColor,
+    ColorScheme cs,
+  ) {
     return TableRow(
       children: [
         Padding(
@@ -923,7 +968,8 @@ class _SignerCard extends StatelessWidget {
                 child: Center(
                   child: Text(
                     initials,
-                    style: TextStyle(fontFamily: 'Inter', 
+                    style: TextStyle(
+                      fontFamily: 'Inter',
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
@@ -938,7 +984,8 @@ class _SignerCard extends StatelessWidget {
                   children: [
                     Text(
                       result.displayName,
-                      style: TextStyle(fontFamily: 'Inter', 
+                      style: TextStyle(
+                        fontFamily: 'Inter',
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: cs.onSurface,
@@ -959,14 +1006,17 @@ class _SignerCard extends StatelessWidget {
               // Qualification badge
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: validColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   l10n.verifyQualified,
-                  style: TextStyle(fontFamily: 'JetBrainsMono', 
+                  style: TextStyle(
+                    fontFamily: 'JetBrainsMono',
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: validColor,
@@ -997,7 +1047,9 @@ class _SignerCard extends StatelessWidget {
               _metaRow(l10n.verifySerialLabel, result.commonName, cs),
               _metaRow(
                 l10n.verifyTsaLabel,
-                result.signingTimeFormatted.isNotEmpty ? l10n.verifyPresent : '—',
+                result.signingTimeFormatted.isNotEmpty
+                    ? l10n.verifyPresent
+                    : '—',
                 cs,
               ),
             ],
@@ -1032,9 +1084,7 @@ class _SignerCard extends StatelessWidget {
     final n = r.name.isNotEmpty ? r.name[0].toUpperCase() : '';
     final s = r.surname.isNotEmpty ? r.surname[0].toUpperCase() : '';
     if (n.isEmpty && s.isEmpty) {
-      return r.displayName.isNotEmpty
-          ? r.displayName[0].toUpperCase()
-          : '?';
+      return r.displayName.isNotEmpty ? r.displayName[0].toUpperCase() : '?';
     }
     return '$n$s';
   }
@@ -1066,15 +1116,19 @@ class _TrustStrip extends StatelessWidget {
           Expanded(
             child: Text(
               l10n.verifyTrustAnchor,
-              style: TextStyle(fontFamily: 'Inter', 
+              style: TextStyle(
+                fontFamily: 'Inter',
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: cs.onSurface,
               ),
             ),
           ),
-          Icon(Icons.chevron_right_rounded,
-              size: 18, color: cs.onSurfaceVariant),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: cs.onSurfaceVariant,
+          ),
         ],
       ),
     );
@@ -1129,15 +1183,12 @@ class _DropZone extends StatelessWidget {
           options: RoundedRectDottedBorderOptions(
             radius: const Radius.circular(18),
             dashPattern: const [8, 5],
-            color: isDragging
-                ? cs.primary
-                : cs.outlineVariant,
+            color: isDragging ? cs.primary : cs.outlineVariant,
             strokeWidth: isDragging ? 2 : 1.5,
           ),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-                vertical: 28, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
             decoration: BoxDecoration(
               color: isDragging
                   ? cs.primary.withValues(alpha: 0.06)
@@ -1149,14 +1200,16 @@ class _DropZone extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       OcFileTile(
-                          extension: ext.isNotEmpty ? ext : 'pdf',
-                          width: 34,
-                          height: 42),
+                        extension: ext.isNotEmpty ? ext : 'pdf',
+                        width: 34,
+                        height: 42,
+                      ),
                       const SizedBox(width: 12),
                       Flexible(
                         child: Text(
                           fileName!,
-                          style: TextStyle(fontFamily: 'Inter', 
+                          style: TextStyle(
+                            fontFamily: 'Inter',
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface,
@@ -1183,14 +1236,13 @@ class _DropZone extends StatelessWidget {
                             ? Icons.file_download_rounded
                             : Icons.cloud_upload_outlined,
                         size: 40,
-                        color: isDragging
-                            ? cs.primary
-                            : cs.onSurfaceVariant,
+                        color: isDragging ? cs.primary : cs.onSurfaceVariant,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         l10n.verifyDropHint,
-                        style: TextStyle(fontFamily: 'Inter', 
+                        style: TextStyle(
+                          fontFamily: 'Inter',
                           fontSize: 14,
                           color: cs.onSurfaceVariant,
                         ),
@@ -1285,10 +1337,8 @@ class _ShakeOnAppearState extends State<_ShakeOnAppear>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _offsetX,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(_offsetX.value, 0),
-        child: child,
-      ),
+      builder: (_, child) =>
+          Transform.translate(offset: Offset(_offsetX.value, 0), child: child),
       child: widget.child,
     );
   }

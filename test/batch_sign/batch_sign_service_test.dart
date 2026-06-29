@@ -11,9 +11,7 @@ import 'package:opencie/services/sign/sign_backend.dart';
 
 /// Fake implementation of SignBackend for testing.
 class _FakeSignBackend implements SignBackend {
-  _FakeSignBackend({
-    this.resultMap = const {},
-  });
+  _FakeSignBackend({this.resultMap = const {}});
 
   /// Map of input file paths to CieResult to return.
   final Map<String, CieResult> resultMap;
@@ -40,7 +38,8 @@ class _FakeSignBackend implements SignBackend {
       onProgress(const CieProgress(percent: 100, message: 'Done'));
     }
 
-    return resultMap[inputPath] ?? const CieResult(returnValue: AppConstants.ckrOk);
+    return resultMap[inputPath] ??
+        const CieResult(returnValue: AppConstants.ckrOk);
   }
 }
 
@@ -48,9 +47,18 @@ void main() {
   group('BatchSignService', () {
     test('All success: 3 items all return success', () async {
       final items = [
-        BatchSignItem(inputPath: '/path/file1.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file2.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file3.pdf', format: SignatureFormat.pades),
+        BatchSignItem(
+          inputPath: '/path/file1.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file2.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file3.pdf',
+          format: SignatureFormat.pades,
+        ),
       ];
 
       final backend = _FakeSignBackend(
@@ -69,7 +77,8 @@ void main() {
             items: items,
             pin: '1234',
             pan: '',
-            outputPathBuilder: (inputPath, format) => inputPath.replaceAll('.pdf', '_signed.pdf'),
+            outputPathBuilder: (inputPath, format) =>
+                inputPath.replaceAll('.pdf', '_signed.pdf'),
           )
           .forEach((state) => states.add(state));
 
@@ -89,14 +98,25 @@ void main() {
 
     test('PIN incorrect on first item aborts batch', () async {
       final items = [
-        BatchSignItem(inputPath: '/path/file1.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file2.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file3.pdf', format: SignatureFormat.pades),
+        BatchSignItem(
+          inputPath: '/path/file1.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file2.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file3.pdf',
+          format: SignatureFormat.pades,
+        ),
       ];
 
       final backend = _FakeSignBackend(
         resultMap: {
-          '/path/file1.pdf': const CieResult(returnValue: AppConstants.ckrPinIncorrect),
+          '/path/file1.pdf': const CieResult(
+            returnValue: AppConstants.ckrPinIncorrect,
+          ),
           '/path/file2.pdf': const CieResult(returnValue: AppConstants.ckrOk),
           '/path/file3.pdf': const CieResult(returnValue: AppConstants.ckrOk),
         },
@@ -110,7 +130,8 @@ void main() {
             items: items,
             pin: 'wrong',
             pan: '',
-            outputPathBuilder: (inputPath, format) => inputPath.replaceAll('.pdf', '_signed.pdf'),
+            outputPathBuilder: (inputPath, format) =>
+                inputPath.replaceAll('.pdf', '_signed.pdf'),
           )
           .forEach((state) => states.add(state));
 
@@ -123,13 +144,21 @@ void main() {
 
     test('PIN locked on first item aborts batch', () async {
       final items = [
-        BatchSignItem(inputPath: '/path/file1.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file2.pdf', format: SignatureFormat.pades),
+        BatchSignItem(
+          inputPath: '/path/file1.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file2.pdf',
+          format: SignatureFormat.pades,
+        ),
       ];
 
       final backend = _FakeSignBackend(
         resultMap: {
-          '/path/file1.pdf': const CieResult(returnValue: AppConstants.ckrPinLocked),
+          '/path/file1.pdf': const CieResult(
+            returnValue: AppConstants.ckrPinLocked,
+          ),
           '/path/file2.pdf': const CieResult(returnValue: AppConstants.ckrOk),
         },
       );
@@ -142,7 +171,8 @@ void main() {
             items: items,
             pin: '1234',
             pan: '',
-            outputPathBuilder: (inputPath, format) => inputPath.replaceAll('.pdf', '_signed.pdf'),
+            outputPathBuilder: (inputPath, format) =>
+                inputPath.replaceAll('.pdf', '_signed.pdf'),
           )
           .forEach((state) => states.add(state));
 
@@ -153,15 +183,26 @@ void main() {
 
     test('Generic failure on item 2 continues with item 3', () async {
       final items = [
-        BatchSignItem(inputPath: '/path/file1.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file2.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file3.pdf', format: SignatureFormat.pades),
+        BatchSignItem(
+          inputPath: '/path/file1.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file2.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file3.pdf',
+          format: SignatureFormat.pades,
+        ),
       ];
 
       final backend = _FakeSignBackend(
         resultMap: {
           '/path/file1.pdf': const CieResult(returnValue: AppConstants.ckrOk),
-          '/path/file2.pdf': const CieResult(returnValue: AppConstants.ckrGeneralError),
+          '/path/file2.pdf': const CieResult(
+            returnValue: AppConstants.ckrGeneralError,
+          ),
           '/path/file3.pdf': const CieResult(returnValue: AppConstants.ckrOk),
         },
       );
@@ -174,7 +215,8 @@ void main() {
             items: items,
             pin: '1234',
             pan: '',
-            outputPathBuilder: (inputPath, format) => inputPath.replaceAll('.pdf', '_signed.pdf'),
+            outputPathBuilder: (inputPath, format) =>
+                inputPath.replaceAll('.pdf', '_signed.pdf'),
           )
           .forEach((state) => states.add(state));
 
@@ -188,8 +230,14 @@ void main() {
 
     test('Batch completes with final state not running', () async {
       final items = [
-        BatchSignItem(inputPath: '/path/file1.pdf', format: SignatureFormat.pades),
-        BatchSignItem(inputPath: '/path/file2.pdf', format: SignatureFormat.pades),
+        BatchSignItem(
+          inputPath: '/path/file1.pdf',
+          format: SignatureFormat.pades,
+        ),
+        BatchSignItem(
+          inputPath: '/path/file2.pdf',
+          format: SignatureFormat.pades,
+        ),
       ];
 
       final backend = _FakeSignBackend(
@@ -207,7 +255,8 @@ void main() {
             items: items,
             pin: '1234',
             pan: '',
-            outputPathBuilder: (inputPath, format) => inputPath.replaceAll('.pdf', '_signed.pdf'),
+            outputPathBuilder: (inputPath, format) =>
+                inputPath.replaceAll('.pdf', '_signed.pdf'),
           )
           .forEach((state) => states.add(state));
 

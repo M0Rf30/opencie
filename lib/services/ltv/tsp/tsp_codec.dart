@@ -149,8 +149,8 @@ TspResponse parseTspResponse(Uint8List der) {
 ///   tsa [0] GeneralName OPTIONAL,
 ///   extensions [1] IMPLICIT Extensions OPTIONAL
 /// }
-({DateTime? genTime, String? hashOid, Uint8List? hash, Uint8List? nonce}) _parseTstInfo(
-    Uint8List timeStampTokenDer) {
+({DateTime? genTime, String? hashOid, Uint8List? hash, Uint8List? nonce})
+_parseTstInfo(Uint8List timeStampTokenDer) {
   final parser = ASN1Parser(timeStampTokenDer);
   final contentInfo = parser.nextObject() as ASN1Sequence;
 
@@ -158,7 +158,9 @@ TspResponse parseTspResponse(Uint8List der) {
   // contentType should be id-signedData (1.2.840.113549.1.7.2)
   final contentType = contentInfo.elements![0] as ASN1ObjectIdentifier;
   if (contentType.objectIdentifierAsString != Oid.pkcs7SignedData) {
-    throw Exception('Expected SignedData, got ${contentType.objectIdentifierAsString}');
+    throw Exception(
+      'Expected SignedData, got ${contentType.objectIdentifierAsString}',
+    );
   }
 
   // Extract [0] EXPLICIT content (SignedData)
@@ -194,7 +196,9 @@ TspResponse parseTspResponse(Uint8List der) {
   // }
   final eContentType = encapContentInfo.elements![0] as ASN1ObjectIdentifier;
   if (eContentType.objectIdentifierAsString != Oid.timeStampToken) {
-    throw Exception('Expected TSTInfo, got ${eContentType.objectIdentifierAsString}');
+    throw Exception(
+      'Expected TSTInfo, got ${eContentType.objectIdentifierAsString}',
+    );
   }
 
   // Extract eContent [0] EXPLICIT OCTET STRING
@@ -203,7 +207,8 @@ TspResponse parseTspResponse(Uint8List der) {
     final ctx = encapContentInfo.elements![1];
     if (ctx.tag == 0xA0) {
       // Parse the OCTET STRING inside the context tag
-      final octetString = ASN1Parser(ctx.valueBytes!).nextObject() as ASN1OctetString;
+      final octetString =
+          ASN1Parser(ctx.valueBytes!).nextObject() as ASN1OctetString;
       tstInfoDer = octetString.octets!;
     } else {
       throw Exception('Expected [0] EXPLICIT tag, got tag ${ctx.tag}');
@@ -296,5 +301,3 @@ Uint8List _decodeNonce(ASN1Integer nonceInt) {
 
   return Uint8List.fromList(bytes);
 }
-
-

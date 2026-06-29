@@ -42,9 +42,7 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
         title: Text(l10n.cieProgressTimestamping),
         content: const SizedBox(
           height: 100,
-          child: Center(
-            child: CircularProgressIndicator(),
-          ),
+          child: Center(child: CircularProgressIndicator()),
         ),
       ),
     );
@@ -77,7 +75,9 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                l10n.timestampFailed('0x${result.returnValue.toUnsigned(32).toRadixString(16)}'),
+                l10n.timestampFailed(
+                  '0x${result.returnValue.toUnsigned(32).toRadixString(16)}',
+                ),
               ),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Theme.of(context).colorScheme.error,
@@ -119,7 +119,10 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(l10n.timestampTitle, style: AppTheme.displayBold(cs)),
+                        Text(
+                          l10n.timestampTitle,
+                          style: AppTheme.displayBold(cs),
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           l10n.timestampSubtitleFull,
@@ -143,9 +146,21 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
                         icon: Icons.schedule_rounded,
                         iconColor: cs.secondary,
                         steps: [
-                          OcHelpStep(title: l10n.helpTimestampStep1Title, body: l10n.helpTimestampStep1Body, icon: Icons.folder_open_rounded),
-                          OcHelpStep(title: l10n.helpTimestampStep2Title, body: l10n.helpTimestampStep2Body, icon: Icons.settings_rounded),
-                          OcHelpStep(title: l10n.helpTimestampStep3Title, body: l10n.helpTimestampStep3Body, icon: Icons.verified_rounded),
+                          OcHelpStep(
+                            title: l10n.helpTimestampStep1Title,
+                            body: l10n.helpTimestampStep1Body,
+                            icon: Icons.folder_open_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpTimestampStep2Title,
+                            body: l10n.helpTimestampStep2Body,
+                            icon: Icons.settings_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpTimestampStep3Title,
+                            body: l10n.helpTimestampStep3Body,
+                            icon: Icons.verified_rounded,
+                          ),
                         ],
                       ),
                     ),
@@ -166,14 +181,17 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded,
-                          color: theme.colorScheme.onTertiaryContainer),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: theme.colorScheme.onTertiaryContainer,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           l10n.timestampWarningNote,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onTertiaryContainer),
+                            color: theme.colorScheme.onTertiaryContainer,
+                          ),
                         ),
                       ),
                     ],
@@ -224,25 +242,30 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Card(
-                  color: cs.secondaryContainer
-                      .withValues(alpha: 0.3),
+                  color: cs.secondaryContainer.withValues(alpha: 0.3),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline,
-                            size: 20,
-                            color: cs.onSurfaceVariant),
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: cs.onSurfaceVariant,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             _selectedFiles.length > 1
                                 ? l10n.timestampFilesInfoPlural(
-                                    _selectedFiles.length)
+                                    _selectedFiles.length,
+                                  )
                                 : l10n.timestampFilesInfo(1),
                             style: theme.textTheme.bodyMedium?.copyWith(
-                                color: cs.onSurfaceVariant),
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ),
                         FilledButton.icon(

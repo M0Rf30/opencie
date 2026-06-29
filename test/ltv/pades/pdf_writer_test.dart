@@ -55,7 +55,10 @@ void main() {
 
       final writer = PdfIncrementalWriter(original: pdf, trailer: trailer);
       final catalogRef = trailer.rootRef;
-      writer.updateObject(catalogRef, '<</Type/Catalog/Pages 2 0 R/DSS 5 0 R>>');
+      writer.updateObject(
+        catalogRef,
+        '<</Type/Catalog/Pages 2 0 R/DSS 5 0 R>>',
+      );
 
       final output = writer.finalize(rootRef: catalogRef);
 
@@ -76,10 +79,7 @@ void main() {
 
       final writer = PdfIncrementalWriter(original: pdf, trailer: trailer);
       final streamData = Uint8List.fromList([0x01, 0x02, 0x03, 0x04]);
-      writer.addStreamObject(
-        {'/Type': '/ObjStm'},
-        streamData,
-      );
+      writer.addStreamObject({'/Type': '/ObjStm'}, streamData);
 
       final output = writer.finalize(rootRef: trailer.rootRef);
 
@@ -126,7 +126,9 @@ void main() {
       final writer = PdfIncrementalWriter(original: pdf, trailer: trailer);
       writer.addObject('<</Type/Test1>>');
       writer.addObject('<</Type/Test2>>');
-      writer.addStreamObject({'/Type': '/ObjStm'}, Uint8List.fromList([0xAA, 0xBB]));
+      writer.addStreamObject({
+        '/Type': '/ObjStm',
+      }, Uint8List.fromList([0xAA, 0xBB]));
 
       final output = writer.finalize(rootRef: trailer.rootRef);
 

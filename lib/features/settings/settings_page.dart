@@ -44,8 +44,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     super.initState();
     final settings = ref.read(settingsProvider);
     _proxyHost.text = settings.proxyConfig.host;
-    _proxyPort.text =
-        settings.proxyConfig.port == 0 ? '' : settings.proxyConfig.port.toString();
+    _proxyPort.text = settings.proxyConfig.port == 0
+        ? ''
+        : settings.proxyConfig.port.toString();
     _proxyUser.text = settings.proxyConfig.username;
     _proxyPass.text = settings.proxyConfig.password;
     _oidcIssuer.text = settings.oidcIssuer;
@@ -67,8 +68,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final settings = ref.read(settingsProvider);
     // Sync controllers with current state
     _proxyHost.text = settings.proxyConfig.host;
-    _proxyPort.text =
-        settings.proxyConfig.port == 0 ? '' : settings.proxyConfig.port.toString();
+    _proxyPort.text = settings.proxyConfig.port == 0
+        ? ''
+        : settings.proxyConfig.port.toString();
     _proxyUser.text = settings.proxyConfig.username;
     _proxyPass.text = settings.proxyConfig.password;
 
@@ -90,10 +92,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     showDialog<void>(
       context: context,
-      builder: (ctx) => _OidcDialog(
-        oidcIssuer: _oidcIssuer,
-        oidcClientId: _oidcClientId,
-      ),
+      builder: (ctx) =>
+          _OidcDialog(oidcIssuer: _oidcIssuer, oidcClientId: _oidcClientId),
     );
   }
 
@@ -123,7 +123,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(l10n.settingsTitle, style: AppTheme.displayBold(cs)),
+                        Text(
+                          l10n.settingsTitle,
+                          style: AppTheme.displayBold(cs),
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           l10n.settingsSubtitle,
@@ -147,9 +150,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         icon: Icons.settings_rounded,
                         iconColor: cs.primary,
                         steps: [
-                          OcHelpStep(title: l10n.helpSettingsStep1Title, body: l10n.helpSettingsStep1Body, icon: Icons.draw_rounded),
-                          OcHelpStep(title: l10n.helpSettingsStep2Title, body: l10n.helpSettingsStep2Body, icon: Icons.schedule_rounded),
-                          OcHelpStep(title: l10n.helpSettingsStep3Title, body: l10n.helpSettingsStep3Body, icon: Icons.security_rounded),
+                          OcHelpStep(
+                            title: l10n.helpSettingsStep1Title,
+                            body: l10n.helpSettingsStep1Body,
+                            icon: Icons.draw_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpSettingsStep2Title,
+                            body: l10n.helpSettingsStep2Body,
+                            icon: Icons.schedule_rounded,
+                          ),
+                          OcHelpStep(
+                            title: l10n.helpSettingsStep3Title,
+                            body: l10n.helpSettingsStep3Body,
+                            icon: Icons.security_rounded,
+                          ),
                         ],
                       ),
                     ),
@@ -165,7 +180,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-
                 // ── 0. INTERFACCIA ────────────────────────────────────────
                 OcSectionLabel(l10n.settingsInterfaceTitle),
                 const SizedBox(height: 8),
@@ -204,9 +218,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       subtitleMono: true,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
-                          .update((s) => s.copyWith(
-                              tsaConfig:
-                                  s.tsaConfig.copyWith(serverUrl: entry.value))),
+                          .update(
+                            (s) => s.copyWith(
+                              tsaConfig: s.tsaConfig.copyWith(
+                                serverUrl: entry.value,
+                              ),
+                            ),
+                          ),
                     );
                   }).toList(),
                 ),
@@ -221,23 +239,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     OcActionRow(
                       leadingIcon: Icons.folder_outlined,
                       title: l10n.settingsDestinationFolder,
-                      subtitle: settings.destinationFolder ?? l10n.settingsSameAsDocument,
+                      subtitle:
+                          settings.destinationFolder ??
+                          l10n.settingsSameAsDocument,
                       subtitleMono: settings.destinationFolder != null,
                       trailing: settings.destinationFolder != null
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: Icon(Icons.close_rounded,
-                                      size: 18,
-                                      color: cs.onSurfaceVariant),
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                   tooltip: l10n.commonClear,
                                   onPressed: () => ref
                                       .read(settingsProvider.notifier)
                                       .clearDestinationFolder(),
                                 ),
-                                Icon(Icons.chevron_right_rounded,
-                                    color: cs.onSurfaceVariant, size: 22),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: cs.onSurfaceVariant,
+                                  size: 22,
+                                ),
                               ],
                             )
                           : null,
@@ -249,8 +274,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           picked = await FilePicker.getDirectoryPath();
                         }
                         if (picked != null) {
-                          ref.read(settingsProvider.notifier).update(
-                              (s) => s.copyWith(destinationFolder: picked));
+                          ref
+                              .read(settingsProvider.notifier)
+                              .update(
+                                (s) => s.copyWith(destinationFolder: picked),
+                              );
                         }
                       },
                     ),
@@ -276,21 +304,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   children: [
                     // PDF format radios
                     ...SignatureFormat.values
-                        .where((f) =>
-                            f == SignatureFormat.pades ||
-                            f == SignatureFormat.cades)
+                        .where(
+                          (f) =>
+                              f == SignatureFormat.pades ||
+                              f == SignatureFormat.cades,
+                        )
                         .map((f) {
-                      final isSelected = settings.defaultPdfFormat == f;
-                      return OcActionRow(
-                        leading: _RadioDot(selected: isSelected, cs: cs),
-                        title: f.displayName,
-                        subtitle: l10n.settingsDefaultPdfFormat,
-                        onTap: () => ref
-                            .read(settingsProvider.notifier)
-                            .update((s) =>
-                                s.copyWith(defaultPdfFormat: f)),
-                      );
-                    }),
+                          final isSelected = settings.defaultPdfFormat == f;
+                          return OcActionRow(
+                            leading: _RadioDot(selected: isSelected, cs: cs),
+                            title: f.displayName,
+                            subtitle: l10n.settingsDefaultPdfFormat,
+                            onTap: () => ref
+                                .read(settingsProvider.notifier)
+                                .update((s) => s.copyWith(defaultPdfFormat: f)),
+                          );
+                        }),
                     OcActionRow(
                       title: l10n.settingsGraphicPades,
                       trailing: Switch.adaptive(
@@ -355,47 +384,63 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   children: [
                     OcActionRow(
                       leading: _RadioDot(
-                          selected:
-                              settings.validationType == ValidationType.ocspOnly,
-                          cs: cs),
+                        selected:
+                            settings.validationType == ValidationType.ocspOnly,
+                        cs: cs,
+                      ),
                       title: l10n.settingsOcspOnly,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
-                          .update((s) => s.copyWith(
-                              validationType: ValidationType.ocspOnly)),
+                          .update(
+                            (s) => s.copyWith(
+                              validationType: ValidationType.ocspOnly,
+                            ),
+                          ),
                     ),
                     OcActionRow(
                       leading: _RadioDot(
-                          selected:
-                              settings.validationType == ValidationType.ocspFirst,
-                          cs: cs),
+                        selected:
+                            settings.validationType == ValidationType.ocspFirst,
+                        cs: cs,
+                      ),
                       title: l10n.settingsOcspFirst,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
-                          .update((s) => s.copyWith(
-                              validationType: ValidationType.ocspFirst)),
+                          .update(
+                            (s) => s.copyWith(
+                              validationType: ValidationType.ocspFirst,
+                            ),
+                          ),
                     ),
                     OcActionRow(
                       leading: _RadioDot(
-                          selected:
-                              settings.validationType == ValidationType.crlOnly,
-                          cs: cs),
+                        selected:
+                            settings.validationType == ValidationType.crlOnly,
+                        cs: cs,
+                      ),
                       title: l10n.settingsCrlOnly,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
-                          .update((s) => s.copyWith(
-                              validationType: ValidationType.crlOnly)),
+                          .update(
+                            (s) => s.copyWith(
+                              validationType: ValidationType.crlOnly,
+                            ),
+                          ),
                     ),
                     OcActionRow(
                       leading: _RadioDot(
-                          selected:
-                              settings.validationType == ValidationType.crlFirst,
-                          cs: cs),
+                        selected:
+                            settings.validationType == ValidationType.crlFirst,
+                        cs: cs,
+                      ),
                       title: l10n.settingsCrlFirst,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
-                          .update((s) => s.copyWith(
-                              validationType: ValidationType.crlFirst)),
+                          .update(
+                            (s) => s.copyWith(
+                              validationType: ValidationType.crlFirst,
+                            ),
+                          ),
                     ),
                   ],
                 ),
@@ -408,11 +453,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 OcGroupCard(
                   children: [
                     OcActionRow(
-                      leading: _ProxyStatusDot(
-                          mode: settings.proxyConfig.mode),
+                      leading: _ProxyStatusDot(mode: settings.proxyConfig.mode),
                       title: l10n.settingsProxy,
                       subtitle: _proxySubtitle(settings.proxyConfig, l10n),
-                      subtitleMono: settings.proxyConfig.mode == ProxyMode.manual,
+                      subtitleMono:
+                          settings.proxyConfig.mode == ProxyMode.manual,
                       onTap: _showProxyDialog,
                     ),
                   ],
@@ -475,7 +520,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           const SizedBox(height: 12),
                           Text(
                             l10n.appTitle,
-                            style: TextStyle(fontFamily: 'Inter', 
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: cs.primary,
                               fontWeight: FontWeight.w800,
                               fontSize: 17,
@@ -484,7 +530,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           const SizedBox(height: 2),
                           Text(
                             l10n.settingsAboutDescription,
-                            style: TextStyle(fontFamily: 'Inter', 
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: cs.onSurfaceVariant,
                               fontSize: 12,
                             ),
@@ -504,8 +551,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               _LinkTile(
                                 icon: Icons.bug_report_outlined,
                                 label: l10n.settingsAboutReportIssue,
-                                url:
-                                    'https://github.com/M0Rf30/opencie/issues',
+                                url: 'https://github.com/M0Rf30/opencie/issues',
                                 cs: cs,
                               ),
                             ],
@@ -522,8 +568,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Center(
                   child: Text(
                     'OpenCIE 0.1.0+1 · GPL-3.0',
-                    style: AppTheme.monoCaption(cs,
-                        color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+                    style: AppTheme.monoCaption(
+                      cs,
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
                   ),
                 ),
 
@@ -639,10 +687,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: scales
-                .map((scale) => RadioListTile<double>(
-                      title: Text('${(scale * 100).round()}%'),
-                      value: scale,
-                    ))
+                .map(
+                  (scale) => RadioListTile<double>(
+                    title: Text('${(scale * 100).round()}%'),
+                    value: scale,
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -662,10 +712,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 // ---------------------------------------------------------------------------
 
 class _OidcDialog extends ConsumerWidget {
-  const _OidcDialog({
-    required this.oidcIssuer,
-    required this.oidcClientId,
-  });
+  const _OidcDialog({required this.oidcIssuer, required this.oidcClientId});
 
   final TextEditingController oidcIssuer;
   final TextEditingController oidcClientId;
@@ -766,10 +813,7 @@ class _ProxyStatusDot extends StatelessWidget {
     return Container(
       width: 8,
       height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
 }
@@ -811,11 +855,15 @@ class _ProxyDialog extends ConsumerWidget {
                 ButtonSegment(value: 2, label: Text(l10n.settingsManualProxy)),
               ],
               selected: {settings.proxyConfig.mode.index},
-              onSelectionChanged: (v) =>
-                  ref.read(settingsProvider.notifier).update(
-                      (s) => s.copyWith(
-                          proxyConfig: s.proxyConfig.copyWith(
-                              mode: ProxyMode.values[v.first]))),
+              onSelectionChanged: (v) => ref
+                  .read(settingsProvider.notifier)
+                  .update(
+                    (s) => s.copyWith(
+                      proxyConfig: s.proxyConfig.copyWith(
+                        mode: ProxyMode.values[v.first],
+                      ),
+                    ),
+                  ),
             ),
             if (settings.proxyConfig.mode == ProxyMode.manual) ...[
               const SizedBox(height: 12),
@@ -823,15 +871,22 @@ class _ProxyDialog extends ConsumerWidget {
                 initialValue: settings.proxyConfig.type,
                 decoration: InputDecoration(labelText: l10n.settingsProxyType),
                 items: ProxyType.values
-                    .map((t) => DropdownMenuItem(
+                    .map(
+                      (t) => DropdownMenuItem(
                         value: t,
-                        child: Text(t.name.toUpperCase())))
+                        child: Text(t.name.toUpperCase()),
+                      ),
+                    )
                     .toList(),
-                onChanged: (v) =>
-                    ref.read(settingsProvider.notifier).update(
-                        (s) => s.copyWith(
-                            proxyConfig: s.proxyConfig.copyWith(
-                                type: v ?? ProxyType.http))),
+                onChanged: (v) => ref
+                    .read(settingsProvider.notifier)
+                    .update(
+                      (s) => s.copyWith(
+                        proxyConfig: s.proxyConfig.copyWith(
+                          type: v ?? ProxyType.http,
+                        ),
+                      ),
+                    ),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -839,8 +894,11 @@ class _ProxyDialog extends ConsumerWidget {
                 decoration: InputDecoration(labelText: l10n.settingsProxyHost),
                 onChanged: (v) => ref
                     .read(settingsProvider.notifier)
-                    .update((s) => s.copyWith(
-                        proxyConfig: s.proxyConfig.copyWith(host: v))),
+                    .update(
+                      (s) => s.copyWith(
+                        proxyConfig: s.proxyConfig.copyWith(host: v),
+                      ),
+                    ),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -849,32 +907,42 @@ class _ProxyDialog extends ConsumerWidget {
                 keyboardType: TextInputType.number,
                 onChanged: (v) => ref
                     .read(settingsProvider.notifier)
-                    .update((s) => s.copyWith(
+                    .update(
+                      (s) => s.copyWith(
                         proxyConfig: s.proxyConfig.copyWith(
-                            port: int.tryParse(v) ?? 0))),
+                          port: int.tryParse(v) ?? 0,
+                        ),
+                      ),
+                    ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: proxyUser,
-                decoration:
-                    InputDecoration(labelText: l10n.settingsProxyUsername),
+                decoration: InputDecoration(
+                  labelText: l10n.settingsProxyUsername,
+                ),
                 onChanged: (v) => ref
                     .read(settingsProvider.notifier)
-                    .update((s) => s.copyWith(
-                        proxyConfig:
-                            s.proxyConfig.copyWith(username: v))),
+                    .update(
+                      (s) => s.copyWith(
+                        proxyConfig: s.proxyConfig.copyWith(username: v),
+                      ),
+                    ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: proxyPass,
                 obscureText: true,
-                decoration:
-                    InputDecoration(labelText: l10n.settingsProxyPassword),
+                decoration: InputDecoration(
+                  labelText: l10n.settingsProxyPassword,
+                ),
                 onChanged: (v) => ref
                     .read(settingsProvider.notifier)
-                    .update((s) => s.copyWith(
-                        proxyConfig:
-                            s.proxyConfig.copyWith(password: v))),
+                    .update(
+                      (s) => s.copyWith(
+                        proxyConfig: s.proxyConfig.copyWith(password: v),
+                      ),
+                    ),
               ),
             ],
           ],
@@ -921,7 +989,8 @@ class _LinkTile extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(fontFamily: 'Inter', 
+              style: TextStyle(
+                fontFamily: 'Inter',
                 color: cs.primary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

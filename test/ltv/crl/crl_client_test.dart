@@ -36,7 +36,9 @@ void main() {
       final issuerRdn = ASN1Sequence();
       final issuerSet = ASN1Set();
       final issuerAttr = ASN1Sequence();
-      issuerAttr.add(ASN1ObjectIdentifier.fromIdentifierString('2.5.4.3')); // CN
+      issuerAttr.add(
+        ASN1ObjectIdentifier.fromIdentifierString('2.5.4.3'),
+      ); // CN
       issuerAttr.add(ASN1UTF8String(utf8StringValue: 'Test CA'));
       issuerSet.add(issuerAttr);
       issuerRdn.add(issuerSet);
@@ -102,19 +104,20 @@ void main() {
       expect(crl.issuerDn, isNotEmpty);
     });
 
-     test('cache hit: second fetch does not hit server', () async {
-       // Arrange
-       int callCount = 0;
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         callCount++;
-         final crlDer = buildMinimalCrl(
-           thisUpdate: DateTime.utc(2026, 1, 1),
-           nextUpdate: DateTime.utc(2027, 1, 1),
-         );
-         return shelf.Response.ok(crlDer);
-       }
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+    test('cache hit: second fetch does not hit server', () async {
+      // Arrange
+      int callCount = 0;
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        callCount++;
+        final crlDer = buildMinimalCrl(
+          thisUpdate: DateTime.utc(2026, 1, 1),
+          nextUpdate: DateTime.utc(2027, 1, 1),
+        );
+        return shelf.Response.ok(crlDer);
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
       // Act: fetch twice
@@ -125,28 +128,27 @@ void main() {
       expect(callCount, equals(1));
     });
 
-     test('expired cache: second fetch re-fetches', () async {
-       // Arrange
-       int callCount = 0;
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         callCount++;
-         final crlDer = buildMinimalCrl(
-           thisUpdate: DateTime.utc(2026, 1, 1),
-           nextUpdate: DateTime.utc(2026, 1, 2), // expires tomorrow
-         );
-         return shelf.Response.ok(crlDer);
-       }
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+    test('expired cache: second fetch re-fetches', () async {
+      // Arrange
+      int callCount = 0;
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        callCount++;
+        final crlDer = buildMinimalCrl(
+          thisUpdate: DateTime.utc(2026, 1, 1),
+          nextUpdate: DateTime.utc(2026, 1, 2), // expires tomorrow
+        );
+        return shelf.Response.ok(crlDer);
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
       // Create client with custom "now" function
       final now1 = DateTime.utc(2026, 1, 1, 12, 0, 0);
       final now2 = DateTime.utc(2026, 1, 3, 0, 0, 0); // 2 days later
       int callIndex = 0;
-      client = CrlClient(
-        now: () => callIndex == 0 ? now1 : now2,
-      );
+      client = CrlClient(now: () => callIndex == 0 ? now1 : now2);
 
       // Act: fetch once
       callIndex = 0;
@@ -161,55 +163,49 @@ void main() {
       expect(callCount, equals(2));
     });
 
-     test('404 throws CrlException', () async {
-       // Arrange
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         return shelf.Response.notFound('Not found');
-       }
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+    test('404 throws CrlException', () async {
+      // Arrange
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.notFound('Not found');
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
       // Act & Assert
-      expect(
-        () => client.fetch(crlUrl),
-        throwsA(isA<CrlException>()),
-      );
+      expect(() => client.fetch(crlUrl), throwsA(isA<CrlException>()));
     });
 
-     test('oversized body throws CrlException', () async {
-       // Arrange
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         return shelf.Response.ok(Uint8List(200)); // 200 bytes
-       }
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+    test('oversized body throws CrlException', () async {
+      // Arrange
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.ok(Uint8List(200)); // 200 bytes
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
       // Create client with small max size
       client = CrlClient(maxBytes: 100);
 
       // Act & Assert
-      expect(
-        () => client.fetch(crlUrl),
-        throwsA(isA<CrlException>()),
-      );
+      expect(() => client.fetch(crlUrl), throwsA(isA<CrlException>()));
     });
 
-     test('malformed CRL throws CrlException', () async {
-       // Arrange
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         return shelf.Response.ok(Uint8List.fromList([0xFF, 0xFF, 0xFF]));
-       }
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+    test('malformed CRL throws CrlException', () async {
+      // Arrange
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.ok(Uint8List.fromList([0xFF, 0xFF, 0xFF]));
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
       // Act & Assert
-      expect(
-        () => client.fetch(crlUrl),
-        throwsA(isA<CrlException>()),
-      );
+      expect(() => client.fetch(crlUrl), throwsA(isA<CrlException>()));
     });
 
     test('fetchForCertificate with no CDP returns null', () async {
@@ -235,34 +231,34 @@ void main() {
       expect(crl.issuerDn, isNotEmpty);
     });
 
-     test('clearCache removes cached entries', () async {
-       // Arrange
-       int callCount = 0;
-       await server.close(force: true);
-       Future<shelf.Response> handler(shelf.Request request) async {
-         callCount++;
-         final crlDer = buildMinimalCrl(
-           thisUpdate: DateTime.utc(2026, 1, 1),
-           nextUpdate: DateTime.utc(2027, 1, 1),
-         );
-         return shelf.Response.ok(crlDer);
-       }
-       
-       server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
-       crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
+    test('clearCache removes cached entries', () async {
+      // Arrange
+      int callCount = 0;
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        callCount++;
+        final crlDer = buildMinimalCrl(
+          thisUpdate: DateTime.utc(2026, 1, 1),
+          nextUpdate: DateTime.utc(2027, 1, 1),
+        );
+        return shelf.Response.ok(crlDer);
+      }
 
-       // Act: fetch once
-       await client.fetch(crlUrl);
-       expect(callCount, equals(1));
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+      crlUrl = Uri.http('localhost:${server.port}', '/crl.pem');
 
-       // Clear cache
-       client.clearCache();
+      // Act: fetch once
+      await client.fetch(crlUrl);
+      expect(callCount, equals(1));
 
-       // Act: fetch again
-       await client.fetch(crlUrl);
+      // Clear cache
+      client.clearCache();
 
-       // Assert: handler called twice (cache was cleared)
-       expect(callCount, equals(2));
+      // Act: fetch again
+      await client.fetch(crlUrl);
+
+      // Assert: handler called twice (cache was cleared)
+      expect(callCount, equals(2));
     });
   });
 }
@@ -328,5 +324,3 @@ shelf.Handler _createCrlHandlerPem() {
     return shelf.Response.ok(pem);
   };
 }
-
-
