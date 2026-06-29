@@ -91,9 +91,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # TODO: verify native lib checksum once upstream publishes SHA256SUMS
-          gh release download \
+          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --repo M0Rf30/opencie-pkcs11 \
-            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*linux-x86_64.so' \
             --dir pkcs11-dist
           so="$(ls pkcs11-dist/*linux-x86_64.so 2>/dev/null | head -1)"
@@ -264,9 +263,8 @@ jobs:
           # TODO: verify native lib checksum once upstream publishes SHA256SUMS
           # Main DLL — required; fail loudly if absent so we never ship a
           # Windows build that cannot talk to a card (mirrors linux/macos).
-          gh release download \
+          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --repo M0Rf30/opencie-pkcs11 \
-            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*windows-x86_64*.dll' \
             --dir pkcs11-dist
           dll="$(ls pkcs11-dist/*.dll 2>/dev/null | head -1)"
@@ -278,9 +276,8 @@ jobs:
           echo "DLL downloaded: $(ls -lh libopencie-pkcs11.dll)"
 
           # Runtime deps the cross-built DLL links against — also required.
-          gh release download \
+          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --repo M0Rf30/opencie-pkcs11 \
-            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern 'windows-x86_64-runtime-deps*' \
             --dir pkcs11-runtime
 
@@ -444,11 +441,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # TODO: verify native lib checksum once upstream publishes SHA256SUMS
-          gh release download \
+          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --repo M0Rf30/opencie-pkcs11 \
-            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*macos-arm64.dylib' \
-            --dir pkcs11-dist || true
+            --dir pkcs11-dist
           if ls pkcs11-dist/*.dylib 2>/dev/null; then
             cp pkcs11-dist/*.dylib libopencie-pkcs11.dylib
             echo "DYLIB downloaded: $(ls -lh libopencie-pkcs11.dylib)"
