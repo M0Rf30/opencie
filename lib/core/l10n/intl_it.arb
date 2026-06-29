@@ -278,7 +278,7 @@
 
    "settingsTsaFreeTsaNote": "FreeTSA (predefinito) — non qualificato. Per marche legalmente valide, configura un TSP italiano qualificato.",
   "settingsChangeButton": "Cambia",
-  "settingsAboutDescription": "Applicazione open-source per la firma digitale CIE, verifica, marcatura temporale e gestione dell'identità.\n\nLicenza GPL-2.0-o-successiva",
+  "settingsAboutDescription": "Applicazione open-source per la firma digitale CIE, verifica, marcatura temporale e gestione dell'identità.\n\nLicenza GPL-3.0-o-successiva",
   "settingsAboutAuthorLabel": "Autore",
   "settingsAboutReportIssue": "Segnala un problema",
   "settingsAboutPkcs11": "opencie-pkcs11 (libreria C++)",

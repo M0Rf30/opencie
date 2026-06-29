@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/M0Rf30/opencie/actions"><img src="https://github.com/M0Rf30/opencie/actions/workflows/main.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/platforms-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-blue" alt="Platforms">
-  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-GPL--2.0--or--later-green" alt="License"></a>
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-green" alt="License"></a>
 </p>
 
 ---
@@ -172,4 +172,4 @@ Issues and pull requests are welcome — see the [issue tracker](https://github.
 
 ## License
 
-Copyright (C) 2026 Gianluca Boiano — [GPL-2.0-or-later](LICENSE.md)
+Copyright (C) 2026 Gianluca Boiano — [GPL-3.0-or-later](LICENSE.md)

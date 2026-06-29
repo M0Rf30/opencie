@@ -521,7 +521,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 // ── Footer ────────────────────────────────────────────────
                 Center(
                   child: Text(
-                    'OpenCIE 0.1.0+1 · GPL-2.0',
+                    'OpenCIE 0.1.0+1 · GPL-3.0',
                     style: AppTheme.monoCaption(cs,
                         color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
                   ),

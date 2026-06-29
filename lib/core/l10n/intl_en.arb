@@ -283,7 +283,7 @@
 
    "settingsTsaFreeTsaNote": "FreeTSA (default) — non-qualified. For legally valid timestamps, configure a qualified Italian TSP.",
   "settingsChangeButton": "Change",
-  "settingsAboutDescription": "Open-source application for CIE digital signatures, verification, timestamping, and identity management.\n\nLicensed under GPL-2.0-or-later",
+  "settingsAboutDescription": "Open-source application for CIE digital signatures, verification, timestamping, and identity management.\n\nLicensed under GPL-3.0-or-later",
   "settingsAboutAuthorLabel": "Author",
   "settingsAboutReportIssue": "Report an issue",
   "settingsAboutPkcs11": "opencie-pkcs11 (C++ library)",
