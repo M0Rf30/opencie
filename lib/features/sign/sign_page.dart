@@ -27,6 +27,7 @@ import '../../widgets/oc_section_label.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../models/signature_options.dart';
 import '../../providers/recent_files_provider.dart';
+import '../../providers/sign_backend_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../handoff/desktop_handoff_page.dart';
 import '../handoff/phone_handoff_page.dart';
@@ -261,26 +262,28 @@ class _SignPageState extends ConsumerState<SignPage> {
       final file = _selectedFile!;
       final outputPath = await _resolveOutputPath(file, options);
 
-      final result = await OpenCiePkcs11.instance.sign(
-        inputPath: file,
-        outputPath: outputPath,
-        signatureType: options.format.nativeType,
-        pin: pin,
-        pan: '',
-        page: options.graphicSignature ? options.page : 0,
-        x: options.graphicSignature ? options.x : 0,
-        y: options.graphicSignature ? options.y : 0,
-        w: options.graphicSignature ? options.width : 0,
-        h: options.graphicSignature ? options.height : 0,
-        imageData: options.graphicSignature ? options.imageData : null,
-        onProgress: (p) {
-          _nfcNotifier.value = (
-            false,
-            p.percent / 100.0,
-            l10n.localizeProgress(p.message),
+      final result = await ref
+          .read(signBackendProvider)
+          .sign(
+            inputPath: file,
+            outputPath: outputPath,
+            format: options.format,
+            pin: pin,
+            pan: '',
+            page: options.graphicSignature ? options.page : 0,
+            x: options.graphicSignature ? options.x : 0,
+            y: options.graphicSignature ? options.y : 0,
+            w: options.graphicSignature ? options.width : 0,
+            h: options.graphicSignature ? options.height : 0,
+            imageData: options.graphicSignature ? options.imageData : null,
+            onProgress: (p) {
+              _nfcNotifier.value = (
+                false,
+                p.percent / 100.0,
+                l10n.localizeProgress(p.message),
+              );
+            },
           );
-        },
-      );
 
       if (!mounted) return;
 

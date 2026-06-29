@@ -18,6 +18,7 @@ abstract class SignBackend {
     double y = 0,
     double w = 0,
     double h = 0,
+    Uint8List? imageData,
     ValueChanged<CieProgress>? onProgress,
   });
 }
@@ -41,6 +42,7 @@ class Pkcs11SignBackend implements SignBackend {
     double y = 0,
     double w = 0,
     double h = 0,
+    Uint8List? imageData,
     ValueChanged<CieProgress>? onProgress,
   }) {
     return _pkcs11.sign(
@@ -54,6 +56,7 @@ class Pkcs11SignBackend implements SignBackend {
       y: y,
       w: w,
       h: h,
+      imageData: imageData,
       onProgress: onProgress,
     );
   }

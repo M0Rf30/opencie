@@ -28,6 +28,7 @@ class _FakeSignBackend implements SignBackend {
     double y = 0,
     double w = 0,
     double h = 0,
+    Uint8List? imageData,
     ValueChanged<CieProgress>? onProgress,
   }) async {
     // Simulate progress callbacks
