@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  OPENCIE_PKCS11_VERSION: "1.0.8"
+
 jobs:
   test:
     name: Analyze & test
@@ -36,7 +39,16 @@ jobs:
 
       - run: flutter analyze
 
-      - run: flutter test --exclude-tags network
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - run: flutter test --exclude-tags network --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/lcov.info
 
   linux:
     runs-on: ubuntu-latest
@@ -66,12 +78,22 @@ jobs:
           libblkid-dev
           liblzma-dev
 
+      - name: Cache libopencie-pkcs11.so
+        id: cache-pkcs11-linux
+        uses: actions/cache@v4
+        with:
+          path: libopencie-pkcs11.so
+          key: pkcs11-linux-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}
+
       - name: Download libopencie-pkcs11.so
+        if: steps.cache-pkcs11-linux.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
           gh release download \
             --repo M0Rf30/opencie-pkcs11 \
+            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*linux-x86_64.so' \
             --dir pkcs11-dist
           so="$(ls pkcs11-dist/*linux-x86_64.so 2>/dev/null | head -1)"
@@ -80,8 +102,10 @@ jobs:
             exit 1
           fi
           cp "$so" libopencie-pkcs11.so
-          echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.so" >> "$GITHUB_ENV"
           echo "pkcs11 lib: $(ls -lh libopencie-pkcs11.so)"
+
+      - name: Set PKCS11 lib path (linux)
+        run: echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.so" >> "$GITHUB_ENV"
 
       - run: flutter pub get
 
@@ -222,15 +246,27 @@ jobs:
           key: pub-cache-${{ hashFiles('**/pubspec.lock') }}
           restore-keys: pub-cache-
 
+      - name: Cache libopencie-pkcs11 windows
+        id: cache-pkcs11-windows
+        uses: actions/cache@v4
+        with:
+          path: |
+            libopencie-pkcs11.dll
+            pkcs11-runtime
+          key: pkcs11-windows-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}
+
       - name: Download libopencie-pkcs11.dll and runtime deps
+        if: steps.cache-pkcs11-windows.outputs.cache-hit != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
           # Main DLL — required; fail loudly if absent so we never ship a
           # Windows build that cannot talk to a card (mirrors linux/macos).
           gh release download \
             --repo M0Rf30/opencie-pkcs11 \
+            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*windows-x86_64*.dll' \
             --dir pkcs11-dist
           dll="$(ls pkcs11-dist/*.dll 2>/dev/null | head -1)"
@@ -239,14 +275,18 @@ jobs:
             exit 1
           fi
           cp "$dll" libopencie-pkcs11.dll
-          echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.dll" >> "$GITHUB_ENV"
           echo "DLL downloaded: $(ls -lh libopencie-pkcs11.dll)"
 
           # Runtime deps the cross-built DLL links against — also required.
           gh release download \
             --repo M0Rf30/opencie-pkcs11 \
+            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern 'windows-x86_64-runtime-deps*' \
             --dir pkcs11-runtime
+
+      - name: Set PKCS11 lib path (windows)
+        shell: bash
+        run: echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.dll" >> "$GITHUB_ENV"
 
       - run: flutter pub get
 
@@ -391,12 +431,22 @@ jobs:
             imagemagick \
             create-dmg
 
+      - name: Cache libopencie-pkcs11.dylib
+        id: cache-pkcs11-macos
+        uses: actions/cache@v4
+        with:
+          path: libopencie-pkcs11.dylib
+          key: pkcs11-macos-arm64-${{ env.OPENCIE_PKCS11_VERSION }}
+
       - name: Download libopencie-pkcs11.dylib
+        if: steps.cache-pkcs11-macos.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
           gh release download \
             --repo M0Rf30/opencie-pkcs11 \
+            --tag "${{ env.OPENCIE_PKCS11_VERSION }}" \
             --pattern '*macos-arm64.dylib' \
             --dir pkcs11-dist || true
           if ls pkcs11-dist/*.dylib 2>/dev/null; then
