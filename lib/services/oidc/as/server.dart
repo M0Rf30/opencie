@@ -133,14 +133,14 @@ class MockIdpServer {
         final decoded = JWT.decode(requestParam);
         final payload = decoded.payload as Map<String, dynamic>;
         // Merge JWT payload over query params (JWT takes precedence)
-        clientId = payload['client_id'] ?? clientId;
-        redirectUri = payload['redirect_uri'] ?? redirectUri;
-        state = payload['state'] ?? state;
-        nonce = payload['nonce'] ?? nonce;
-        codeChallenge = payload['code_challenge'] ?? codeChallenge;
-        codeChallengeMethod = payload['code_challenge_method'] ?? codeChallengeMethod;
-        scope = payload['scope'] ?? scope;
-        acrValues = payload['acr_values'] ?? acrValues;
+        clientId = payload['client_id'] as String? ?? clientId;
+        redirectUri = payload['redirect_uri'] as String? ?? redirectUri;
+        state = payload['state'] as String? ?? state;
+        nonce = payload['nonce'] as String? ?? nonce;
+        codeChallenge = payload['code_challenge'] as String? ?? codeChallenge;
+        codeChallengeMethod = payload['code_challenge_method'] as String? ?? codeChallengeMethod;
+        scope = payload['scope'] as String? ?? scope;
+        acrValues = payload['acr_values'] as String? ?? acrValues;
       } catch (e) {
         return Response(400, body: 'invalid request parameter');
       }
@@ -224,7 +224,7 @@ class MockIdpServer {
           return _jsonError(401, 'invalid_client');
         }
         // Use iss as clientId if not provided in form
-        clientId = clientId ?? iss;
+        clientId = clientId ?? iss as String;
       } catch (e) {
         return _jsonError(401, 'invalid_client');
       }
@@ -376,7 +376,7 @@ class MockIdpServer {
           'trust_mark': trustMarkJwt,
         }
       ],
-      'authority_hints': [],
+      'authority_hints': <String>[],
     };
 
     final entityJwt = JWT(payload, header: {

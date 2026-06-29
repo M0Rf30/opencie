@@ -50,18 +50,18 @@ void main() {
       expect(payloadJson['sub'], base.toString());
       expect(payloadJson['iat'], isA<int>());
       expect(payloadJson['exp'], isA<int>());
-      expect(payloadJson['exp'], greaterThan(payloadJson['iat']));
+      expect(payloadJson['exp'], greaterThan(payloadJson['iat'] as int));
 
       // Check jwks
-      expect(payloadJson['jwks'], isA<Map>());
-      expect(payloadJson['jwks']['keys'], isA<List>());
+      expect(payloadJson['jwks'], isA<Map<String, dynamic>>());
+      expect(payloadJson['jwks']['keys'], isA<List<dynamic>>());
       expect((payloadJson['jwks']['keys'] as List).isNotEmpty, true);
 
       // Check metadata
-      expect(payloadJson['metadata'], isA<Map>());
+      expect(payloadJson['metadata'], isA<Map<String, dynamic>>());
       final metadata = payloadJson['metadata'] as Map<String, dynamic>;
-      expect(metadata['openid_provider'], isA<Map>());
-      expect(metadata['federation_entity'], isA<Map>());
+      expect(metadata['openid_provider'], isA<Map<String, dynamic>>());
+      expect(metadata['federation_entity'], isA<Map<String, dynamic>>());
 
       final opMetadata = metadata['openid_provider'] as Map<String, dynamic>;
       expect(opMetadata['issuer'], base.toString());
@@ -69,27 +69,27 @@ void main() {
       expect(opMetadata['token_endpoint'], isNotNull);
       expect(opMetadata['userinfo_endpoint'], isNotNull);
       expect(opMetadata['jwks_uri'], isNotNull);
-      expect(opMetadata['scopes_supported'], isA<List>());
+      expect(opMetadata['scopes_supported'], isA<List<dynamic>>());
       expect(opMetadata['response_types_supported'], ['code']);
       expect(opMetadata['id_token_signing_alg_values_supported'], ['RS256']);
       expect(opMetadata['token_endpoint_auth_methods_supported'], ['private_key_jwt']);
       expect(opMetadata['code_challenge_methods_supported'], ['S256']);
-      expect(opMetadata['acr_values_supported'], isA<List>());
+      expect(opMetadata['acr_values_supported'], isA<List<dynamic>>());
 
       final fedEntity = metadata['federation_entity'] as Map<String, dynamic>;
       expect(fedEntity['organization_name'], 'Mock IdP');
       expect(fedEntity['homepage_uri'], base.toString());
-      expect(fedEntity['contacts'], isA<List>());
+      expect(fedEntity['contacts'], isA<List<dynamic>>());
 
       // Check trust_marks
-      expect(payloadJson['trust_marks'], isA<List>());
+      expect(payloadJson['trust_marks'], isA<List<dynamic>>());
       expect((payloadJson['trust_marks'] as List).isNotEmpty, true);
       final trustMark = (payloadJson['trust_marks'] as List).first as Map<String, dynamic>;
       expect(trustMark['id'], 'https://registry.example.it/openid_provider/public/');
       expect(trustMark['trust_mark'], isA<String>());
 
       // Check authority_hints
-      expect(payloadJson['authority_hints'], isA<List>());
+      expect(payloadJson['authority_hints'], isA<List<dynamic>>());
     });
 
     test('/federation/trust_mark_status returns active:true for valid trust mark', () async {
@@ -137,7 +137,7 @@ void main() {
       expect(res.headers['content-type'], 'application/json');
 
       final body = json.decode(res.body);
-      expect(body, isA<List>());
+      expect(body, isA<List<dynamic>>());
       expect(body, isEmpty);
     });
   });

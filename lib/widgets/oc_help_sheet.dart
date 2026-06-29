@@ -43,7 +43,7 @@ class OcHelpSheet extends StatelessWidget {
   });
 
   static void show(BuildContext context, OcHelpSheet sheet) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
