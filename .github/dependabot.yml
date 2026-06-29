@@ -46,3 +46,29 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+
+  # Dart / Flutter (pub) dependencies
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - dart
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      pub-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Major bumps land via separate PRs to allow careful review
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
