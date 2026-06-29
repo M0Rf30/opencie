@@ -24,7 +24,6 @@ import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_section_label.dart';
-import '../../widgets/oc_status_disc.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../models/signature_options.dart';
 import '../../providers/recent_files_provider.dart';
@@ -37,6 +36,8 @@ import '../../widgets/oc_help_sheet.dart';
 import 'batch_sign_page.dart';
 import 'utils/signature_image_generator.dart';
 import 'widgets/pdf_signature_placer.dart';
+import 'widgets/sign_pin_dialog.dart';
+import 'widgets/signed_result_dialog.dart';
 
 const _nfcChannel = MethodChannel('io.github.m0rf30.opencie/nfc');
 
@@ -414,419 +415,23 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   // ── PIN dialog ──────────────────────────────────────────────────────────────
 
-  Future<String?> _showPinDialog() async {
-    final l10n = AppLocalizations.of(context);
-    final controller = TextEditingController();
-    final keyboardFocus = FocusNode();
-    const maxPin = 4;
-
-    try {
-      return await showDialog<String>(
+  Future<String?> _showPinDialog() =>
+      showDialog<String>(
         context: context,
-        builder: (dialogCtx) {
-
-        return StatefulBuilder(
-          builder: (dialogCtx, setDialogState) {
-            final cs = Theme.of(dialogCtx).colorScheme;
-            final screenWidth = MediaQuery.of(dialogCtx).size.width;
-            final isDesktop =
-                screenWidth >= AppConstants.mediumBreakpoint;
-            final pinLength = controller.text.length;
-
-            // ── Desktop tile + numpad dimensions (≈25 % smaller) ──────────
-            final tileW = isDesktop ? 36.0 : 56.0;
-            final tileH = isDesktop ? 44.0 : 64.0;
-            final tileDotSize = isDesktop ? 18.0 : 24.0;
-            // childAspectRatio: wider on desktop so keys stay ~48 px tall.
-            final numpadRatio = isDesktop ? 2.2 : 1.5;
-
-            // ── Input handlers ─────────────────────────────────────────────
-            void appendDigit(String digit) {
-              if (controller.text.length < maxPin) {
-                controller.text += digit;
-                setDialogState(() {});
-              }
-            }
-
-            void backspace() {
-              if (controller.text.isNotEmpty) {
-                controller.text = controller.text
-                    .substring(0, controller.text.length - 1);
-                setDialogState(() {});
-              }
-            }
-
-            void submitIfReady() {
-              if (controller.text.length == maxPin) {
-                Navigator.pop(dialogCtx, controller.text);
-              }
-            }
-
-            // ── Keyboard handler ───────────────────────────────────────────
-            void onKeyEvent(KeyEvent event) {
-              if (event is! KeyDownEvent) return;
-              final key = event.logicalKey;
-              if (key == LogicalKeyboardKey.backspace) {
-                backspace();
-              } else if (key == LogicalKeyboardKey.enter ||
-                  key == LogicalKeyboardKey.numpadEnter) {
-                submitIfReady();
-              } else if (key == LogicalKeyboardKey.escape) {
-                Navigator.pop(dialogCtx);
-              } else {
-                // Accept digit keys from both top-row (0x30–0x39) and numpad.
-                final label = key.keyLabel;
-                if (label.length == 1 &&
-                    label.codeUnitAt(0) >= 0x30 &&
-                    label.codeUnitAt(0) <= 0x39) {
-                  appendDigit(label);
-                }
-              }
-            }
-
-            return KeyboardListener(
-              focusNode: keyboardFocus,
-              autofocus: true,
-              onKeyEvent: onKeyEvent,
-              child: Dialog(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24)),
-                backgroundColor: cs.surfaceContainer,
-                insetPadding: EdgeInsets.symmetric(
-                  horizontal: isDesktop ? 40 : 24,
-                  vertical: 40,
-                ),
-                child: ConstrainedBox(
-                  // Cap dialog width to 360 on desktop; unconstrained on mobile.
-                  constraints: BoxConstraints(
-                    maxWidth: isDesktop ? 360 : double.infinity,
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Top bar: close + step indicator
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded),
-                              onPressed: () => Navigator.pop(dialogCtx),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 32, minHeight: 32),
-                            ),
-                            const Spacer(),
-                            OcSectionLabel('PASSO 01 / 03'),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Lock icon tile
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: cs.surfaceContainerHigh,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: cs.outlineVariant),
-                          ),
-                          child: Icon(Icons.lock_outline_rounded,
-                              size: 26, color: cs.primary),
-                        ),
-                        const SizedBox(height: 6),
-                        OcSectionLabel('PIN DELLA CARTA'),
-                        const SizedBox(height: 12),
-
-                        // Title
-                        Text(
-                          l10n.signEnterPinTitle,
-                          style: AppTheme.displayBold(cs)
-                              .copyWith(fontSize: 22),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.signPinLast4Helper,
-                          style: TextStyle(
-                            color: cs.onSurfaceVariant,
-                            fontSize: 13,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-
-                        // PIN tiles (size adapts to desktop/mobile)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(maxPin, (i) {
-                            final filled = i < pinLength;
-                            return AnimatedContainer(
-                              duration: const Duration(milliseconds: 280),
-                              curve: Curves.easeOutBack,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              width: tileW,
-                              height: tileH,
-                              decoration: BoxDecoration(
-                                color: filled
-                                    ? cs.primary
-                                    : cs.surfaceContainerHigh,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: filled
-                                      ? cs.primary
-                                      : cs.outlineVariant,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Center(
-                                child: filled
-                                    ? Text(
-                                        '•',
-                                        style: TextStyle(
-                                          color: cs.onPrimary,
-                                          fontSize: tileDotSize,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                            );
-                          }),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Numpad grid (aspect ratio adapts to desktop/mobile)
-                        GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
-                          childAspectRatio: numpadRatio,
-                          children: [
-                            for (final key in [
-                              '1', '2', '3',
-                              '4', '5', '6',
-                              '7', '8', '9',
-                              '',  '0', '⌫',
-                            ])
-                              if (key.isEmpty)
-                                const SizedBox.shrink()
-                              else
-                                _NumpadKey(
-                                  label: key,
-                                  onTap: () {
-                                    if (key == '⌫') {
-                                      backspace();
-                                    } else {
-                                      appendDigit(key);
-                                    }
-                                  },
-                                ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Confirm button
-                        OcGradientButton(
-                          label: l10n.signButton,
-                          icon: Icons.check_rounded,
-                          onPressed: pinLength == maxPin
-                              ? submitIfReady
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-        },
+        builder: (_) => const SignPinDialog(),
       );
-    } finally {
-      controller.clear();
-      controller.dispose();
-      keyboardFocus.dispose();
-    }
-  }
 
   // ── Success dialog ──────────────────────────────────────────────────────────
 
   void _showSignedResultDialog(String outputPath) {
-    final fileName = outputPath.split('/').last;
-    final ext = fileName.split('.').last.toLowerCase();
-    final folderPath = outputPath.contains('/')
-        ? outputPath.substring(0, outputPath.lastIndexOf('/'))
-        : '/OpenCIE';
-    final folderLabel = folderPath.split('/').last;
-    final now = DateTime.now();
-    final dateLabel =
-        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
-
     showDialog<void>(
       context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final l10n = AppLocalizations.of(ctx);
-        return Dialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24)),
-          backgroundColor: cs.surfaceContainer,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Success disc + halo
-                SizedBox(
-                  width: 140,
-                  height: 140,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      OcDiscHalo(
-                        size: 120,
-                        color: ColorSchemes.valid,
-                      ),
-                      OcStatusDisc(
-                        tone: OcStatusTone.valid,
-                        icon: const Icon(
-                          Icons.check_rounded,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                        size: 92,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Title
-                Text(
-                  l10n.signSuccessTitle,
-                  style: AppTheme.displayBold(cs),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 6),
-
-                // Format mono subtitle
-                OcMonoText(
-                  '${_options.format.displayName.split(' ').first}${_options.addTimestamp ? ' · TSA' : ''}',
-                  color: cs.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-                const SizedBox(height: 18),
-
-                // File chip
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: cs.outlineVariant),
-                  ),
-                  child: Row(
-                    children: [
-                      OcFileTile(extension: ext, width: 32, height: 38),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fileName,
-                              style: TextStyle(fontFamily: 'Inter', 
-                                color: cs.onSurface,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            OcMonoText(
-                              'Salvato in /$folderLabel',
-                              color: cs.onSurfaceVariant,
-                              fontSize: 11,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.open_in_new_rounded,
-                          size: 16, color: cs.primary),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Diagnostics block
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: cs.outlineVariant),
-                  ),
-                  child: Column(
-                    children: [
-                      _DiagRow(
-                          label: 'firmato il', value: dateLabel),
-                      _DiagRow(
-                          label: 'formato',
-                          value: _options.format.displayName
-                              .split(' ')
-                              .first),
-                      _DiagRow(
-                          label: 'tsa',
-                          value: _options.addTimestamp
-                              ? 'FreeTSA · RFC 3161'
-                              : '—'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _verifyFile(outputPath);
-                        },
-                        icon: const Icon(Icons.verified_user_rounded,
-                            size: 16),
-                        label: Text(l10n.signVerifyButton),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: OcGradientButton(
-                        label: l10n.signOpenButton,
-                        icon: Icons.open_in_new_rounded,
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _openFile(outputPath);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (_) => SignedResultDialog(
+        outputPath: outputPath,
+        options: _options,
+        onOpenFile: _openFile,
+        onVerifyFile: _verifyFile,
+      ),
     );
   }
 
@@ -914,7 +519,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const BatchSignPage()),
+                              MaterialPageRoute<void>(builder: (_) => const BatchSignPage()),
                             );
                           },
                         ),
@@ -1578,7 +1183,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const BatchSignPage()),
+                            MaterialPageRoute<void>(builder: (_) => const BatchSignPage()),
                           );
                         },
                       ),
@@ -2262,73 +1867,6 @@ class _SignMiniToggle extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Numpad digit key used in the PIN dialog.
-class _NumpadKey extends StatelessWidget {
-  const _NumpadKey({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceContainer,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(fontFamily: 'Inter', 
-              color: cs.onSurface,
-              fontSize: label == '⌫' ? 18 : 22,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Diagnostic key–value row in the success dialog.
-class _DiagRow extends StatelessWidget {
-  const _DiagRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: AppTheme.monoBody(cs, color: cs.onSurfaceVariant)
-                  .copyWith(fontSize: 11),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTheme.monoBody(cs).copyWith(fontSize: 11),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ),
     );
   }

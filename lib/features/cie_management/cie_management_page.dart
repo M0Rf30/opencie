@@ -26,6 +26,11 @@ import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_help_sheet.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../services/cie_chip_reader.dart';
+import 'widgets/cie_certificate_dialog.dart';
+import 'widgets/cie_change_pin_dialog.dart';
+import 'widgets/cie_confirm_remove_dialog.dart';
+import 'widgets/cie_enroll_dialog.dart';
+import 'widgets/cie_unblock_pin_dialog.dart';
 
 /// Fetch the DER certificate for [card] from the native library and return
 /// a copy enriched with X.509 fields (notAfter, issuer, subject, etc.).
@@ -255,558 +260,195 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
   }
 
   Future<void> _showEnrollDialog() async {
-    final pinCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    final pin = await showDialog<String>(
+      context: context,
+      builder: (_) => const CieEnrollDialog(),
+    );
+    if (pin == null || !mounted) return;
+
     final l10n = AppLocalizations.of(context);
+    EnrolledCard? enrolledCard;
 
-    void submit(BuildContext dialogCtx) async {
-      if (formKey.currentState?.validate() ?? false) {
-        final pin = pinCtrl.text;
-        pinCtrl.clear();
-        Navigator.pop(dialogCtx);
-        // Dispose after the frame so the dialog's ValueListenableBuilder
-        // has been unmounted before the controller is released.
-        WidgetsBinding.instance.addPostFrameCallback((_) => pinCtrl.dispose());
-        EnrolledCard? enrolledCard;
-
-        if (!Platform.isAndroid) {
-          // Desktop: single NFC session — enrol (0–40%), cert
-          // (40–50%), chip read (50–100%).
-          await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
-            final result = await OpenCiePkcs11.instance.enable(
-              pan: '',
-              pin: pin,
-              // cie_enable reports 0–100; map to 0–0.40
+    if (!Platform.isAndroid) {
+      // Desktop: single NFC session — enrol (0–40%), cert
+      // (40–50%), chip read (50–100%).
+      await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
+        final result = await OpenCiePkcs11.instance.enable(
+          pan: '',
+          pin: pin,
+          // cie_enable reports 0–100; map to 0–0.40
+          onProgress: (p) =>
+              onProgress(p.percent / 100.0 * 0.40, p.message),
+        );
+        if (result.isSuccess && result.enrolledPan != null) {
+          var card = EnrolledCard(
+            pan: result.enrolledPan!,
+            name: result.enrolledName ?? '',
+            serial: result.enrolledSerial ?? '',
+          );
+          // Cert fetch: 40–50%
+          onProgress(0.42, l10n.cieEnrollingProgress);
+          card = await _enrichCardWithCert(card);
+          onProgress(0.50, l10n.cieEnrollingProgress);
+          // Chip read: 50–100%
+          card = await _enrichCardWithChip(card, pin,
               onProgress: (p) =>
-                  onProgress(p.percent / 100.0 * 0.40, p.message),
-            );
-            if (result.isSuccess && result.enrolledPan != null) {
-              var card = EnrolledCard(
-                pan: result.enrolledPan!,
-                name: result.enrolledName ?? '',
-                serial: result.enrolledSerial ?? '',
-              );
-              // Cert fetch: 40–50%
-              onProgress(0.42, l10n.cieEnrollingProgress);
-              card = await _enrichCardWithCert(card);
-              onProgress(0.50, l10n.cieEnrollingProgress);
-              // Chip read: 50–100%
-              card = await _enrichCardWithChip(card, pin,
-                  onProgress: (p) =>
-                      onProgress(0.50 + p.percent / 100.0 * 0.50, p.message));
-              enrolledCard = card;
-            } else if (!result.isSuccess) {
-              _showErrorSnackBar(
-                  result.isPinIncorrect
-                      ? result.remainingAttempts != null
-                          ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                          : l10n.signIncorrectPin
-                      : result.isPinLocked
-                          ? l10n.ciePinLockedUsePuk
-                          : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
-            }
-          });
-        } else {
-          // Android: Phase 1 — enrol (0–40%) + cert (40–50%).
-          await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
-            final result = await OpenCiePkcs11.instance.enable(
-              pan: '',
-              pin: pin,
+                  onProgress(0.50 + p.percent / 100.0 * 0.50, p.message));
+          enrolledCard = card;
+        } else if (!result.isSuccess) {
+          _showErrorSnackBar(
+              result.isPinIncorrect
+                  ? result.remainingAttempts != null
+                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
+                      : l10n.signIncorrectPin
+                  : result.isPinLocked
+                      ? l10n.ciePinLockedUsePuk
+                      : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
+        }
+      });
+    } else {
+      // Android: Phase 1 — enrol (0–40%) + cert (40–50%).
+      await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
+        final result = await OpenCiePkcs11.instance.enable(
+          pan: '',
+          pin: pin,
+          onProgress: (p) =>
+              onProgress(p.percent / 100.0 * 0.40, p.message),
+        );
+        if (result.isSuccess && result.enrolledPan != null) {
+          var card = EnrolledCard(
+            pan: result.enrolledPan!,
+            name: result.enrolledName ?? '',
+            serial: result.enrolledSerial ?? '',
+          );
+          onProgress(0.42, l10n.cieEnrollingProgress);
+          card = await _enrichCardWithCert(card);
+          onProgress(0.50, l10n.cieEnrollingProgress);
+          enrolledCard = card;
+        } else if (!result.isSuccess) {
+          _showErrorSnackBar(
+              result.isPinIncorrect
+                  ? result.remainingAttempts != null
+                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
+                      : l10n.signIncorrectPin
+                  : result.isPinLocked
+                      ? l10n.ciePinLockedUsePuk
+                      : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
+        }
+      });
+
+      if (enrolledCard != null) {
+        // Phase 2 — chip read (0–100% of second dialog).
+        var card = enrolledCard!;
+        await _withNfc(l10n.cieReadingChip, (onProgress) async {
+          card = await _enrichCardWithChip(card, pin,
               onProgress: (p) =>
-                  onProgress(p.percent / 100.0 * 0.40, p.message),
-            );
-            if (result.isSuccess && result.enrolledPan != null) {
-              var card = EnrolledCard(
-                pan: result.enrolledPan!,
-                name: result.enrolledName ?? '',
-                serial: result.enrolledSerial ?? '',
-              );
-              onProgress(0.42, l10n.cieEnrollingProgress);
-              card = await _enrichCardWithCert(card);
-              onProgress(0.50, l10n.cieEnrollingProgress);
-              enrolledCard = card;
-            } else if (!result.isSuccess) {
-              _showErrorSnackBar(
-                  result.isPinIncorrect
-                      ? result.remainingAttempts != null
-                          ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                          : l10n.signIncorrectPin
-                      : result.isPinLocked
-                          ? l10n.ciePinLockedUsePuk
-                          : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue)));
-            }
-          });
-
-          if (enrolledCard != null) {
-            // Phase 2 — chip read (0–100% of second dialog).
-            var card = enrolledCard!;
-            await _withNfc(l10n.cieReadingChip, (onProgress) async {
-              card = await _enrichCardWithChip(card, pin,
-                  onProgress: (p) =>
-                      onProgress(p.percent / 100.0, p.message));
-            });
-            enrolledCard = card;
-          }
-        }
-
-        if (enrolledCard == null) return;
-
-        // Persist the fully-enriched card.
-        final card = enrolledCard!;
-        final cards =
-            List<EnrolledCard>.from(ref.read(settingsProvider).enrolledCards);
-        final idx = cards.indexWhere((c) => c.pan == card.pan);
-        if (idx >= 0) {
-          cards[idx] = card;
-        } else {
-          cards.add(card);
-        }
-        ref.read(settingsProvider.notifier).update(
-              (s) => s.copyWith(enrolledCards: cards),
-            );
-        _showSuccessSnackBar(
-            l10n.cieEnrolledSuccess(card.displayName));
+                  onProgress(p.percent / 100.0, p.message));
+        });
+        enrolledCard = card;
       }
     }
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.add_card),
-        title: Text(l10n.cieEnrolDialogTitle),
-        content: Form(
-          key: formKey,
-          child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: pinCtrl,
-            builder: (_, val, _) => TextFormField(
-              controller: pinCtrl,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              maxLength: 8,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              onFieldSubmitted: (_) => submit(ctx),
-              decoration: InputDecoration(
-                labelText: l10n.ciePinAll8Digits,
-                prefixIcon: const Icon(Icons.pin),
-                suffixIcon: val.text.length == 8
-                    ? const Icon(Icons.check_circle_rounded,
-                        color: Colors.green)
-                    : null,
-              ),
-              validator: (v) =>
-                  v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.commonCancel)),
-          FilledButton(
-              onPressed: () => submit(ctx),
-              child: Text(l10n.cieEnrolButton)),
-        ],
-      ),
-    );
+    if (enrolledCard == null) return;
+
+    // Persist the fully-enriched card.
+    final card = enrolledCard!;
+    final cards =
+        List<EnrolledCard>.from(ref.read(settingsProvider).enrolledCards);
+    final idx = cards.indexWhere((c) => c.pan == card.pan);
+    if (idx >= 0) {
+      cards[idx] = card;
+    } else {
+      cards.add(card);
+    }
+    ref.read(settingsProvider.notifier).update(
+          (s) => s.copyWith(enrolledCards: cards),
+        );
+    _showSuccessSnackBar(
+        l10n.cieEnrolledSuccess(card.displayName));
   }
 
   void _confirmRemove(BuildContext context, EnrolledCard card) {
     final l10n = AppLocalizations.of(context);
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.remove_circle_outline),
-        title: Text(l10n.cieRemoveDialogTitle),
-        content: Text(l10n.cieRemoveConfirm(card.displayName, card.pan)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.commonCancel)),
-          FilledButton(
-              style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error),
-              onPressed: () {
-                Navigator.pop(ctx);
-                final rv = OpenCiePkcs11.instance.disable(card.pan);
-                final cards = List<EnrolledCard>.from(
-                    ref.read(settingsProvider).enrolledCards)
-                  ..removeWhere((c) => c.pan == card.pan);
-                ref
-                    .read(settingsProvider.notifier)
-                    .update((s) => s.copyWith(enrolledCards: cards));
-                _showSuccessSnackBar(rv == 0
-                    ? l10n.cieRemovedSuccess(card.displayName)
-                    : l10n.cieRemoveFailed(l10n.humanizeError(rv)));
-              },
-              child: Text(l10n.cieRemoveButton)),
-        ],
+      builder: (_) => CieConfirmRemoveDialog(
+        card: card,
+        onConfirm: () {
+          final rv = OpenCiePkcs11.instance.disable(card.pan);
+          final cards = List<EnrolledCard>.from(
+              ref.read(settingsProvider).enrolledCards)
+            ..removeWhere((c) => c.pan == card.pan);
+          ref
+              .read(settingsProvider.notifier)
+              .update((s) => s.copyWith(enrolledCards: cards));
+          _showSuccessSnackBar(rv == 0
+              ? l10n.cieRemovedSuccess(card.displayName)
+              : l10n.cieRemoveFailed(l10n.humanizeError(rv)));
+        },
       ),
     );
   }
 
   void _showChangePinDialog() {
-    final curCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final repCtrl = TextEditingController();
-    final curFocus = FocusNode();
-    final newFocus = FocusNode();
-    final repFocus = FocusNode();
-    final formKey = GlobalKey<FormState>();
-    final l10n = AppLocalizations.of(context);
-
-    void submit(BuildContext dialogCtx) {
-      if (formKey.currentState?.validate() ?? false) {
-        final currentPin = curCtrl.text;
-        final newPin = newCtrl.text;
-        curCtrl.clear();
-        newCtrl.clear();
-        repCtrl.clear();
-        Navigator.pop(dialogCtx);
-        _withNfc(l10n.cieChangingPinProgress, (onProgress) async {
-          final result = await OpenCiePkcs11.instance.changePin(
-            currentPin: currentPin,
-            newPin: newPin,
-            onProgress: (p) =>
-                onProgress(p.percent / 100.0, p.message),
-          );
-          if (result.isSuccess) {
-            _showSuccessSnackBar(l10n.ciePinChanged);
-          } else {
-            _showErrorSnackBar(result.isPinIncorrect
-                ? result.remainingAttempts != null
-                    ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                    : l10n.signIncorrectPin
-                : result.isPinLocked
-                    ? l10n.ciePinLockedUsePuk
-                    : l10n.ciePinChangeFailed(l10n.humanizeError(result.returnValue)));
-          }
-        });
-      }
-    }
-
-    showDialog(
+    showDialog<(String, String)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.pin),
-        title: Text(l10n.cieChangePinDialogTitle),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: curCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: curCtrl,
-                  focusNode: curFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  autofocus: true,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => newFocus.requestFocus(),
-                  decoration: InputDecoration(
-                    labelText: l10n.cieCurrentPin8Digits,
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: val.text.length == 8
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: newCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: newCtrl,
-                  focusNode: newFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => repFocus.requestFocus(),
-                  decoration: InputDecoration(
-                    labelText: l10n.cieNewPin8Digits,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: val.text.length == 8
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: repCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: repCtrl,
-                  focusNode: repFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => submit(ctx),
-                  decoration: InputDecoration(
-                    labelText: l10n.cieRepeatPin,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: val.text.isNotEmpty &&
-                            val.text == newCtrl.text
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v == newCtrl.text ? null : l10n.ciePinsDoNotMatch,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.commonCancel)),
-          FilledButton(
-              onPressed: () => submit(ctx),
-              child: Text(l10n.cieChangePinButton)),
-        ],
-      ),
-    ).then((_) {
-      curFocus.dispose();
-      newFocus.dispose();
-      repFocus.dispose();
-      curCtrl.dispose();
-      newCtrl.dispose();
-      repCtrl.dispose();
+      builder: (_) => const CieChangePinDialog(),
+    ).then((result) {
+      if (result == null || !mounted) return;
+      final (currentPin, newPin) = result;
+      final l10n = AppLocalizations.of(context);
+      _withNfc(l10n.cieChangingPinProgress, (onProgress) async {
+        final result = await OpenCiePkcs11.instance.changePin(
+          currentPin: currentPin,
+          newPin: newPin,
+          onProgress: (p) =>
+              onProgress(p.percent / 100.0, p.message),
+        );
+        if (result.isSuccess) {
+          _showSuccessSnackBar(l10n.ciePinChanged);
+        } else {
+          _showErrorSnackBar(result.isPinIncorrect
+              ? result.remainingAttempts != null
+                  ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
+                  : l10n.signIncorrectPin
+              : result.isPinLocked
+                  ? l10n.ciePinLockedUsePuk
+                  : l10n.ciePinChangeFailed(l10n.humanizeError(result.returnValue)));
+        }
+      });
     });
   }
 
   void _showUnblockPinDialog() {
-    final pukCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final repCtrl = TextEditingController();
-    final pukFocus = FocusNode();
-    final newFocus = FocusNode();
-    final repFocus = FocusNode();
-    final formKey = GlobalKey<FormState>();
-    final l10n = AppLocalizations.of(context);
-
-    void submit(BuildContext dialogCtx) {
-      if (formKey.currentState?.validate() ?? false) {
-        final puk = pukCtrl.text;
-        final newPin = newCtrl.text;
-        pukCtrl.clear();
-        newCtrl.clear();
-        repCtrl.clear();
-        Navigator.pop(dialogCtx);
-        _withNfc(l10n.cieUnblockingPinProgress, (onProgress) async {
-          final result = await OpenCiePkcs11.instance.unblockPin(
-            puk: puk,
-            newPin: newPin,
-            onProgress: (p) =>
-                onProgress(p.percent / 100.0, p.message),
-          );
-          if (result.isSuccess) {
-            _showSuccessSnackBar(l10n.ciePinUnblocked);
-          } else {
-            _showErrorSnackBar(
-                l10n.cieUnblockFailed(l10n.humanizeError(result.returnValue)));
-          }
-        });
-      }
-    }
-
-    showDialog(
+    showDialog<(String, String)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.lock_reset),
-        title: Text(l10n.cieUnblockDialogTitle),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: pukCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: pukCtrl,
-                  focusNode: pukFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  autofocus: true,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => newFocus.requestFocus(),
-                  decoration: InputDecoration(
-                    labelText: l10n.ciePuk8Digits,
-                    prefixIcon: const Icon(Icons.key),
-                    suffixIcon: val.text.length == 8
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v != null && v.length == 8 ? null : l10n.ciePukMust8Digits,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: newCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: newCtrl,
-                  focusNode: newFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => repFocus.requestFocus(),
-                  decoration: InputDecoration(
-                    labelText: l10n.cieNewPin8Digits,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: val.text.length == 8
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: repCtrl,
-                builder: (_, val, _) => TextFormField(
-                  controller: repCtrl,
-                  focusNode: repFocus,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 8,
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onFieldSubmitted: (_) => submit(ctx),
-                  decoration: InputDecoration(
-                    labelText: l10n.cieRepeatPin,
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: val.text.isNotEmpty &&
-                            val.text == newCtrl.text
-                        ? const Icon(Icons.check_circle_rounded,
-                            color: Colors.green)
-                        : null,
-                  ),
-                  validator: (v) =>
-                      v == newCtrl.text ? null : l10n.ciePinsDoNotMatch,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.commonCancel)),
-          FilledButton(
-              onPressed: () => submit(ctx),
-              child: Text(l10n.cieUnblockButton)),
-        ],
-      ),
-    ).then((_) {
-      pukFocus.dispose();
-      newFocus.dispose();
-      repFocus.dispose();
-      pukCtrl.dispose();
-      newCtrl.dispose();
-      repCtrl.dispose();
+      builder: (_) => const CieUnblockPinDialog(),
+    ).then((result) {
+      if (result == null || !mounted) return;
+      final (puk, newPin) = result;
+      final l10n = AppLocalizations.of(context);
+      _withNfc(l10n.cieUnblockingPinProgress, (onProgress) async {
+        final result = await OpenCiePkcs11.instance.unblockPin(
+          puk: puk,
+          newPin: newPin,
+          onProgress: (p) =>
+              onProgress(p.percent / 100.0, p.message),
+        );
+        if (result.isSuccess) {
+          _showSuccessSnackBar(l10n.ciePinUnblocked);
+        } else {
+          _showErrorSnackBar(
+              l10n.cieUnblockFailed(l10n.humanizeError(result.returnValue)));
+        }
+      });
     });
   }
 
   void _showCertificateDialog(BuildContext context, EnrolledCard card) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-
-    String fmtDate(DateTime? d) {
-      if (d == null) return '—';
-      return '${d.day.toString().padLeft(2, '0')}/'
-          '${d.month.toString().padLeft(2, '0')}/'
-          '${d.year}';
-    }
-
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (ctx) {
-        final mq = MediaQuery.of(ctx);
-        return AlertDialog(
-          icon: const Icon(Icons.badge),
-          title: Text(l10n.cieCertDialogTitle),
-          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-          content: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 360,
-              maxHeight: mq.size.height * 0.55,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (card.name.trim().isNotEmpty)
-                    _certRow(l10n.cieNameLabel, card.name.trim(), theme),
-                  _certRow('PAN', card.pan, theme),
-                  if (card.serial.trim().isNotEmpty)
-                    _certRow(l10n.cieSerialLabel, card.serial.trim(), theme),
-                  if (card.subject != null)
-                    _certRow(l10n.cieSubjectLabel, card.subject!, theme),
-                  if (card.issuer != null)
-                    _certRow(l10n.cieIssuerLabel, card.issuer!, theme),
-                  if (card.certSerial != null)
-                    _certRow(l10n.cieCertSerialLabel, card.certSerial!, theme),
-                  if (card.keyAlgorithm != null)
-                    _certRow(l10n.cieKeyLabel, card.keyAlgorithm!, theme),
-                  _certRow(l10n.cieValidFromLabel, fmtDate(card.notBefore), theme),
-                  _certRow(l10n.cieValidToLabel, fmtDate(card.notAfter), theme),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(l10n.commonClose)),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _certRow(String label, String value, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 64,
-            child: Text(label,
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ),
-          Expanded(
-              child: Text(value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      fontFamily: 'JetBrainsMono'))),
-        ],
-      ),
+      builder: (_) => CieCertificateDialog(card: card),
     );
   }
 
