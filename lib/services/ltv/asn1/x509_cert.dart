@@ -44,7 +44,11 @@ class X509CertInfo {
   static X509CertInfo? fromDer(Uint8List der) {
     try {
       return _parse(der);
-    } catch (e, _) {
+    } catch (_) {
+      // Intentional: any parse exception means the DER bytes are malformed or
+      // use an unrecognised structure. Returning null signals the caller to skip
+      // this certificate rather than crash. No logging — pure-Dart parser,
+      // no Flutter dependency allowed in this file.
       return null;
     }
   }
@@ -87,7 +91,9 @@ class X509CertInfo {
   /// Iterates over the children of a SEQUENCE/SET/context TLV at [pos],
   /// returning (childPos, childTag) pairs.
   static Iterable<(int pos, int tag)> _children(
-      Uint8List data, int seqPos) sync* {
+    Uint8List data,
+    int seqPos,
+  ) sync* {
     final (_, valOff, valLen) = _tlv(data, seqPos);
     int p = valOff;
     final end = valOff + valLen;
@@ -214,7 +220,10 @@ class X509CertInfo {
         final withZ = clean.endsWith('Z') ? clean : '${clean}Z';
         return DateTime.tryParse(withZ);
       }
-    } catch (_) {}
+    } catch (_) {
+      // Intentional: malformed time encoding (bad ASCII, truncated bytes, or
+      // unsupported tag) — return null to leave the validity field unpopulated.
+    }
     return null;
   }
 

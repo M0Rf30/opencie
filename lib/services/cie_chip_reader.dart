@@ -12,7 +12,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show ValueChanged;
+import 'package:flutter/foundation.dart' show ValueChanged, debugPrint;
 
 import '../ffi/opencie_pkcs11.dart';
 import '../models/enrolled_card.dart';
@@ -72,13 +72,19 @@ class MrzParser {
       final mrz = String.fromCharCodes(mrzBytes).replaceAll('\x00', '');
       return _parseMrzString(mrz);
     } catch (_) {
+      // Intentional: malformed or truncated BER-TLV structure. Return null so
+      // the caller skips MRZ enrichment rather than propagating a parse error.
       return null;
     }
   }
 
   /// Recursively search for a two-byte tag in BER-TLV encoded data.
   static Uint8List? _findTag(
-      Uint8List data, int offset, int end, int targetTag) {
+    Uint8List data,
+    int offset,
+    int end,
+    int targetTag,
+  ) {
     while (offset < end) {
       if (offset >= data.length) break;
 
@@ -195,10 +201,12 @@ class MrzParser {
   /// Split a name field "SURNAME<<GIVEN<NAMES" into (surname, givenNames).
   static (String, String) _parseNames(String field) {
     final parts = field.split('<<');
-    final surname =
-        (parts.isNotEmpty ? parts[0] : '').replaceAll('<', ' ').trim();
-    final given =
-        (parts.length > 1 ? parts[1] : '').replaceAll('<', ' ').trim();
+    final surname = (parts.isNotEmpty ? parts[0] : '')
+        .replaceAll('<', ' ')
+        .trim();
+    final given = (parts.length > 1 ? parts[1] : '')
+        .replaceAll('<', ' ')
+        .trim();
     return (surname, given);
   }
 
@@ -226,6 +234,8 @@ class MrzParser {
     try {
       return DateTime(year, mm, dd);
     } catch (_) {
+      // Intentional: DateTime constructor throws on out-of-range values
+      // (e.g. day=0 from a garbled MRZ field); leave the date field null.
       return null;
     }
   }
@@ -295,8 +305,10 @@ class CieChipReader {
     Uint8List? photoBytes;
 
     try {
-      final (rawMrz, rawPhoto) =
-          await pkcs11.readDgs(pin: pin, onProgress: onProgress);
+      final (rawMrz, rawPhoto) = await pkcs11.readDgs(
+        pin: pin,
+        onProgress: onProgress,
+      );
 
       if (rawMrz != null && rawMrz.isNotEmpty) {
         mrz = MrzParser.parse(rawMrz);
@@ -304,7 +316,13 @@ class CieChipReader {
       if (rawPhoto != null && rawPhoto.isNotEmpty) {
         photoBytes = PhotoExtractor.extract(rawPhoto);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint(
+        'CieChipReader.readAndEnrich: chip read failed (mrz/photo unavailable): $e',
+      );
+      // Intentional: NFC/PACE read failures must not crash the enrolment UI;
+      // unread fields remain null and the original card is returned below.
+    }
 
     if (mrz == null && photoBytes == null) return card;
 

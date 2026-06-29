@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 import 'crypto.dart';
 import 'messages.dart';
@@ -110,12 +111,14 @@ class PhoneHandoffSession {
 
       // Wait for the desktop to finish setRemoteDescription and the channel
       // to open. Done in background so the UI can render QR2 immediately.
-      _pairing!.channelOpen.then((_) {
-        if (_state == PhoneHandoffState.showingQr ||
-            _state == PhoneHandoffState.preparingAnswer) {
-          _transition(PhoneHandoffState.awaitingSasConfirm);
-        }
-      }).catchError((_) {});
+      _pairing!.channelOpen
+          .then((_) {
+            if (_state == PhoneHandoffState.showingQr ||
+                _state == PhoneHandoffState.preparingAnswer) {
+              _transition(PhoneHandoffState.awaitingSasConfirm);
+            }
+          })
+          .catchError((_) {});
 
       _transition(PhoneHandoffState.showingQr);
       return qr2;
@@ -166,7 +169,9 @@ class PhoneHandoffSession {
       );
       await pairing.send(env);
       _transition(PhoneHandoffState.signing);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PhoneHandoffSession.markPinOk: failed to send pin_ok: $e');
+    }
   }
 
   Future<void> abort([String? reason]) async {
@@ -179,7 +184,10 @@ class PhoneHandoffSession {
           AbortPayload(reason: reason).toMessage(),
         );
         await pairing.send(env);
-      } catch (_) {}
+      } catch (e) {
+        // Best-effort: if we can't send the abort the peer will time out.
+        debugPrint('PhoneHandoffSession.abort: failed to send abort frame: $e');
+      }
     }
     await dispose();
   }
@@ -204,8 +212,10 @@ class PhoneHandoffSession {
         break;
       case HandoffMessageType.abort:
         final reason = AbortPayload.fromJson(msg.data).reason;
-        _transition(PhoneHandoffState.error,
-            error: 'desktop aborted: ${reason ?? "(no reason)"}');
+        _transition(
+          PhoneHandoffState.error,
+          error: 'desktop aborted: ${reason ?? "(no reason)"}',
+        );
         await dispose();
         break;
       case HandoffMessageType.pinOk:
@@ -222,7 +232,9 @@ class PhoneHandoffSession {
     _session = null;
     try {
       _myKeyPair?.destroy();
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort cleanup: key material may already be zeroed; ignore.
+    }
     _myKeyPair = null;
     await _pairing?.dispose();
     _pairing = null;

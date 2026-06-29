@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 import 'audit_log.dart';
 import 'crypto.dart';
@@ -183,7 +184,12 @@ class DesktopHandoffSession {
           AbortPayload(reason: reason).toMessage(),
         );
         await pairing.send(env);
-      } catch (_) {}
+      } catch (e) {
+        // Best-effort: if we can't send the abort the peer will time out.
+        debugPrint(
+          'DesktopHandoffSession.abort: failed to send abort frame: $e',
+        );
+      }
     }
     await _writeAudit(outcome: 'aborted', error: reason);
     await dispose();
@@ -194,8 +200,7 @@ class DesktopHandoffSession {
     if (session == null) return;
     final msg = await openMessage(session, bytes);
     if (msg == null) {
-      _transition(DesktopHandoffState.error,
-          error: 'tampered frame received');
+      _transition(DesktopHandoffState.error, error: 'tampered frame received');
       await dispose();
       return;
     }
@@ -210,14 +215,18 @@ class DesktopHandoffSession {
           _transition(DesktopHandoffState.done);
           await _writeAudit(outcome: 'success', format: sig.format);
         } catch (e) {
-          _transition(DesktopHandoffState.error,
-              error: 'bad signature payload: $e');
+          _transition(
+            DesktopHandoffState.error,
+            error: 'bad signature payload: $e',
+          );
         }
         break;
       case HandoffMessageType.abort:
         final reason = AbortPayload.fromJson(msg.data).reason;
-        _transition(DesktopHandoffState.error,
-            error: 'phone aborted: ${reason ?? "(no reason)"}');
+        _transition(
+          DesktopHandoffState.error,
+          error: 'phone aborted: ${reason ?? "(no reason)"}',
+        );
         await _writeAudit(outcome: 'aborted', error: reason);
         await dispose();
         break;
@@ -255,7 +264,9 @@ class DesktopHandoffSession {
     _session = null;
     try {
       _myKeyPair?.destroy();
-    } catch (_) {}
+    } catch (_) {
+      // Best-effort cleanup: key material may already be zeroed; ignore.
+    }
     _myKeyPair = null;
     await _pairing?.dispose();
     _pairing = null;

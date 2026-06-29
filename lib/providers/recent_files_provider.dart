@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 const _kMaxRecent = 15;
 const _kPrefsKey = 'opencie_recent_verify_files';
@@ -23,14 +24,14 @@ class RecentFile {
   }
 
   Map<String, dynamic> toJson() => {
-        'path': path,
-        'addedAt': addedAt.toIso8601String(),
-      };
+    'path': path,
+    'addedAt': addedAt.toIso8601String(),
+  };
 
   static RecentFile fromJson(Map<String, dynamic> m) => RecentFile(
-        path: m['path'] as String,
-        addedAt: DateTime.parse(m['addedAt'] as String),
-      );
+    path: m['path'] as String,
+    addedAt: DateTime.parse(m['addedAt'] as String),
+  );
 }
 
 class RecentFilesNotifier extends Notifier<List<RecentFile>> {
@@ -54,13 +55,21 @@ class RecentFilesNotifier extends Notifier<List<RecentFile>> {
           .map(RecentFile.fromJson)
           .toList();
       state = list;
-    } catch (_) {}
+    } catch (e) {
+      // Intentional fallback: corrupt or schema-mismatched JSON is discarded so
+      // a bad persistence entry never breaks the app on launch.
+      debugPrint(
+        'RecentFilesNotifier.load[$_key]: corrupt JSON, resetting to empty: $e',
+      );
+    }
   }
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-        _key, jsonEncode(state.map((f) => f.toJson()).toList()));
+      _key,
+      jsonEncode(state.map((f) => f.toJson()).toList()),
+    );
   }
 
   void add(String path) {
@@ -80,8 +89,8 @@ class RecentFilesNotifier extends Notifier<List<RecentFile>> {
 
 final recentFilesProvider =
     NotifierProvider<RecentFilesNotifier, List<RecentFile>>(
-  () => RecentFilesNotifier(_kPrefsKey),
-);
+      () => RecentFilesNotifier(_kPrefsKey),
+    );
 
 /// Holds a file path that the verify page should open immediately.
 /// Sign page writes here before navigating to /verify.
@@ -95,12 +104,12 @@ class _PendingVerifyFileNotifier extends Notifier<String?> {
 
 final pendingVerifyFileProvider =
     NotifierProvider<_PendingVerifyFileNotifier, String?>(
-  _PendingVerifyFileNotifier.new,
-);
+      _PendingVerifyFileNotifier.new,
+    );
 
 const _kSignedPrefsKey = 'opencie_recent_sign_files';
 
 final recentSignedFilesProvider =
     NotifierProvider<RecentFilesNotifier, List<RecentFile>>(
-  () => RecentFilesNotifier(_kSignedPrefsKey),
-);
+      () => RecentFilesNotifier(_kSignedPrefsKey),
+    );

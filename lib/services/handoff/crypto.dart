@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 
 import 'pgp_wordlist.dart';
 
@@ -37,10 +38,7 @@ class HandoffCrypto {
   }) async {
     final shared = await _x25519.sharedSecretKey(
       keyPair: myKeyPair,
-      remotePublicKey: SimplePublicKey(
-        peerPublicKey,
-        type: KeyPairType.x25519,
-      ),
+      remotePublicKey: SimplePublicKey(peerPublicKey, type: KeyPairType.x25519),
     );
 
     // AEAD session key from the shared secret + per-session context.
@@ -83,10 +81,7 @@ class HandoffCrypto {
 /// Both sides should hold this object only for the duration of the signing
 /// flow and call [destroy] on teardown so secret bytes are wiped.
 class HandoffSession {
-  HandoffSession._({
-    required this.sessionKey,
-    required this.sasWords,
-  });
+  HandoffSession._({required this.sessionKey, required this.sasWords});
 
   final SecretKey sessionKey;
   final List<String> sasWords;
@@ -97,12 +92,11 @@ class HandoffSession {
   ///
   /// A fresh 12-byte nonce is generated per call by the AEAD; the returned
   /// envelope contains nonce, ciphertext, and MAC packed for the wire.
-  Future<Uint8List> seal(List<int> plaintext, {List<int> aad = const []}) async {
-    final box = await _aead.encrypt(
-      plaintext,
-      secretKey: sessionKey,
-      aad: aad,
-    );
+  Future<Uint8List> seal(
+    List<int> plaintext, {
+    List<int> aad = const [],
+  }) async {
+    final box = await _aead.encrypt(plaintext, secretKey: sessionKey, aad: aad);
     final nonce = Uint8List.fromList(box.nonce);
     final ct = Uint8List.fromList(box.cipherText);
     final mac = Uint8List.fromList(box.mac.bytes);
@@ -114,7 +108,10 @@ class HandoffSession {
   }
 
   /// Decrypts a wire envelope produced by [seal]. Returns null on tamper.
-  Future<Uint8List?> open(List<int> envelope, {List<int> aad = const []}) async {
+  Future<Uint8List?> open(
+    List<int> envelope, {
+    List<int> aad = const [],
+  }) async {
     if (envelope.length < 12 + 16) return null;
     final nonce = envelope.sublist(0, 12);
     final mac = envelope.sublist(12, 28);
@@ -126,7 +123,12 @@ class HandoffSession {
         aad: aad,
       );
       return Uint8List.fromList(pt);
-    } catch (_) {
+    } catch (e) {
+      // AEAD decryption/authentication failed — indicates tampering or a corrupt
+      // frame, not a transient error. The caller maps null to an error state.
+      debugPrint(
+        'HandoffSession.open: AEAD decryption failed (possible tamper or corrupt frame): $e',
+      );
       return null;
     }
   }

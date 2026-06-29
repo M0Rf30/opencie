@@ -58,7 +58,12 @@ int _onCompleted(Pointer<Utf8> pan, Pointer<Utf8> name, Pointer<Utf8> serial) {
       name.toDartString(),
       serial.toDartString(),
     ];
-  } catch (_) {}
+  } catch (e) {
+    // Never throw from an FFI callback; log the Pointer conversion failure.
+    debugPrint(
+      '_onCompleted: failed to read FFI strings (enrolment data lost): $e',
+    );
+  }
   return 0;
 }
 
@@ -111,22 +116,19 @@ class OpenCiePkcs11 {
   }
 
   // Lazy lookups for quick synchronous operations (main isolate only).
-  late final _cieIsEnabled =
-      lib.lookupFunction<CieIsEnabledNative, CieIsEnabledDart>(
-    'cie_is_enabled',
-  );
-  late final _cieDisable =
-      lib.lookupFunction<CieDisableNative, CieDisableDart>(
+  late final _cieIsEnabled = lib
+      .lookupFunction<CieIsEnabledNative, CieIsEnabledDart>('cie_is_enabled');
+  late final _cieDisable = lib.lookupFunction<CieDisableNative, CieDisableDart>(
     'cie_disable',
   );
-  late final _cieReaderCount =
-      lib.lookupFunction<CieReaderCountNative, CieReaderCountDart>(
-    'cie_reader_count',
-  );
-  late final _cieReaderName =
-      lib.lookupFunction<CieReaderNameNative, CieReaderNameDart>(
-    'cie_reader_name',
-  );
+  late final _cieReaderCount = lib
+      .lookupFunction<CieReaderCountNative, CieReaderCountDart>(
+        'cie_reader_count',
+      );
+  late final _cieReaderName = lib
+      .lookupFunction<CieReaderNameNative, CieReaderNameDart>(
+        'cie_reader_name',
+      );
 
   // ---------------------------------------------------------------------------
   // Enrollment
@@ -147,8 +149,9 @@ class OpenCiePkcs11 {
         _completedData = null;
 
         final lib = _openLib();
-        final fn =
-            lib.lookupFunction<CieEnableNative, CieEnableDart>('cie_enable');
+        final fn = lib.lookupFunction<CieEnableNative, CieEnableDart>(
+          'cie_enable',
+        );
 
         final panPtr = pan.toNativeUtf8();
         final pinPtr = pin.toNativeUtf8();
@@ -184,7 +187,9 @@ class OpenCiePkcs11 {
   int readerCount() {
     try {
       return _cieReaderCount();
-    } catch (_) {
+    } catch (e) {
+      // 0 may indicate an FFI/PKCS11 init failure, not only 'no readers attached'.
+      debugPrint('OpenCiePkcs11.readerCount: FFI exception: $e');
       return 0;
     }
   }
@@ -198,6 +203,7 @@ class OpenCiePkcs11 {
       if (found == 0) return null;
       return buf.cast<Utf8>().toDartString();
     } catch (_) {
+      // Intentional fallback: FFI call failed (e.g. library not yet loaded); return null.
       return null;
     } finally {
       calloc.free(buf);
@@ -226,16 +232,15 @@ class OpenCiePkcs11 {
 
   static void _readerWatchLoop(SendPort port) {
     final lib = _openLib();
-    final watchFn =
-        lib.lookupFunction<CieReaderWatchNative, CieReaderWatchDart>(
-      'cie_reader_watch',
-    );
-    final countFn =
-        lib.lookupFunction<CieReaderCountNative, CieReaderCountDart>(
-      'cie_reader_count',
-    );
-    final nameFn =
-        lib.lookupFunction<CieReaderNameNative, CieReaderNameDart>(
+    final watchFn = lib
+        .lookupFunction<CieReaderWatchNative, CieReaderWatchDart>(
+          'cie_reader_watch',
+        );
+    final countFn = lib
+        .lookupFunction<CieReaderCountNative, CieReaderCountDart>(
+          'cie_reader_count',
+        );
+    final nameFn = lib.lookupFunction<CieReaderNameNative, CieReaderNameDart>(
       'cie_reader_name',
     );
 
@@ -258,7 +263,7 @@ class OpenCiePkcs11 {
       final next = watchFn(current);
       if (next < 0) break;
       current = next;
-    port.send(readName());
+      port.send(readName());
     }
   }
 
@@ -337,8 +342,7 @@ class OpenCiePkcs11 {
         _activeProgressPort = progressPort;
 
         final lib = _openLib();
-        final fn =
-            lib.lookupFunction<CieUnblockPinNative, CieUnblockPinDart>(
+        final fn = lib.lookupFunction<CieUnblockPinNative, CieUnblockPinDart>(
           'cie_unblock_pin',
         );
 
@@ -391,8 +395,7 @@ class OpenCiePkcs11 {
         _activeProgressPort = progressPort;
 
         final lib = _openLib();
-        final fn =
-            lib.lookupFunction<CieSignNative, CieSignDart>('cie_sign');
+        final fn = lib.lookupFunction<CieSignNative, CieSignDart>('cie_sign');
 
         final inPtr = inputPath.toNativeUtf8();
         final outPtr = outputPath.toNativeUtf8();
@@ -454,16 +457,17 @@ class OpenCiePkcs11 {
     return Isolate.run(() {
       final lib = _openLib();
 
-      final cieVerify =
-          lib.lookupFunction<CieVerifyNative, CieVerifyDart>('cie_verify');
-      final cieGetSignCount =
-          lib.lookupFunction<CieGetSignCountNative, CieGetSignCountDart>(
-        'cie_get_sign_count',
+      final cieVerify = lib.lookupFunction<CieVerifyNative, CieVerifyDart>(
+        'cie_verify',
       );
-      final cieGetVerifyInfo =
-          lib.lookupFunction<CieGetVerifyInfoNative, CieGetVerifyInfoDart>(
-        'cie_get_verify_info',
-      );
+      final cieGetSignCount = lib
+          .lookupFunction<CieGetSignCountNative, CieGetSignCountDart>(
+            'cie_get_sign_count',
+          );
+      final cieGetVerifyInfo = lib
+          .lookupFunction<CieGetVerifyInfoNative, CieGetVerifyInfoDart>(
+            'cie_get_verify_info',
+          );
 
       final inPtr = inputPath.toNativeUtf8();
       final proxyPtr = proxyAddress?.toNativeUtf8() ?? nullptr;
@@ -512,7 +516,6 @@ class OpenCiePkcs11 {
     });
   }
 
-
   /// Retrieve the DER-encoded X.509 certificate for an enrolled CIE card.
   ///
   /// Returns the raw DER bytes, or null if the card is not enrolled or an
@@ -520,9 +523,10 @@ class OpenCiePkcs11 {
   Future<Uint8List?> getCertificate(String pan) async {
     return Isolate.run(() {
       final lib = _openLib();
-      final fn = lib.lookupFunction<CieGetCertificateNative, CieGetCertificateDart>(
-        'cie_get_certificate',
-      );
+      final fn = lib
+          .lookupFunction<CieGetCertificateNative, CieGetCertificateDart>(
+            'cie_get_certificate',
+          );
 
       final panPtr = pan.toNativeUtf8();
       final outDerPtr = calloc<Pointer<Uint8>>();
@@ -578,8 +582,9 @@ class OpenCiePkcs11 {
 
           final mrzLen = mrzLenPtr.value;
           final photoLen = photoLenPtr.value;
-          final mrzBytes =
-              mrzLen > 0 ? Uint8List.fromList(mrzPtr.asTypedList(mrzLen)) : null;
+          final mrzBytes = mrzLen > 0
+              ? Uint8List.fromList(mrzPtr.asTypedList(mrzLen))
+              : null;
           final photoBytes = photoLen > 0
               ? Uint8List.fromList(photoPtr.asTypedList(photoLen))
               : null;
@@ -637,7 +642,9 @@ class OpenCiePkcs11 {
       return await Isolate.run(() {
         _activeProgressPort = progressPort;
         final lib = _openLib();
-        final fn = lib.lookupFunction<CieTimestampNative, CieTimestampDart>('cie_timestamp');
+        final fn = lib.lookupFunction<CieTimestampNative, CieTimestampDart>(
+          'cie_timestamp',
+        );
         final inPtr = inputPath.toNativeUtf8();
         final tsaPtr = tsaUrl.toNativeUtf8();
         final userPtr = tsaUsername?.toNativeUtf8() ?? nullptr;
@@ -645,8 +652,10 @@ class OpenCiePkcs11 {
         final outPtr = outputPath.toNativeUtf8();
         try {
           final rv = fn(
-            inPtr, tsaPtr,
-            userPtr.cast(), passPtr.cast(),
+            inPtr,
+            tsaPtr,
+            userPtr.cast(),
+            passPtr.cast(),
             outPtr,
             Pointer.fromFunction<ProgressCallbackNative>(_onProgress, 0),
           );
@@ -683,10 +692,7 @@ class OpenCiePkcs11 {
     final subscription = receiver.listen((msg) {
       if (msg is List && msg.length == 2) {
         onProgress(
-          CieProgress(
-            percent: msg[0] as int,
-            message: msg[1] as String,
-          ),
+          CieProgress(percent: msg[0] as int, message: msg[1] as String),
         );
       }
     });

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 /// Lifecycle events for [HandoffPairing].
@@ -44,11 +44,9 @@ enum HandoffPairingState {
 class HandoffPairing {
   HandoffPairing._({required this.isOfferer});
 
-  factory HandoffPairing.offerer() =>
-      HandoffPairing._(isOfferer: true);
+  factory HandoffPairing.offerer() => HandoffPairing._(isOfferer: true);
 
-  factory HandoffPairing.answerer() =>
-      HandoffPairing._(isOfferer: false);
+  factory HandoffPairing.answerer() => HandoffPairing._(isOfferer: false);
 
   /// Whether this side initiates the offer (desktop) or replies with an
   /// answer (phone).
@@ -217,11 +215,15 @@ class HandoffPairing {
   Future<void> dispose() async {
     try {
       await _dc?.close();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('HandoffPairing.dispose: failed to close data channel: $e');
+    }
     try {
       await _pc?.close();
       await _pc?.dispose();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('HandoffPairing.dispose: failed to close peer connection: $e');
+    }
     _dc = null;
     _pc = null;
     _transition(HandoffPairingState.closed);
