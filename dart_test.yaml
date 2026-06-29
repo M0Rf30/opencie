@@ -1,0 +1,6 @@
+# Test suite configuration. Declares custom tags so `flutter test` does not
+# warn about unknown tags. Network-tagged tests hit live endpoints
+# (OCSP/TSA/SPID/OIDC) and are excluded in CI via --exclude-tags network.
+tags:
+  network:
+    description: Tests that require live network access.
