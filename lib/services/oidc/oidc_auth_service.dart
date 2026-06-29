@@ -19,16 +19,14 @@ class OidcAuthService {
     http.Client? httpClient,
     required this.onLaunchUrl,
     required this.onListenForCallback,
-  })  : _exchanger = TokenExchanger(httpClient: httpClient),
-        _userInfo = UserInfoClient(httpClient: httpClient);
+  }) : _exchanger = TokenExchanger(httpClient: httpClient),
+       _userInfo = UserInfoClient(httpClient: httpClient);
 
   final TokenExchanger _exchanger;
   final UserInfoClient _userInfo;
   final Future<bool> Function(Uri url) onLaunchUrl;
-  final Future<OidcCallback> Function(
-    String redirectUri,
-    String state,
-  ) onListenForCallback;
+  final Future<OidcCallback> Function(String redirectUri, String state)
+  onListenForCallback;
 
   /// Runs the full OIDC + PKCE flow against [issuer].
   ///
@@ -42,8 +40,7 @@ class OidcAuthService {
   }) async {
     try {
       // 1. Discovery
-      final discovery =
-          await OidcDiscoveryClient().fetch(Uri.parse(issuer));
+      final discovery = await OidcDiscoveryClient().fetch(Uri.parse(issuer));
 
       // 2. PKCE
       final pkce = await OidcPkce.generate();
@@ -73,6 +70,9 @@ class OidcAuthService {
         throw OidcException(
           'Authorization failed: ${callback.errorDescription ?? callback.error}',
         );
+      }
+      if (callback.state != state) {
+        throw OidcException('State mismatch: possible CSRF');
       }
 
       // 5. Token exchange (includes ID token verification)
@@ -117,7 +117,11 @@ class OidcAuthService {
     } on OidcException {
       rethrow;
     } on Exception catch (e, st) {
-      throw OidcException('Authentication failed: $e', cause: e, stackTrace: st);
+      throw OidcException(
+        'Authentication failed: $e',
+        cause: e,
+        stackTrace: st,
+      );
     }
   }
 }

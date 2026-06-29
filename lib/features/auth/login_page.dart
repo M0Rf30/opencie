@@ -7,19 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_localizations.dart';
 import '../../services/oidc/discovery.dart';
+import '../../services/oidc/oidc_auth_service.dart';
 import '../../services/oidc/oidc_session.dart';
-import '../../services/oidc/pkce.dart';
 import '../../services/oidc/redirect_listener.dart';
-import '../../services/oidc/token_exchange.dart';
-import '../../services/oidc/userinfo.dart';
 import '../../widgets/oc_gradient_button.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({
-    super.key,
-    required this.issuer,
-    required this.clientId,
-  });
+  const LoginPage({super.key, required this.issuer, required this.clientId});
 
   final String issuer;
   final String clientId;
@@ -33,7 +27,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   String? _error;
 
   Future<void> _login() async {
-    setState(() { _busy = true; _error = null; });
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
 
     try {
       final discovery = await OidcDiscoveryClient.instance.fetch(
@@ -43,78 +40,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         throw Exception('Provider does not support PKCE S256');
       }
 
-      final pkce = await OidcPkce.generate();
-      final state = OidcNonces.state();
-      final nonce = OidcNonces.nonce();
-
       final listener = OidcRedirectListener.instance;
       await listener.start();
 
-      final authUrl = OidcAuthorizeRequest(
-        authorizationEndpoint: discovery.authorizationEndpoint,
+      final service = OidcAuthService(
+        onLaunchUrl: (url) =>
+            launchUrl(url, mode: LaunchMode.externalApplication),
+        onListenForCallback: (redirectUri, state) => listener.handleCallback(),
+      );
+
+      final session = await service.authenticate(
+        issuer: widget.issuer,
         clientId: widget.clientId,
-        redirectUri: listener.redirectUri,
-        scopes: const ['openid', 'profile', 'email'],
-        state: state,
-        nonce: nonce,
-        pkce: pkce,
-      ).build();
+        redirectUri: listener.redirectUri.toString(),
+        scope: 'openid profile email',
+      );
 
-        if (!await launchUrl(authUrl, mode: LaunchMode.externalApplication)) {
-          throw Exception('Could not launch browser');
-        }
+      final prefs = await SharedPreferences.getInstance();
+      await OidcSession.save(prefs, session);
 
-        final callback = await listener.handleCallback();
-        if (!callback.isSuccess) {
-          callback.throwIfError();
-        }
-        if (callback.state != state) {
-          throw Exception('State mismatch');
-        }
-
-        final tokenRes = await TokenExchanger().exchange(
-          discovery: discovery,
-          clientId: widget.clientId,
-          redirectUri: listener.redirectUri,
-          code: callback.code!,
-          pkce: pkce,
-          expectedNonce: nonce,
-        );
-
-        Map<String, Object?>? userinfo;
-        if (discovery.userinfoEndpoint != null) {
-          try {
-            userinfo = await UserInfoClient().fetch(
-              discovery.userinfoEndpoint!,
-              tokenRes.accessToken,
-            );
-          } catch (_) {
-            // Non-fatal: some providers don't expose userinfo.
-          }
-        }
-
-        final session = OidcSession(
-          issuer: widget.issuer,
-          clientId: widget.clientId,
-          idToken: tokenRes.idToken,
-          accessToken: tokenRes.accessToken,
-          tokenType: tokenRes.tokenType,
-          refreshToken: tokenRes.refreshToken,
-          expiresAt: tokenRes.expiresIn != null
-              ? DateTime.now().toUtc().add(
-                  Duration(seconds: tokenRes.expiresIn!),
-                )
-              : null,
-          userinfoClaims: userinfo,
-          idTokenRaw: (tokenRes.raw?['id_token'] as String?),
-        );
-
-        final prefs = await SharedPreferences.getInstance();
-        await OidcSession.save(prefs, session);
-
-        if (mounted) {
-          context.go('/profile');
-        }
+      if (mounted) {
+        context.go('/profile');
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

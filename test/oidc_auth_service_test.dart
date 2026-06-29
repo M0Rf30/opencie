@@ -64,4 +64,32 @@ void main() {
     expect(session.idToken.subject, 'mock-user-1');
     expect(session.userinfoClaims?['email'], 'mock@example.com');
   });
+
+  test('authenticate throws OidcException on state mismatch', () async {
+    final issuer = idp.baseUrl!.toString();
+    const clientId = 'test-client';
+    const redirectUri = 'http://127.0.0.1:12345/';
+
+    final service = OidcAuthService(
+      httpClient: client,
+      onLaunchUrl: (url) async => true,
+      onListenForCallback: (redirectUri, state) async {
+        // Return a callback with a deliberately wrong state to simulate CSRF.
+        return OidcCallback(
+          code: 'tampered-code',
+          state: 'wrong-state-csrf-attempt',
+        );
+      },
+    );
+
+    await expectLater(
+      service.authenticate(
+        issuer: issuer,
+        clientId: clientId,
+        redirectUri: redirectUri,
+        scope: 'openid',
+      ),
+      throwsA(isA<OidcException>()),
+    );
+  });
 }

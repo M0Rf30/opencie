@@ -29,9 +29,9 @@ class SpidAuthService {
     required this.onLaunchUrl,
     required this.onListenForCallback,
     http.Client? httpClient,
-  })  : _http = httpClient ?? http.Client(),
-        _jwks = JwksClient(),
-        _userInfo = UserInfoClient(httpClient: httpClient);
+  }) : _http = httpClient ?? http.Client(),
+       _jwks = JwksClient(),
+       _userInfo = UserInfoClient(httpClient: httpClient);
 
   final SpidProfile profile;
   final SpidLevel level;
@@ -41,7 +41,7 @@ class SpidAuthService {
   final String kid;
   final Future<bool> Function(Uri url) onLaunchUrl;
   final Future<OidcCallback> Function(String redirectUri, String state)
-      onListenForCallback;
+  onListenForCallback;
 
   final http.Client _http;
   final JwksClient _jwks;
@@ -53,8 +53,7 @@ class SpidAuthService {
   Future<SpidSession> authenticate({required String issuer}) async {
     try {
       // 1. Discovery
-      final discovery =
-          await OidcDiscoveryClient().fetch(Uri.parse(issuer));
+      final discovery = await OidcDiscoveryClient().fetch(Uri.parse(issuer));
 
       // 2. PKCE + state + nonce
       final pkce = await OidcPkce.generate();
@@ -105,6 +104,9 @@ class SpidAuthService {
         throw SpidAuthException(
           'Authorization failed: ${callback.errorDescription ?? callback.error}',
         );
+      }
+      if (callback.state != state) {
+        throw SpidAuthException('State mismatch: possible CSRF');
       }
 
       // 6. Token exchange with private_key_jwt
@@ -265,7 +267,7 @@ class SpidAuthService {
           SpidClaim.familyName: null,
           SpidClaim.dateOfBirth: null,
           SpidClaim.email: null,
-        }
+        },
       };
     }
     // CIE: no explicit claims request needed (standard OIDC scopes)
