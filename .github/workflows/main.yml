@@ -80,7 +80,7 @@ jobs:
 
       - name: Cache libopencie-pkcs11.so
         id: cache-pkcs11-linux
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: libopencie-pkcs11.so
           key: pkcs11-linux-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}
@@ -247,7 +247,7 @@ jobs:
 
       - name: Cache libopencie-pkcs11 windows
         id: cache-pkcs11-windows
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             libopencie-pkcs11.dll
@@ -430,7 +430,7 @@ jobs:
 
       - name: Cache libopencie-pkcs11.dylib
         id: cache-pkcs11-macos
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: libopencie-pkcs11.dylib
           key: pkcs11-macos-arm64-${{ env.OPENCIE_PKCS11_VERSION }}
