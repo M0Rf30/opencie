@@ -366,9 +366,10 @@ jobs:
       - name: Build Inno Setup installer
         shell: pwsh
         run: |
-          # JRSoftware migrated downloads to GitHub releases. Use the stable
-          # redirect on jrsoftware.org which forwards to the current version.
-          $innoUrl = "https://jrsoftware.org/download.php/is.exe"
+          # JRSoftware migrated downloads to GitHub releases; the old
+          # download.php/is.exe alias now redirects to an HTML page, not
+          # the installer binary. Pull the exe directly from GitHub.
+          $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
           Invoke-WebRequest -Uri $innoUrl -OutFile innosetup.exe -MaximumRedirection 5
           Start-Process -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/DIR=C:\InnoSetup' -Wait
           # Build installer
