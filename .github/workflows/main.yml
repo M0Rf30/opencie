@@ -77,6 +77,7 @@ jobs:
           libgtk-3-dev
           libblkid-dev
           liblzma-dev
+          libsecret-1-dev
 
       - name: Cache libopencie-pkcs11.so
         id: cache-pkcs11-linux

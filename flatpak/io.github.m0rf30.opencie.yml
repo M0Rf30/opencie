@@ -28,6 +28,10 @@ finish-args:
   - --share=network
   # Smart card reader access (talks to the host pcscd)
   - --socket=pcsc
+  # Secure Secret Service access (flutter_secure_storage via libsecret,
+  # already shipped by the Freedesktop Platform runtime) for encrypted
+  # OIDC tokens and enrolled-card records.
+  - --talk-name=org.freedesktop.secrets
   # File access. The open/save dialogs go through the XDG Desktop Portal
   # (file_picker uses org.freedesktop.portal.FileChooser over D-Bus — no
   # filesystem permission is needed just to *pick* a file). But OpenCIE

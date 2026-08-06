@@ -323,3 +323,11 @@ typedef CieReadDgsDart =
       Pointer<Uint8> photoOut,
       Pointer<Size> photoLen,
     );
+
+// --- Last-error detail (thread-local) ---
+
+/// CK_RV cie_last_error(cie_error_kind* outKind, uint16_t* outSw);
+typedef CieLastErrorNative =
+    UnsignedLong Function(Pointer<Int32> outKind, Pointer<Uint16> outSw);
+typedef CieLastErrorDart =
+    int Function(Pointer<Int32> outKind, Pointer<Uint16> outSw);

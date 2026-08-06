@@ -384,14 +384,8 @@
    "settingsScaleSubtitle": "Scala testo e controlli",
    "@settingsScaleSubtitle": { "description": "UI scale setting subtitle" },
 
-   "cieEnrolmentFailed": "Registrazione non riuscita: {reason}",
-  "@cieEnrolmentFailed": { "placeholders": { "reason": { "type": "String" } } },
   "cieRemoveFailed": "Rimozione non riuscita: {reason}",
   "@cieRemoveFailed": { "placeholders": { "reason": { "type": "String" } } },
-  "ciePinChangeFailed": "Cambio PIN non riuscito: {reason}",
-  "@ciePinChangeFailed": { "placeholders": { "reason": { "type": "String" } } },
-  "cieUnblockFailed": "Sblocco non riuscito: {reason}",
-  "@cieUnblockFailed": { "placeholders": { "reason": { "type": "String" } } },
 
   "errCardNotFound": "carta non trovata — avvicina di nuovo la CIE",
   "errCardMoved": "carta spostata durante l'operazione — tieni la CIE ferma",
@@ -403,6 +397,17 @@
   "errAlreadyEnrolled": "questa CIE è già registrata su questo dispositivo",
   "errUnknown": "errore imprevisto ({code})",
   "@errUnknown": { "placeholders": { "code": { "type": "String" } } },
+
+  "cieErrorCardNotPresent": "Nessuna carta rilevata. Appoggia la CIE sul lettore e riprova.",
+  "cieErrorNotACie": "Questa non sembra una Carta d'Identità Elettronica.",
+  "cieErrorTagLost": "Carta allontanata. Tieni la carta ferma sul lettore fino al termine dell'operazione.",
+  "cieErrorCardCommunicationError": "Impossibile comunicare con la carta. Tienila ferma sul lettore e riprova.",
+  "cieErrorWrongPinFormat": "Formato PIN non valido. Assicurati di inserire tutte le 8 cifre del PIN della CIE.",
+  "cieErrorPinExpired": "Il PIN della tua CIE è scaduto. Usa Cambio PIN per impostarne uno nuovo prima di continuare.",
+  "cieErrorCancelledByUser": "Operazione annullata. Ricomincia quando sei pronto.",
+  "cieErrorAlreadyEnrolled": "Questa CIE è già registrata su questo dispositivo. Rimuovila prima se vuoi registrarla di nuovo.",
+  "cieErrorUnknown": "Errore imprevisto (codice {code}). Riprova e contatta l'assistenza se il problema persiste.",
+  "@cieErrorUnknown": { "placeholders": { "code": { "type": "String" } } },
 
   "signNoCardEnrolled": "Nessuna CIE registrata",
   "signNoCardEnrolledBody": "Registra una CIE nella scheda CIE per poter firmare i documenti.",
@@ -489,6 +494,11 @@
       "cieReadingChip": "Lettura dati chip in corso\u2026",
      "cieReadFailed": "Impossibile leggere i dati del chip — riprovare",
 
+     "cieReadStarted": "Lettura della carta in corso…",
+     "cieReadProgress": "Lettura carta: {percent}%",
+     "@cieReadProgress": { "placeholders": { "percent": { "type": "int" } } },
+     "cieReadComplete": "Lettura carta completata",
+
   "helpButtonTooltip": "Come funziona",
 
   "helpSignTitle": "Come firmare",
@@ -529,5 +539,7 @@
   "helpSettingsStep2Title": "Marca temporale (TSA)",
   "helpSettingsStep2Body": "Configura l'URL del server TSA e le credenziali. Usa un TSP italiano qualificato per marche temporali con valore legale.",
   "helpSettingsStep3Title": "Validazione e Proxy",
-  "helpSettingsStep3Body": "Scegli OCSP o CRL per i controlli di revoca dei certificati, e configura un proxy se la rete lo richiede."
+  "helpSettingsStep3Body": "Scegli OCSP o CRL per i controlli di revoca dei certificati, e configura un proxy se la rete lo richiede.",
+
+  "pinLockedWait": "Troppi tentativi errati. Attendi {seconds}s prima di riprovare."
 }

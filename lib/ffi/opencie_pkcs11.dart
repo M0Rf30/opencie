@@ -71,6 +71,45 @@ int _onCompleted(Pointer<Utf8> pan, Pointer<Utf8> name, Pointer<Utf8> serial) {
 /// cie_sign, so this is a no-op.
 int _onSignCompleted(int ret) => 0;
 
+/// Cached soft lookup for `cie_last_error`. Per-isolate, matching the other
+/// top-level state in this file: each [Isolate.run] invocation gets its own
+/// copy, so the lookup (and its result) always happens on the isolate that
+/// made the failing native call.
+CieLastErrorDart? _cieLastErrorFn;
+bool _cieLastErrorLookupDone = false;
+
+/// Detail for the most recent failed `cie_*` call on the calling thread, or
+/// null when the loaded library predates `cie_last_error`.
+///
+/// Must be called on the same isolate/thread as the failing native call —
+/// the native record is thread-local.
+({int kind, int statusWord})? lastNativeError() {
+  if (!_cieLastErrorLookupDone) {
+    _cieLastErrorLookupDone = true;
+    try {
+      _cieLastErrorFn = _openLib()
+          .lookupFunction<CieLastErrorNative, CieLastErrorDart>(
+            'cie_last_error',
+          );
+    } catch (_) {
+      // Symbol not exported by the loaded library: degrade to "no detail".
+      _cieLastErrorFn = null;
+    }
+  }
+  final fn = _cieLastErrorFn;
+  if (fn == null) return null;
+
+  final kindPtr = calloc<Int32>();
+  final swPtr = calloc<Uint16>();
+  try {
+    fn(kindPtr, swPtr);
+    return (kind: kindPtr.value, statusWord: swPtr.value);
+  } finally {
+    calloc.free(kindPtr);
+    calloc.free(swPtr);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -168,6 +207,9 @@ class OpenCiePkcs11 {
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
+            statusWord: rv == AppConstants.ckrOk
+                ? null
+                : lastNativeError()?.statusWord,
             enrolledPan: _completedData?.elementAtOrNull(0),
             enrolledName: _completedData?.elementAtOrNull(1),
             enrolledSerial: _completedData?.elementAtOrNull(2),
@@ -320,6 +362,9 @@ class OpenCiePkcs11 {
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
+            statusWord: rv == AppConstants.ckrOk
+                ? null
+                : lastNativeError()?.statusWord,
           );
         } finally {
           calloc.free(curPtr);
@@ -360,6 +405,9 @@ class OpenCiePkcs11 {
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
+            statusWord: rv == AppConstants.ckrOk
+                ? null
+                : lastNativeError()?.statusWord,
           );
         } finally {
           calloc.free(pukPtr);
@@ -715,6 +763,7 @@ class CieResult {
   const CieResult({
     required this.returnValue,
     this.remainingAttempts,
+    this.statusWord,
     this.enrolledPan,
     this.enrolledName,
     this.enrolledSerial,
@@ -722,6 +771,11 @@ class CieResult {
 
   final int returnValue;
   final int? remainingAttempts;
+
+  /// Raw ISO 7816 status word from the native `cie_last_error` channel,
+  /// populated only when [returnValue] indicates failure. Null when the
+  /// call succeeded or the loaded library predates `cie_last_error`.
+  final int? statusWord;
 
   final String? enrolledPan;
   final String? enrolledName;

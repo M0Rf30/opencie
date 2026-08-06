@@ -114,6 +114,96 @@ class TokenExchanger {
       raw: jsonBody,
     );
   }
+
+  /// Redeems a refresh token for a new access token per RFC 6749 §6.
+  ///
+  /// Mirrors [exchange]'s client authentication — `client_id` only, no
+  /// secret or assertion, since that's the only mechanism this class's
+  /// authorization-code path uses. Never sends `code_verifier`: PKCE has no
+  /// meaning for this grant.
+  ///
+  /// The response MAY carry a new `refresh_token` (RFC 6749 §6) — when it
+  /// does, [TokenRefreshResponse.refreshToken] is that new value and the
+  /// one passed in must not be reused. On failure, throws
+  /// [TokenRefreshException] classified terminal (`invalid_grant` — the
+  /// refresh token is dead, only a full re-login recovers) or transient
+  /// (network error, timeout, 5xx — safe to retry later).
+  Future<TokenRefreshResponse> refresh({
+    required OidcDiscovery discovery,
+    required String clientId,
+    required String refreshToken,
+  }) async {
+    final body = <String, String>{
+      'grant_type': 'refresh_token',
+      'client_id': clientId,
+      'refresh_token': refreshToken,
+    };
+
+    http.Response res;
+    try {
+      res = await _http.post(
+        discovery.tokenEndpoint,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        encoding: utf8,
+        body: body,
+      );
+    } catch (e, st) {
+      throw TokenRefreshException.transient(
+        'Refresh request failed: $e',
+        cause: e,
+        stackTrace: st,
+      );
+    }
+
+    Map<String, Object?>? jsonBody;
+    try {
+      final decoded = json.decode(res.body);
+      if (decoded is Map<String, Object?>) jsonBody = decoded;
+    } catch (_) {
+      // Non-JSON error bodies fall through to the generic classification
+      // below.
+    }
+
+    if (res.statusCode != 200) {
+      if (jsonBody?['error'] == 'invalid_grant') {
+        throw TokenRefreshException.terminal(
+          'Refresh token rejected (invalid_grant): ${res.body}',
+        );
+      }
+      throw TokenRefreshException.transient(
+        'Token endpoint HTTP ${res.statusCode}: ${res.body}',
+      );
+    }
+
+    if (jsonBody == null) {
+      throw TokenRefreshException.transient(
+        'Refresh body is not a JSON object',
+      );
+    }
+
+    final accessToken = jsonBody['access_token'];
+    final tokenType = jsonBody['token_type'];
+    if (accessToken is! String || accessToken.isEmpty) {
+      throw TokenRefreshException.transient('missing access_token');
+    }
+    if (tokenType is! String || tokenType.isEmpty) {
+      throw TokenRefreshException.transient('missing token_type');
+    }
+
+    return TokenRefreshResponse(
+      accessToken: accessToken,
+      tokenType: tokenType,
+      refreshToken: jsonBody['refresh_token'] as String?,
+      expiresIn: jsonBody['expires_in'] is int
+          ? jsonBody['expires_in'] as int
+          : int.tryParse(jsonBody['expires_in'].toString()),
+      scope: jsonBody['scope'] as String?,
+      raw: jsonBody,
+    );
+  }
 }
 
 class TokenExchangeException implements Exception {
@@ -121,4 +211,58 @@ class TokenExchangeException implements Exception {
   final String message;
   @override
   String toString() => 'TokenExchangeException: $message';
+}
+
+/// Result of a successful `refresh_token` grant (RFC 6749 §6).
+///
+/// No ID token: refresh responses aren't required to include one, and
+/// callers should keep using the ID token from the original
+/// authorization-code exchange.
+class TokenRefreshResponse {
+  TokenRefreshResponse({
+    required this.accessToken,
+    required this.tokenType,
+    this.refreshToken,
+    this.expiresIn,
+    this.scope,
+    this.raw,
+  });
+
+  final String accessToken;
+  final String tokenType;
+
+  /// New refresh token, when the server rotated it. Per RFC 6749 §6, when
+  /// present this replaces the token that was redeemed — the old one must
+  /// not be sent again.
+  final String? refreshToken;
+  final int? expiresIn;
+  final String? scope;
+
+  /// Full token endpoint response for fields not surfaced as typed getters.
+  final Map<String, Object?>? raw;
+}
+
+/// Thrown by [TokenExchanger.refresh].
+///
+/// [isTerminal] separates a hard failure — the refresh token itself is
+/// dead (`invalid_grant`), so only a full interactive re-login recovers —
+/// from a soft/transient one (network error, timeout, 5xx) where the
+/// caller may legitimately retry later. Collapsing the two into one error
+/// is exactly the bug this type exists to prevent.
+class TokenRefreshException implements Exception {
+  TokenRefreshException.terminal(this.message, {this.cause, this.stackTrace})
+    : isTerminal = true;
+
+  TokenRefreshException.transient(this.message, {this.cause, this.stackTrace})
+    : isTerminal = false;
+
+  final String message;
+  final bool isTerminal;
+  final Object? cause;
+  final StackTrace? stackTrace;
+
+  @override
+  String toString() =>
+      'TokenRefreshException: $message '
+      '(${isTerminal ? "terminal" : "transient"})';
 }

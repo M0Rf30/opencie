@@ -32,6 +32,8 @@ import '../../providers/settings_provider.dart';
 import '../handoff/desktop_handoff_page.dart';
 import '../handoff/phone_handoff_page.dart';
 import '../../services/nfc_service.dart';
+import '../../services/cie_error.dart';
+import '../../services/pin_throttle.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/oc_help_sheet.dart';
 import 'batch_sign_page.dart';
@@ -61,6 +63,10 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   /// Notifier for the NFC modal dialog state: (isWaiting, progress, message).
   final _nfcNotifier = ValueNotifier<(bool, double, String)>((false, 0.0, ''));
+
+  /// Non-null shows a classified failure inline in the NFC dialog instead
+  /// of a SnackBar (currently: NFC tag-read failure).
+  final _errorNotifier = ValueNotifier<String?>(null);
   bool _nfcDialogOpen = false;
 
   /// PC/SC reader name (desktop only).
@@ -76,6 +82,7 @@ class _SignPageState extends ConsumerState<SignPage> {
   @override
   void dispose() {
     _nfcNotifier.dispose();
+    _errorNotifier.dispose();
     _readerSub?.cancel();
     super.dispose();
   }
@@ -187,14 +194,10 @@ class _SignPageState extends ConsumerState<SignPage> {
         onTagDiscovered: _onCardDetectedForSign,
         onTagFailed: () {
           if (mounted) {
-            _cancelWaitCard();
-            final l10n = AppLocalizations.of(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(l10n.signFailed('NFC tag failed')),
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
+            NfcService.instance.stopSession();
+            _errorNotifier.value = cieErrorMessage(
+              AppLocalizations.of(context),
+              CieErrorKind.cardCommunicationError,
             );
           }
         },
@@ -215,6 +218,8 @@ class _SignPageState extends ConsumerState<SignPage> {
         notifier: _nfcNotifier,
         processingTitle: AppLocalizations.of(ctx).cieProgressSigning,
         onCancel: _cancelWaitCard,
+        errorNotifier: _errorNotifier,
+        onDismissError: _dismissNfcError,
       ),
     ).whenComplete(() => _nfcDialogOpen = false);
   }
@@ -222,6 +227,18 @@ class _SignPageState extends ConsumerState<SignPage> {
   void _closeNfcDialog() {
     if (_nfcDialogOpen && mounted) {
       Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
+  void _dismissNfcError() {
+    _errorNotifier.value = null;
+    _closeNfcDialog();
+    if (mounted) {
+      setState(() {
+        _waitingCard = false;
+        _pendingPin = null;
+        _pendingOptions = null;
+      });
     }
   }
 
@@ -288,6 +305,7 @@ class _SignPageState extends ConsumerState<SignPage> {
       if (!mounted) return;
 
       if (result.isSuccess) {
+        PinThrottle.reset();
         ref.read(recentSignedFilesProvider.notifier).add(file);
         successPath = outputPath;
 
@@ -313,6 +331,7 @@ class _SignPageState extends ConsumerState<SignPage> {
           } catch (_) {}
         }
       } else if (result.isPinIncorrect) {
+        PinThrottle.recordFailure();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -336,7 +355,7 @@ class _SignPageState extends ConsumerState<SignPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              l10n.signFailed(l10n.humanizeError(result.returnValue)),
+              cieErrorMessage(l10n, classifyCieError(result.returnValue)),
             ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Theme.of(context).colorScheme.error,

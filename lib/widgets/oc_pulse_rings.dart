@@ -25,10 +25,22 @@ class OcPulseRings extends StatefulWidget {
 
 class _OcPulseRingsState extends State<OcPulseRings>
     with SingleTickerProviderStateMixin {
+  // Honour the OS reduced-motion preference instead of animating
+  // unconditionally.
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2400),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _ctrl.stop();
+    } else if (!_ctrl.isAnimating) {
+      _ctrl.repeat();
+    }
+  }
 
   @override
   void dispose() {

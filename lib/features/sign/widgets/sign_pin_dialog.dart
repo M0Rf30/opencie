@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../services/pin_throttle.dart';
+import '../../../services/screen_guard.dart';
 import '../../../widgets/oc_gradient_button.dart';
 import '../../../widgets/oc_section_label.dart';
 
-/// On-screen PIN-entry dialog. Returns the 4-digit PIN string via
+/// On-screen PIN-entry dialog. Returns the CIE PIN string via
 /// [Navigator.pop] or null on cancellation.
 class SignPinDialog extends StatefulWidget {
   const SignPinDialog({super.key});
@@ -21,12 +25,38 @@ class SignPinDialog extends StatefulWidget {
 class _SignPinDialogState extends State<SignPinDialog> {
   final _controller = TextEditingController();
   final _keyboardFocus = FocusNode();
-  static const _maxPin = 4;
+  static const _maxPin = AppConstants.ciePinLength;
+  Timer? _lockTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    ScreenGuard.protect();
+    if (PinThrottle.isLocked) {
+      _startLockTimer();
+    }
+  }
+
+  void _startLockTimer() {
+    _lockTimer?.cancel();
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (!PinThrottle.isLocked) {
+        timer.cancel();
+      }
+      setState(() {});
+    });
+  }
 
   @override
   void dispose() {
+    _lockTimer?.cancel();
     _controller.dispose();
     _keyboardFocus.dispose();
+    ScreenGuard.unprotect();
     super.dispose();
   }
 
@@ -37,16 +67,22 @@ class _SignPinDialogState extends State<SignPinDialog> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= AppConstants.mediumBreakpoint;
     final pinLength = _controller.text.length;
+    final remaining = PinThrottle.remaining;
+    final locked = remaining > Duration.zero;
+    final lockSeconds = locked ? (remaining.inMilliseconds / 1000).ceil() : 0;
 
     // ── Desktop tile + numpad dimensions (≈25 % smaller) ──────────
-    final tileW = isDesktop ? 36.0 : 56.0;
-    final tileH = isDesktop ? 44.0 : 64.0;
-    final tileDotSize = isDesktop ? 18.0 : 24.0;
+    final tileW = isDesktop ? 26.0 : 32.0;
+    final tileH = isDesktop ? 34.0 : 44.0;
+    final tileDotSize = isDesktop ? 12.0 : 14.0;
     // childAspectRatio: wider on desktop so keys stay ~48 px tall.
     final numpadRatio = isDesktop ? 2.2 : 1.5;
 
     // ── Input handlers ─────────────────────────────────────────────
     void appendDigit(String digit) {
+      if (PinThrottle.isLocked) {
+        return;
+      }
       if (_controller.text.length < _maxPin) {
         _controller.text += digit;
         setState(() {});
@@ -54,6 +90,9 @@ class _SignPinDialogState extends State<SignPinDialog> {
     }
 
     void backspace() {
+      if (PinThrottle.isLocked) {
+        return;
+      }
       if (_controller.text.isNotEmpty) {
         _controller.text = _controller.text.substring(
           0,
@@ -64,6 +103,9 @@ class _SignPinDialogState extends State<SignPinDialog> {
     }
 
     void submitIfReady() {
+      if (PinThrottle.isLocked) {
+        return;
+      }
       if (_controller.text.length == _maxPin) {
         Navigator.pop(context, _controller.text);
       }
@@ -164,78 +206,95 @@ class _SignPinDialogState extends State<SignPinDialog> {
                 const SizedBox(height: 20),
 
                 // PIN tiles (size adapts to desktop/mobile)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_maxPin, (i) {
-                    final filled = i < pinLength;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOutBack,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: tileW,
-                      height: tileH,
-                      decoration: BoxDecoration(
-                        color: filled ? cs.primary : cs.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: filled ? cs.primary : cs.outlineVariant,
-                          width: 1.5,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(_maxPin, (i) {
+                      final filled = i < pinLength;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutBack,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: tileW,
+                        height: tileH,
+                        decoration: BoxDecoration(
+                          color: filled ? cs.primary : cs.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: filled ? cs.primary : cs.outlineVariant,
+                            width: 1.5,
+                          ),
                         ),
-                      ),
-                      child: Center(
-                        child: filled
-                            ? Text(
-                                '•',
-                                style: TextStyle(
-                                  color: cs.onPrimary,
-                                  fontSize: tileDotSize,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              )
-                            : null,
-                      ),
-                    );
-                  }),
+                        child: Center(
+                          child: filled
+                              ? Text(
+                                  '•',
+                                  style: TextStyle(
+                                    color: cs.onPrimary,
+                                    fontSize: tileDotSize,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      );
+                    }),
+                  ),
                 ),
+                if (locked) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.pinLockedWait(lockSeconds),
+                    style: TextStyle(color: cs.error, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
                 const SizedBox(height: 20),
 
                 // Numpad grid (aspect ratio adapts to desktop/mobile)
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: numpadRatio,
-                  children: [
-                    for (final key in [
-                      '1',
-                      '2',
-                      '3',
-                      '4',
-                      '5',
-                      '6',
-                      '7',
-                      '8',
-                      '9',
-                      '',
-                      '0',
-                      '⌫',
-                    ])
-                      if (key.isEmpty)
-                        const SizedBox.shrink()
-                      else
-                        _NumpadKey(
-                          label: key,
-                          onTap: () {
-                            if (key == '⌫') {
-                              backspace();
-                            } else {
-                              appendDigit(key);
-                            }
-                          },
-                        ),
-                  ],
+                AbsorbPointer(
+                  absorbing: locked,
+                  child: Opacity(
+                    opacity: locked ? 0.4 : 1.0,
+                    child: GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: numpadRatio,
+                      children: [
+                        for (final key in [
+                          '1',
+                          '2',
+                          '3',
+                          '4',
+                          '5',
+                          '6',
+                          '7',
+                          '8',
+                          '9',
+                          '',
+                          '0',
+                          '⌫',
+                        ])
+                          if (key.isEmpty)
+                            const SizedBox.shrink()
+                          else
+                            _NumpadKey(
+                              label: key,
+                              onTap: () {
+                                if (key == '⌫') {
+                                  backspace();
+                                } else {
+                                  appendDigit(key);
+                                }
+                              },
+                            ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 14),
 
@@ -243,7 +302,9 @@ class _SignPinDialogState extends State<SignPinDialog> {
                 OcGradientButton(
                   label: l10n.signButton,
                   icon: Icons.check_rounded,
-                  onPressed: pinLength == _maxPin ? submitIfReady : null,
+                  onPressed: (pinLength == _maxPin && !locked)
+                      ? submitIfReady
+                      : null,
                 ),
               ],
             ),

@@ -4,13 +4,15 @@ import 'dart:convert';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../secure_store.dart';
 import 'id_token.dart';
 
 /// High-level OIDC session state.
 ///
-/// Holds the authenticated user's tokens and claims. Persisted via
-/// [SharedPreferences] as JSON — **not encrypted**. Production deployments
-/// should swap in `flutter_secure_storage` or platform keychain APIs.
+/// Holds the authenticated user's tokens and claims. Persisted encrypted via
+/// [SecureStore] (OS keystore / Secret Service) — see [load] for the
+/// one-shot migration away from the legacy plaintext [SharedPreferences]
+/// blob this app used previously.
 class OidcSession {
   OidcSession({
     required this.issuer,
@@ -33,6 +35,13 @@ class OidcSession {
   final DateTime? expiresAt;
   final Map<String, Object?>? userinfoClaims;
   final String? _idTokenRaw;
+
+  /// The raw encoded ID token JWT, if one was issued for this session.
+  ///
+  /// Refresh-token grants often omit a new `id_token`; callers building a
+  /// refreshed [OidcSession] should pass the prior session's [idTokenRaw]
+  /// through so persistence (see [toJson]/[load]) keeps working.
+  String? get idTokenRaw => _idTokenRaw;
 
   bool get isExpired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
@@ -59,9 +68,22 @@ class OidcSession {
     if (userinfoClaims != null) 'userinfo': userinfoClaims,
   };
 
-  static Future<OidcSession?> load(SharedPreferences prefs) async {
-    final jsonStr = prefs.getString(_prefsKey);
-    if (jsonStr == null || jsonStr.isEmpty) return null;
+  static Future<OidcSession?> load() async {
+    var jsonStr = await SecureStore.read(_prefsKey);
+    if (jsonStr == null || jsonStr.isEmpty) {
+      // One-shot migration from the legacy plaintext SharedPreferences blob.
+      final prefs = await SharedPreferences.getInstance();
+      final legacy = prefs.getString(_prefsKey);
+      if (legacy == null || legacy.isEmpty) return null;
+      jsonStr = legacy;
+      try {
+        await SecureStore.write(_prefsKey, legacy);
+        await prefs.remove(_prefsKey);
+      } on SecureStoreException {
+        // Secure storage unavailable (locked keyring, no Secret Service).
+        // Use the legacy value for this run; migration retries next load().
+      }
+    }
     final map = json.decode(jsonStr) as Map<String, dynamic>;
 
     final idTokenRaw = map['id_token_raw'] as String?;
@@ -114,12 +136,12 @@ class OidcSession {
     );
   }
 
-  static Future<void> save(SharedPreferences prefs, OidcSession session) async {
-    await prefs.setString(_prefsKey, json.encode(session.toJson()));
+  static Future<void> save(OidcSession session) async {
+    await SecureStore.write(_prefsKey, json.encode(session.toJson()));
   }
 
-  static Future<void> clear(SharedPreferences prefs) async {
-    await prefs.remove(_prefsKey);
+  static Future<void> clear() async {
+    await SecureStore.delete(_prefsKey);
   }
 
   static const _prefsKey = 'opencie_oidc_session';
