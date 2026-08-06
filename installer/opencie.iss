@@ -15,7 +15,12 @@
 ;   - Runtime dependency DLLs (OpenSSL, libcurl, MinGW runtime, etc.)
 
 #define MyAppName      "OpenCIE"
-#define MyAppVersion   "0.1.0"
+; Overridden by CI: ISCC.exe /DMyAppVersion=<pubspec version>. The fallback
+; below only applies to local builds — keep releases driven by the tag so the
+; installer filename and Add/Remove Programs entry cannot drift from it.
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
 #define MyAppPublisher "Gianluca Boiano"
 #define MyAppURL       "https://github.com/M0Rf30/opencie"
 #define MyAppExeName   "opencie.exe"
