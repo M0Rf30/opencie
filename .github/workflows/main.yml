@@ -373,8 +373,13 @@ jobs:
           $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
           Invoke-WebRequest -Uri $innoUrl -OutFile innosetup.exe -MaximumRedirection 5
           Start-Process -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/DIR=C:\InnoSetup' -Wait
-          # Build installer
-          & "C:\InnoSetup\ISCC.exe" installer\opencie.iss
+          # Version comes from pubspec.yaml so the installer filename and the
+          # Add/Remove Programs entry track the release instead of a hardcoded
+          # literal in the .iss.
+          $appVersion = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
+          if (-not $appVersion) { throw "could not read version from pubspec.yaml" }
+          Write-Host "Installer version: $appVersion"
+          & "C:\InnoSetup\ISCC.exe" "/DMyAppVersion=$appVersion" installer\opencie.iss
           Write-Host "=== Installer output ==="
           Get-ChildItem build\installer | Select-Object Name, Length | Format-Table
 
