@@ -60,6 +60,19 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.0" date="2026-08-06">
+      <description>
+        <p>Security and accessibility hardening.</p>
+        <ul>
+          <li>Fixed PIN entry on the signing screens, which capped input at 4 digits while the CIE PIN is 8.</li>
+          <li>Tokens and enrolled-card records are now stored encrypted in the system keyring instead of plain text.</li>
+          <li>Repeated wrong PIN entries are throttled, and PIN screens block screenshots and screen recording on Android.</li>
+          <li>Card failures now explain what went wrong and how to recover, instead of a generic error.</li>
+          <li>Card reading is announced to screen readers, and animations honour the reduced-motion setting.</li>
+          <li>Expired sign-in sessions are renewed silently instead of forcing a new login.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-06-12">
       <description>
         <p>Initial release: CAdES/PAdES/XAdES signing, signature verification with OCSP/CRL, CIE card management.</p>
