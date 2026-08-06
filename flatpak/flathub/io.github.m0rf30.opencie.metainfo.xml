@@ -60,6 +60,11 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.1" date="2026-08-06">
+      <description>
+        <p>Corrects the Windows installer, which was labelled with the previous version number.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-08-06">
       <description>
         <p>Security and accessibility hardening.</p>
