@@ -10,6 +10,7 @@ import '../models/enrolled_card.dart';
 import '../models/proxy_config.dart';
 import '../models/signature_options.dart';
 import '../models/tsa_config.dart';
+import '../services/secure_store.dart';
 
 /// Sentinel object used to distinguish "explicitly pass null" from "omitted"
 /// in [AppSettings.copyWith].
@@ -143,6 +144,49 @@ List<EnrolledCard> _parseEnrolledCards(Map<String, dynamic> map) {
   return const [];
 }
 
+List<EnrolledCard> _decodeEnrolledCardsJson(String jsonStr) {
+  try {
+    final raw = jsonDecode(jsonStr);
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(EnrolledCard.fromJson)
+        .where((c) => c.pan.isNotEmpty)
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Reads enrolled cards from [SecureStore]. If none are stored yet but the
+/// legacy plaintext [settingsMap] still has them (modern `enrolledCards`
+/// list or the older single `enrolledPan` string), migrates them into
+/// [SecureStore] once — [SettingsNotifier._save] strips the legacy copy
+/// from the settings blob on its next write.
+Future<({List<EnrolledCard> list, bool migrated})> _loadEnrolledCards(
+  Map<String, dynamic> settingsMap,
+) async {
+  final stored = await SecureStore.read(SettingsNotifier._enrolledCardsKey);
+  if (stored != null && stored.isNotEmpty) {
+    return (list: _decodeEnrolledCardsJson(stored), migrated: false);
+  }
+
+  final legacy = _parseEnrolledCards(settingsMap);
+  if (legacy.isEmpty) return (list: legacy, migrated: false);
+
+  try {
+    await SecureStore.write(
+      SettingsNotifier._enrolledCardsKey,
+      jsonEncode(legacy.map((c) => c.toJson()).toList()),
+    );
+    return (list: legacy, migrated: true);
+  } on SecureStoreException {
+    // Secure storage unavailable; keep using the legacy cards this session
+    // and retry the migration on the next load().
+    return (list: legacy, migrated: false);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -155,6 +199,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   static const _prefsKey = 'opencie_settings';
+  static const _enrolledCardsKey = 'opencie_enrolled_cards';
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -185,6 +230,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
           parsedThemeMode = ThemeMode.system;
         }
 
+        final cards = await _loadEnrolledCards(map);
+
         state = AppSettings(
           locale: map['locale'] as String? ?? 'it',
           defaultPdfFormat: SignatureFormat.values.byName(
@@ -211,13 +258,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
             map['validationType'] as String? ?? 'ocspFirst',
           ),
           logLevel: LogLevel.values.byName(map['logLevel'] as String? ?? 'off'),
-          enrolledCards: _parseEnrolledCards(map),
+          enrolledCards: cards.list,
           uiScale: parsedUiScale,
           themeMode: parsedThemeMode,
           oidcIssuer: map['oidcIssuer'] as String? ?? 'https://idp.example/',
           oidcClientId: map['oidcClientId'] as String? ?? 'opencie-client',
           isLoaded: true,
         );
+        if (cards.migrated) {
+          await _save();
+        }
         return;
       } catch (_) {
         // Corrupted prefs — fall through to defaults
@@ -244,13 +294,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'proxyConfig': state.proxyConfig.toJson(),
       'validationType': state.validationType.name,
       'logLevel': state.logLevel.name,
-      'enrolledCards': state.enrolledCards.map((c) => c.toJson()).toList(),
       'uiScale': state.uiScale,
       'themeMode': state.themeMode.name,
       'oidcIssuer': state.oidcIssuer,
       'oidcClientId': state.oidcClientId,
     };
     await prefs.setString(_prefsKey, jsonEncode(map));
+    await SecureStore.write(
+      _enrolledCardsKey,
+      jsonEncode(state.enrolledCards.map((c) => c.toJson()).toList()),
+    );
   }
 
   void update(AppSettings Function(AppSettings) updater) {

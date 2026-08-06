@@ -2,10 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../services/oidc/discovery.dart';
 import '../../services/oidc/oidc_session.dart';
+import '../../services/oidc/token_exchange.dart';
+import '../../services/oidc/token_refresher.dart';
+import '../../services/oidc/userinfo.dart';
 import '../../widgets/oc_gradient_button.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -26,10 +29,69 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final session = await OidcSession.load(prefs);
+    final session = await OidcSession.load();
+    if (!mounted) {
+      return;
+    }
+    if (session == null) {
+      setState(() {
+        _session = null;
+        _loading = false;
+      });
+      return;
+    }
+
+    var displaySession = session;
+    try {
+      final discovery = await OidcDiscoveryClient.instance.fetch(
+        Uri.parse(session.issuer),
+      );
+      final refresher = TokenRefresher(
+        session: session,
+        discovery: discovery,
+        onRefreshed: (refreshed) => OidcSession.save(refreshed),
+      );
+      final userinfoEndpoint = discovery.userinfoEndpoint;
+      if (userinfoEndpoint != null) {
+        final claims = await refresher.withFreshToken(
+          (accessToken) =>
+              UserInfoClient().fetch(userinfoEndpoint, accessToken),
+        );
+        final refreshed = refresher.session;
+        displaySession = OidcSession(
+          issuer: refreshed.issuer,
+          clientId: refreshed.clientId,
+          idToken: refreshed.idToken,
+          idTokenRaw: refreshed.idTokenRaw,
+          accessToken: refreshed.accessToken,
+          tokenType: refreshed.tokenType,
+          refreshToken: refreshed.refreshToken,
+          expiresAt: refreshed.expiresAt,
+          userinfoClaims: claims,
+        );
+      } else {
+        displaySession = refresher.session;
+      }
+    } on TokenRefreshException catch (e) {
+      if (e.isTerminal) {
+        await OidcSession.clear();
+        if (mounted) {
+          context.go('/login');
+        }
+        return;
+      }
+      // Transient refresh failure: keep showing the last known-good
+      // session instead of logging the user out.
+    } on Exception {
+      // Offline or discovery failure: keep showing the stored session
+      // rather than breaking the screen.
+    }
+
+    if (!mounted) {
+      return;
+    }
     setState(() {
-      _session = session;
+      _session = displaySession;
       _loading = false;
     });
   }
@@ -55,8 +117,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
     if (confirmed != true) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await OidcSession.clear(prefs);
+    await OidcSession.clear();
     if (mounted) {
       context.go('/login');
     }

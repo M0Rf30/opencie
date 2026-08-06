@@ -12,6 +12,10 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../../core/theme/app_theme.dart';
 import '../utils/signature_image_generator.dart';
 
+/// Teal highlight color for the signature-placement preview.
+const _kSignatureHighlightFill = Color.fromRGBO(0, 196, 201, 0.5);
+const _kSignatureHighlightBorder = Color.fromRGBO(0, 196, 201, 0.9);
+
 /// PDF signature-placement widget with a draggable, resizable signature
 /// box overlaid on the rendered page.
 class PdfSignaturePlacer extends StatefulWidget {
@@ -505,6 +509,33 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       alignment: Alignment.center,
                     ),
                   ),
+
+                  // Signature placement highlight, tracks the
+                  // same rect as the interactive overlay; never intercepts
+                  // pointer events so drag/resize keeps working untouched.
+                  if (currentScreenRect.width > 4 &&
+                      currentScreenRect.height > 4)
+                    Positioned(
+                      left: currentScreenRect.left,
+                      top: currentScreenRect.top,
+                      width: currentScreenRect.width,
+                      height: currentScreenRect.height,
+                      child: IgnorePointer(
+                        child: Semantics(
+                          label:
+                              'Area di destinazione della firma sulla pagina',
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: _kSignatureHighlightFill,
+                              border: Border.all(
+                                color: _kSignatureHighlightBorder,
+                                width: 2.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
 
                   // Signature image preview
                   if (imgBytes != null &&

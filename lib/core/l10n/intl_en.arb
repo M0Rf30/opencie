@@ -389,14 +389,8 @@
    "settingsScaleSubtitle": "Scales text and controls",
    "@settingsScaleSubtitle": { "description": "UI scale setting subtitle" },
 
-   "cieEnrolmentFailed": "Enrolment failed: {reason}",
-  "@cieEnrolmentFailed": { "placeholders": { "reason": { "type": "String" } } },
   "cieRemoveFailed": "Remove failed: {reason}",
   "@cieRemoveFailed": { "placeholders": { "reason": { "type": "String" } } },
-  "ciePinChangeFailed": "PIN change failed: {reason}",
-  "@ciePinChangeFailed": { "placeholders": { "reason": { "type": "String" } } },
-  "cieUnblockFailed": "Unblock failed: {reason}",
-  "@cieUnblockFailed": { "placeholders": { "reason": { "type": "String" } } },
 
   "errCardNotFound": "card not found — tap your CIE again",
   "errCardMoved": "card moved during operation — keep your CIE steady",
@@ -408,6 +402,17 @@
   "errAlreadyEnrolled": "this CIE is already enrolled on this device",
   "errUnknown": "unexpected error ({code})",
   "@errUnknown": { "placeholders": { "code": { "type": "String" } } },
+
+  "cieErrorCardNotPresent": "No card detected. Place your CIE on the reader and try again.",
+  "cieErrorNotACie": "This does not look like an Italian Electronic Identity Card.",
+  "cieErrorTagLost": "Card moved away. Hold the card still against the reader until the operation finishes.",
+  "cieErrorCardCommunicationError": "Could not communicate with the card. Keep it steady on the reader and try again.",
+  "cieErrorWrongPinFormat": "Invalid PIN format. Make sure you enter all 8 digits of your CIE PIN.",
+  "cieErrorPinExpired": "Your CIE PIN has expired. Use Change PIN to set a new one before continuing.",
+  "cieErrorCancelledByUser": "Operation cancelled. Start again whenever you're ready.",
+  "cieErrorAlreadyEnrolled": "This CIE is already enrolled on this device. Remove it first if you want to enrol it again.",
+  "cieErrorUnknown": "Unexpected error (code {code}). Try again, and contact support if the problem persists.",
+  "@cieErrorUnknown": { "placeholders": { "code": { "type": "String" } } },
 
   "handoffEntryDesktopButton": "Sign with phone",
   "handoffEntryPhoneButton": "Sign for a desktop",
@@ -490,6 +495,11 @@
     "cieReadingChip": "Reading chip data\u2026",
    "cieReadFailed": "Could not read chip data — try again",
 
+    "cieReadStarted": "Reading your card…",
+    "cieReadProgress": "Reading card: {percent}%",
+    "@cieReadProgress": { "placeholders": { "percent": { "type": "int" } } },
+    "cieReadComplete": "Card read complete",
+
   "helpButtonTooltip": "How it works",
 
   "helpSignTitle": "How to Sign",
@@ -530,5 +540,8 @@
   "helpSettingsStep2Title": "Timestamp (TSA)",
   "helpSettingsStep2Body": "Configure the TSA server URL and credentials. Use a qualified Italian TSP for legally valid timestamps.",
   "helpSettingsStep3Title": "Validation & Proxy",
-  "helpSettingsStep3Body": "Choose OCSP or CRL for certificate revocation checks, and configure a proxy if your network requires one."
+  "helpSettingsStep3Body": "Choose OCSP or CRL for certificate revocation checks, and configure a proxy if your network requires one.",
+
+  "pinLockedWait": "Too many incorrect attempts. Wait {seconds}s before trying again.",
+  "@pinLockedWait": { "placeholders": { "seconds": { "type": "int" } } }
 }

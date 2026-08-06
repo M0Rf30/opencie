@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import '../../models/signature_options.dart';
+import '../pin_throttle.dart';
 import '../sign/sign_backend.dart';
 import 'batch_sign_models.dart';
 
@@ -27,6 +28,7 @@ class BatchSignService {
 
     var state = BatchSignState(items: items, isRunning: true);
     yield state;
+    var pinVerified = false;
 
     for (int i = 0; i < items.length; i++) {
       if (_cancelled) {
@@ -81,6 +83,10 @@ class BatchSignService {
         );
 
         if (result.isSuccess) {
+          if (!pinVerified) {
+            pinVerified = true;
+            PinThrottle.reset();
+          }
           // Success
           updatedItems = [
             ...state.items.sublist(0, i),
@@ -94,6 +100,7 @@ class BatchSignService {
           state = state.copyWith(items: updatedItems);
           yield state;
         } else if (result.isPinIncorrect) {
+          PinThrottle.recordFailure();
           // PIN incorrect - abort batch
           updatedItems = [
             ...state.items.sublist(0, i),

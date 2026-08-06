@@ -18,6 +18,8 @@ import '../../core/theme/color_schemes.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../services/handoff/messages.dart';
 import '../../services/handoff/phone_handoff_session.dart';
+import '../../services/screen_guard.dart';
+import '../../services/pin_throttle.dart';
 import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
@@ -87,6 +89,11 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
     final cs = Theme.of(context).colorScheme;
     final controller = TextEditingController();
 
+    await ScreenGuard.protect();
+    if (!mounted) {
+      await ScreenGuard.unprotect();
+      return null;
+    }
     try {
       return await showDialog<String>(
         context: context,
@@ -162,6 +169,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       );
     } finally {
       controller.dispose();
+      await ScreenGuard.unprotect();
     }
   }
 
@@ -254,6 +262,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       if (!mounted) return;
 
       if (result.isSuccess) {
+        PinThrottle.reset();
         // 5. Submit signature to desktop
         final cmsBytes = await File(outputPath).readAsBytes();
         await _session.markPinOk();
@@ -267,6 +276,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
         if (mounted) setState(() {});
       } else if (result.isPinIncorrect) {
+        PinThrottle.recordFailure();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

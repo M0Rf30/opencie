@@ -24,6 +24,8 @@ import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_help_sheet.dart';
 import '../../widgets/oc_section_label.dart';
+import '../../services/cie_error.dart';
+import '../../services/pin_throttle.dart';
 import '../../services/cie_chip_reader.dart';
 import 'widgets/cie_certificate_dialog.dart';
 import 'widgets/cie_change_pin_dialog.dart';
@@ -169,6 +171,9 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       0.0,
       '',
     ));
+    // Non-null once a classified failure needs to be shown inline in the
+    // dialog (currently: NFC tag-read failure) instead of a SnackBar.
+    final errorNotifier = ValueNotifier<String?>(null);
     bool dialogOpen = false;
     Future<void>? dialogFuture;
 
@@ -190,7 +195,19 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
             await NfcService.instance.stopSession();
             closeDialog();
             // Dispose only after the dialog route is fully gone.
-            dialogFuture?.whenComplete(nfcNotifier.dispose);
+            dialogFuture?.whenComplete(() {
+              nfcNotifier.dispose();
+              errorNotifier.dispose();
+            });
+            if (mounted) setState(() => _isProcessing = false);
+          },
+          errorNotifier: errorNotifier,
+          onDismissError: () {
+            closeDialog();
+            dialogFuture?.whenComplete(() {
+              nfcNotifier.dispose();
+              errorNotifier.dispose();
+            });
             if (mounted) setState(() => _isProcessing = false);
           },
         ),
@@ -207,7 +224,10 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         if (Platform.isAndroid) await NfcService.instance.stopSession();
         closeDialog();
         // Dispose only after the dialog route is fully gone.
-        dialogFuture?.whenComplete(nfcNotifier.dispose);
+        dialogFuture?.whenComplete(() {
+          nfcNotifier.dispose();
+          errorNotifier.dispose();
+        });
         if (mounted) setState(() => _isProcessing = false);
       }
     }
@@ -233,16 +253,10 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       },
       onTagFailed: () async {
         await NfcService.instance.stopSession();
-        closeDialog();
-        nfcNotifier.dispose();
         if (mounted) {
-          setState(() => _isProcessing = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppLocalizations.of(context).errCardError),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+          errorNotifier.value = cieErrorMessage(
+            AppLocalizations.of(context),
+            CieErrorKind.cardCommunicationError,
           );
         }
         completer.complete();
@@ -290,6 +304,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
         );
         if (result.isSuccess && result.enrolledPan != null) {
+          PinThrottle.reset();
           var card = EnrolledCard(
             pan: result.enrolledPan!,
             name: result.enrolledName ?? '',
@@ -308,16 +323,15 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           );
           enrolledCard = card;
         } else if (!result.isSuccess) {
+          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+            PinThrottle.recordFailure();
+          }
           _showErrorSnackBar(
-            result.isPinIncorrect
-                ? result.remainingAttempts != null
-                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                      : l10n.signIncorrectPin
-                : result.isPinLocked
-                ? l10n.ciePinLockedUsePuk
-                : l10n.cieEnrolmentFailed(
-                    l10n.humanizeError(result.returnValue),
-                  ),
+            cieErrorMessage(
+              l10n,
+              classifyCieError(result.returnValue),
+              remainingAttempts: result.remainingAttempts,
+            ),
           );
         }
       });
@@ -330,6 +344,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
         );
         if (result.isSuccess && result.enrolledPan != null) {
+          PinThrottle.reset();
           var card = EnrolledCard(
             pan: result.enrolledPan!,
             name: result.enrolledName ?? '',
@@ -340,16 +355,15 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress(0.50, l10n.cieEnrollingProgress);
           enrolledCard = card;
         } else if (!result.isSuccess) {
+          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+            PinThrottle.recordFailure();
+          }
           _showErrorSnackBar(
-            result.isPinIncorrect
-                ? result.remainingAttempts != null
-                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                      : l10n.signIncorrectPin
-                : result.isPinLocked
-                ? l10n.ciePinLockedUsePuk
-                : l10n.cieEnrolmentFailed(
-                    l10n.humanizeError(result.returnValue),
-                  ),
+            cieErrorMessage(
+              l10n,
+              classifyCieError(result.returnValue),
+              remainingAttempts: result.remainingAttempts,
+            ),
           );
         }
       });
@@ -426,18 +440,18 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
         if (result.isSuccess) {
+          PinThrottle.reset();
           _showSuccessSnackBar(l10n.ciePinChanged);
         } else {
+          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+            PinThrottle.recordFailure();
+          }
           _showErrorSnackBar(
-            result.isPinIncorrect
-                ? result.remainingAttempts != null
-                      ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                      : l10n.signIncorrectPin
-                : result.isPinLocked
-                ? l10n.ciePinLockedUsePuk
-                : l10n.ciePinChangeFailed(
-                    l10n.humanizeError(result.returnValue),
-                  ),
+            cieErrorMessage(
+              l10n,
+              classifyCieError(result.returnValue),
+              remainingAttempts: result.remainingAttempts,
+            ),
           );
         }
       });
@@ -459,10 +473,14 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
         if (result.isSuccess) {
+          PinThrottle.reset();
           _showSuccessSnackBar(l10n.ciePinUnblocked);
         } else {
+          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+            PinThrottle.recordFailure();
+          }
           _showErrorSnackBar(
-            l10n.cieUnblockFailed(l10n.humanizeError(result.returnValue)),
+            cieErrorMessage(l10n, classifyCieError(result.returnValue)),
           );
         }
       });
@@ -1417,6 +1435,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         ),
       );
       if (result.isSuccess && result.enrolledPan != null) {
+        PinThrottle.reset();
         var pendingCard = EnrolledCard(
           pan: result.enrolledPan!,
           name: result.enrolledName ?? '',
@@ -1446,14 +1465,15 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         setState(() => _step = _WizardStep.success);
         _successCtrl.forward();
       } else {
+        if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+          PinThrottle.recordFailure();
+        }
         setState(() {
-          _enrollError = result.isPinIncorrect
-              ? result.remainingAttempts != null
-                    ? l10n.cieIncorrectPinAttempts(result.remainingAttempts!)
-                    : l10n.signIncorrectPin
-              : result.isPinLocked
-              ? l10n.ciePinLockedUsePuk
-              : l10n.cieEnrolmentFailed(l10n.humanizeError(result.returnValue));
+          _enrollError = cieErrorMessage(
+            l10n,
+            classifyCieError(result.returnValue),
+            remainingAttempts: result.remainingAttempts,
+          );
         });
       }
     } finally {

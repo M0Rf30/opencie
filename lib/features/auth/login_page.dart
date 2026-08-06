@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_localizations.dart';
@@ -56,8 +55,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         scope: 'openid profile email',
       );
 
-      final prefs = await SharedPreferences.getInstance();
-      await OidcSession.save(prefs, session);
+      await OidcSession.save(session);
 
       if (mounted) {
         context.go('/profile');

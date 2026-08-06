@@ -9,6 +9,7 @@ import android.net.Uri
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -28,12 +29,17 @@ import java.util.concurrent.CompletableFuture
  * Also hosts a second MethodChannel for Storage Access Framework (SAF)
  * operations so the app can write signed documents to user-selected folders
  * without requesting broad storage permissions.
+ *
+ * A third MethodChannel toggles [WindowManager.LayoutParams.FLAG_SECURE] to
+ * block screenshots/recording while sensitive screens (e.g. PIN entry) are
+ * visible.
  */
 class MainActivity : FlutterActivity() {
 
     companion object {
         private const val NFC_CHANNEL = "io.github.m0rf30.opencie/nfc"
         private const val STORAGE_CHANNEL = "io.github.m0rf30.opencie/storage"
+        private const val SCREEN_CHANNEL = "io.github.m0rf30.opencie/screen"
         private const val REQ_CODE_OPEN_DOCUMENT_TREE = 42
 
         // NfcAdapter.FLAG_READER_NFC_A covers IsoDep (ISO 14443-4A) used by CIE.
@@ -51,6 +57,7 @@ class MainActivity : FlutterActivity() {
     private var nfcAdapter: NfcAdapter? = null
     private var nfcMethodChannel: MethodChannel? = null
     private var storageMethodChannel: MethodChannel? = null
+    private var screenMethodChannel: MethodChannel? = null
     private var pendingTreePicker: CompletableFuture<String?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -184,6 +191,27 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+
+        screenMethodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SCREEN_CHANNEL
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "protect" -> {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        result.success(null)
+                    }
+
+                    "unprotect" -> {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        result.success(null)
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -238,6 +266,8 @@ class MainActivity : FlutterActivity() {
         nfcMethodChannel = null
         storageMethodChannel?.setMethodCallHandler(null)
         storageMethodChannel = null
+        screenMethodChannel?.setMethodCallHandler(null)
+        screenMethodChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 

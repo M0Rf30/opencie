@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'token_refresher.dart' show UnauthorizedException;
+
 /// Fetches the OIDC UserInfo endpoint.
 class UserInfoClient {
   UserInfoClient({http.Client? httpClient})
@@ -23,6 +25,9 @@ class UserInfoClient {
         'Authorization': 'Bearer $accessToken',
       },
     );
+    if (res.statusCode == 401) {
+      throw const UnauthorizedException();
+    }
     if (res.statusCode != 200) {
       throw UserInfoException('UserInfo HTTP ${res.statusCode}: ${res.body}');
     }
