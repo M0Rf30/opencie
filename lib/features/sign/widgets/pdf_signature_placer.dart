@@ -5,16 +5,31 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 
 import 'package:pdfrx/pdfrx.dart';
 
+import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../services/ltv/pades/pdf_reader.dart';
+import '../../../widgets/oc_radio_card.dart';
+import '../../../widgets/oc_section_label.dart';
 import '../utils/signature_image_generator.dart';
 
 /// Teal highlight color for the signature-placement preview.
 const _kSignatureHighlightFill = Color.fromRGBO(0, 196, 201, 0.5);
 const _kSignatureHighlightBorder = Color.fromRGBO(0, 196, 201, 0.9);
+
+/// Amber outline for existing AcroForm signature fields the user can
+/// align to — distinct from the active placement's teal highlight.
+const _kFieldOutlineFill = Color.fromRGBO(255, 149, 0, 0.10);
+const _kFieldOutlineBorder = Color.fromRGBO(255, 149, 0, 0.9);
+
+/// Runs off the UI thread via [compute] so parsing a large/complex PDF's
+/// AcroForm never blocks first paint.
+List<PdfSignatureFieldInfo> _findSigFieldsInBytes(Uint8List bytes) =>
+    PdfReader(bytes).findSignatureFields();
 
 /// PDF signature-placement widget with a draggable, resizable signature
 /// box overlaid on the rendered page.
@@ -28,6 +43,7 @@ class PdfSignaturePlacer extends StatefulWidget {
     required this.sigH,
     required this.imageData,
     required this.onChanged,
+    required this.alignedFieldName,
     super.key,
   });
 
@@ -38,6 +54,7 @@ class PdfSignaturePlacer extends StatefulWidget {
   final double sigW;
   final double sigH;
   final Uint8List? imageData;
+  final String? alignedFieldName;
   final void Function({
     required int page,
     required double x,
@@ -45,6 +62,7 @@ class PdfSignaturePlacer extends StatefulWidget {
     required double w,
     required double h,
     Uint8List? imageData,
+    required String? alignedFieldName,
   })
   onChanged;
 
@@ -65,12 +83,15 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   Uint8List? _defaultImageData;
   bool _generatingDefault = false;
 
+  List<PdfSignatureFieldInfo> _sigFields = const [];
+
   @override
   void initState() {
     super.initState();
     _pageIndex = widget.page;
     _load();
     _ensureDefaultImage();
+    _loadSigFields();
   }
 
   @override
@@ -80,6 +101,8 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       _doc?.dispose();
       _doc = null;
       _load();
+      _sigFields = const [];
+      _loadSigFields();
     }
   }
 
@@ -130,12 +153,36 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
             w: widget.sigW,
             h: widget.sigH,
             imageData: bytes,
+            alignedFieldName: widget.alignedFieldName,
           );
         }
       }
     } catch (_) {
       if (mounted) setState(() => _generatingDefault = false);
     }
+  }
+
+  Future<void> _loadSigFields() async {
+    try {
+      final bytes = await File(widget.pdfPath).readAsBytes();
+      final fields = await compute(_findSigFieldsInBytes, bytes);
+      if (mounted) setState(() => _sigFields = fields);
+    } catch (_) {
+      // Best-effort convenience: leave the list empty on any failure.
+    }
+  }
+
+  void _selectField(PdfSignatureFieldInfo field) {
+    setState(() => _pageIndex = field.pageIndex);
+    widget.onChanged(
+      page: field.pageIndex,
+      x: field.x,
+      y: field.y,
+      w: field.width,
+      h: field.height,
+      imageData: _effectiveImageData,
+      alignedFieldName: field.name,
+    );
   }
 
   Uint8List? get _effectiveImageData => widget.imageData ?? _defaultImageData;
@@ -194,6 +241,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       w: fracRect.width,
       h: fracRect.height,
       imageData: _effectiveImageData,
+      alignedFieldName: null,
     );
   }
 
@@ -208,6 +256,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       w: widget.sigW,
       h: widget.sigH,
       imageData: _effectiveImageData,
+      alignedFieldName: null,
     );
   }
 
@@ -220,6 +269,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       w: 0.50,
       h: 0.095,
       imageData: _effectiveImageData,
+      alignedFieldName: null,
     );
   }
 
@@ -239,6 +289,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           w: widget.sigW,
           h: widget.sigH,
           imageData: bytes,
+          alignedFieldName: widget.alignedFieldName,
         );
       }
     }
@@ -252,6 +303,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       w: widget.sigW,
       h: widget.sigH,
       imageData: _defaultImageData,
+      alignedFieldName: widget.alignedFieldName,
     );
   }
 
@@ -432,9 +484,71 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
             ),
           ),
 
+          // ── Field alignment (only when the PDF has AcroForm sig fields) ──
+          if (_sigFields.isNotEmpty) _buildFieldPicker(cs),
+
           // ── PDF preview ─────────────────────────────────────────────
           Padding(padding: const EdgeInsets.all(16), child: _buildPreview(cs)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFieldPicker(ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OcSectionLabel(l10n.signAlignToFieldLabel),
+          const SizedBox(height: 4),
+          Text(
+            l10n.signAlignToFieldHint(_sigFields.length),
+            style: AppTheme.monoCaption(cs),
+          ),
+          const SizedBox(height: 8),
+          ..._sigFields.map(
+            (field) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: OcRadioCard(
+                title: field.name,
+                subtitle: 'Pagina ${field.pageIndex + 1}',
+                selected: widget.alignedFieldName == field.name,
+                onTap: () => _selectField(field),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Non-interactive amber outline for an existing AcroForm signature
+  /// field's rectangle, so the user can see where a form expects a
+  /// signature before choosing to align the new signature to it.
+  Widget _buildFieldMarker(
+    PdfSignatureFieldInfo field,
+    Size containerSize,
+    Size pageSize,
+  ) {
+    final rect = _fractionToScreen(
+      Rect.fromLTWH(field.x, field.y, field.width, field.height),
+      containerSize,
+      pageSize,
+    );
+    return Positioned(
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _kFieldOutlineFill,
+            border: Border.all(color: _kFieldOutlineBorder, width: 1.5),
+          ),
+        ),
       ),
     );
   }
@@ -509,6 +623,14 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       alignment: Alignment.center,
                     ),
                   ),
+
+                  // Existing AcroForm signature field rectangles: purely
+                  // informational, never intercepts pointer events (see
+                  // _buildFieldMarker) so drag/resize on the active
+                  // placement keeps receiving every pointer event.
+                  for (final field in _sigFields)
+                    if (field.pageIndex == _pageIndex)
+                      _buildFieldMarker(field, containerSize, pageSize),
 
                   // Signature placement highlight, tracks the
                   // same rect as the interactive overlay; never intercepts

@@ -307,6 +307,12 @@
   "cieNewPin8Digits": "Nuovo PIN — 8 cifre",
   "cieRepeatPin": "Ripeti PIN",
   "ciePinsDoNotMatch": "I PIN non coincidono",
+  "ciePinSameAsCurrent": "Il nuovo PIN deve essere diverso da quello attuale",
+  "ciePinWeakTooShort": "Il PIN deve avere 8 cifre",
+  "ciePinWeakNotNumeric": "Il PIN deve contenere solo cifre",
+  "ciePinWeakAllSameDigit": "Il PIN non può essere la stessa cifra ripetuta",
+  "ciePinWeakSequential": "Il PIN non può essere una sequenza di cifre consecutive",
+  "ciePinWeakRepeatedPair": "Il PIN non può essere un breve schema ripetuto",
   "cieChangePinButton": "Cambia PIN",
   "ciePinChangeFailedCode": "Cambio PIN non riuscito (codice: {code})",
   "@ciePinChangeFailedCode": { "placeholders": { "code": { "type": "String" } } },
@@ -541,5 +547,8 @@
   "helpSettingsStep3Title": "Validazione e Proxy",
   "helpSettingsStep3Body": "Scegli OCSP o CRL per i controlli di revoca dei certificati, e configura un proxy se la rete lo richiede.",
 
-  "pinLockedWait": "Troppi tentativi errati. Attendi {seconds}s prima di riprovare."
+  "pinLockedWait": "Troppi tentativi errati. Attendi {seconds}s prima di riprovare.",
+
+  "signAlignToFieldLabel": "Allinea al campo del modulo",
+  "signAlignToFieldHint": "{count, plural, one{1 campo trovato} other{{count} campi trovati}}"
 }

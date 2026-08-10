@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../services/pin_policy.dart';
 
 /// Dialog that collects the 8-digit CIE PIN for enrolment.
 ///
@@ -58,8 +59,11 @@ class _CieEnrollDialogState extends State<CieEnrollDialog> {
                   ? const Icon(Icons.check_circle_rounded, color: Colors.green)
                   : null,
             ),
-            validator: (v) =>
-                v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
+            validator: (v) {
+              if (v == null || v.length != 8) return l10n.ciePinMust8Digits;
+              final weakness = validateCiePin(v);
+              return weakness == null ? null : _weaknessMessage(l10n, weakness);
+            },
           ),
         ),
       ),
@@ -73,3 +77,12 @@ class _CieEnrollDialogState extends State<CieEnrollDialog> {
     );
   }
 }
+
+String _weaknessMessage(AppLocalizations l10n, PinWeakness weakness) =>
+    switch (weakness) {
+      PinWeakness.tooShort => l10n.ciePinWeakTooShort,
+      PinWeakness.notNumeric => l10n.ciePinWeakNotNumeric,
+      PinWeakness.allSameDigit => l10n.ciePinWeakAllSameDigit,
+      PinWeakness.sequential => l10n.ciePinWeakSequential,
+      PinWeakness.repeatedPair => l10n.ciePinWeakRepeatedPair,
+    };
