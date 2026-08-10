@@ -55,6 +55,14 @@ class OidcDiscovery {
   bool get supportsPkceS256 => codeChallengeMethodsSupported.contains('S256');
 
   /// Parses a decoded discovery JSON document.
+  ///
+  /// Performs structural validation only (presence/type of required
+  /// fields). It does NOT verify that [issuer] matches the URL the
+  /// document was requested from, that HTTPS was used, or that
+  /// [authorizationEndpoint]/[tokenEndpoint]/[jwksUri] share the issuer's
+  /// origin — those security checks require the request context and are
+  /// enforced by [OidcDiscoveryClient.fetch], not here. Callers that build
+  /// an [OidcDiscovery] directly via this constructor bypass those checks.
   factory OidcDiscovery.fromJson(Map<String, Object?> json) {
     final issuer = json['issuer'];
     final authEp = json['authorization_endpoint'];
@@ -106,7 +114,7 @@ class OidcDiscovery {
   }
 }
 
-/// Fetches and caches OIDC provider discovery documents.
+/// Fetches, validates and caches OIDC provider discovery documents.
 ///
 /// Usage:
 /// ```dart
@@ -115,8 +123,11 @@ class OidcDiscovery {
 /// );
 /// ```
 ///
-/// Cache is in-memory only (per process). For long-lived persistence,
-/// callers may serialise [OidcDiscovery.raw] themselves.
+/// [fetch] enforces the issuer, transport and origin checks documented on
+/// it; [OidcDiscovery.fromJson] alone does not. Cache is in-memory only
+/// (per process), and only ever holds documents that passed those checks.
+/// For long-lived persistence, callers may serialise [OidcDiscovery.raw]
+/// themselves.
 class OidcDiscoveryClient {
   OidcDiscoveryClient({http.Client? httpClient, Duration? ttl})
     : _http = httpClient ?? http.Client(),
@@ -128,12 +139,31 @@ class OidcDiscoveryClient {
   final Duration _ttl;
   final Map<String, _CacheEntry> _cache = {};
 
-  /// Resolves `<issuer>/.well-known/openid-configuration`, parses the
-  /// document, and caches the result for [_ttl].
+  /// Resolves `<issuer>/.well-known/openid-configuration`, fetches and
+  /// validates the document, and caches the result for [_ttl].
   ///
   /// [issuer] may be the bare issuer URL (recommended) or the full
   /// well-known path; trailing slashes are normalised either way.
+  ///
+  /// Beyond the structural checks in [OidcDiscovery.fromJson], this method
+  /// enforces the security properties a discovery document must satisfy
+  /// before it can be trusted:
+  ///
+  ///  * [issuer] must be `https://`, except for the loopback hosts
+  ///    (`localhost`, `127.0.0.1`, `[::1]`) used by the bundled mock
+  ///    authorization server in development.
+  ///  * the document's `issuer` must exactly match the requested issuer
+  ///    (RFC 8414 §3.3), so a hostile document cannot vouch for itself.
+  ///  * `authorization_endpoint`, `token_endpoint` and `jwks_uri` must
+  ///    share the issuer's origin (scheme, host, port), so a hostile
+  ///    document cannot redirect key or token retrieval elsewhere.
+  ///
+  /// A document that fails any of these checks is never cached.
+  ///
+  /// Full OpenID Federation trust-chain validation is not implemented.
   Future<OidcDiscovery> fetch(Uri issuer, {bool forceRefresh = false}) async {
+    _requireHttps(issuer);
+
     final wellKnown = _wellKnownUri(issuer);
     final key = wellKnown.toString();
 
@@ -159,6 +189,8 @@ class OidcDiscoveryClient {
     }
 
     final disc = OidcDiscovery.fromJson(body);
+    _requireMatchingIssuer(issuer, disc.issuer);
+    _requireSameOrigin(issuer, disc);
     _cache[key] = _CacheEntry(disc, DateTime.now().add(_ttl));
     return disc;
   }
@@ -171,6 +203,64 @@ class OidcDiscoveryClient {
     if (path.endsWith('/.well-known/openid-configuration')) return issuer;
     final base = path.endsWith('/') ? path : '$path/';
     return issuer.replace(path: '$base.well-known/openid-configuration');
+  }
+
+  static void _requireHttps(Uri issuer) {
+    if (issuer.scheme == 'https') return;
+    if (issuer.scheme == 'http' && _isLoopbackHost(issuer.host)) return;
+    throw OidcDiscoveryException(
+      'OIDC discovery requires HTTPS (loopback http is allowed only for '
+      'the bundled mock authorization server); got "$issuer"',
+    );
+  }
+
+  static bool _isLoopbackHost(String host) =>
+      host == 'localhost' || host == '127.0.0.1' || host == '::1';
+
+  static void _requireMatchingIssuer(Uri requestedIssuer, String docIssuer) {
+    final expected = _stripTrailingSlash(_expectedIssuer(requestedIssuer));
+    final actual = _stripTrailingSlash(docIssuer);
+    if (expected != actual) {
+      throw OidcDiscoveryException(
+        'OIDC discovery issuer mismatch: requested "$expected", '
+        'document declared "$actual" (RFC 8414 §3.3)',
+      );
+    }
+  }
+
+  /// The issuer identifier [issuer] should have declared, per RFC 8414
+  /// §3.3: the requested issuer with any well-known suffix removed.
+  static String _expectedIssuer(Uri issuer) {
+    const suffix = '/.well-known/openid-configuration';
+    final path = issuer.path;
+    if (!path.endsWith(suffix)) return issuer.toString();
+    final basePath = path.substring(0, path.length - suffix.length);
+    return issuer.replace(path: basePath).toString();
+  }
+
+  static String _stripTrailingSlash(String s) =>
+      s.endsWith('/') ? s.substring(0, s.length - 1) : s;
+
+  static void _requireSameOrigin(Uri issuer, OidcDiscovery disc) {
+    _requireSameOriginAs(
+      issuer,
+      disc.authorizationEndpoint,
+      'authorization_endpoint',
+    );
+    _requireSameOriginAs(issuer, disc.tokenEndpoint, 'token_endpoint');
+    _requireSameOriginAs(issuer, disc.jwksUri, 'jwks_uri');
+  }
+
+  static void _requireSameOriginAs(Uri issuer, Uri endpoint, String field) {
+    if (endpoint.scheme == issuer.scheme &&
+        endpoint.host == issuer.host &&
+        endpoint.port == issuer.port) {
+      return;
+    }
+    throw OidcDiscoveryException(
+      'OIDC discovery "$field" origin ($endpoint) does not match the '
+      'issuer origin ($issuer)',
+    );
   }
 }
 
