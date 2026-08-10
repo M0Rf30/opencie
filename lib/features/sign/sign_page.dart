@@ -648,6 +648,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                         sigW: _options.width,
                         sigH: _options.height,
                         imageData: _options.imageData,
+                        alignedFieldName: _options.alignedFieldName,
                         onChanged:
                             ({
                               required int page,
@@ -656,6 +657,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                               required double w,
                               required double h,
                               Uint8List? imageData,
+                              required String? alignedFieldName,
                             }) {
                               setState(() {
                                 _options = _options.copyWith(
@@ -665,6 +667,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                                   width: w,
                                   height: h,
                                   imageData: imageData,
+                                  alignedFieldName: alignedFieldName,
+                                  clearAlignedFieldName:
+                                      alignedFieldName == null,
                                 );
                               });
                             },
@@ -1406,6 +1411,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                       sigW: _options.width,
                       sigH: _options.height,
                       imageData: _options.imageData,
+                      alignedFieldName: _options.alignedFieldName,
                       onChanged:
                           ({
                             required int page,
@@ -1414,6 +1420,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                             required double w,
                             required double h,
                             Uint8List? imageData,
+                            required String? alignedFieldName,
                           }) {
                             setState(() {
                               _options = _options.copyWith(
@@ -1423,6 +1430,8 @@ class _SignPageState extends ConsumerState<SignPage> {
                                 width: w,
                                 height: h,
                                 imageData: imageData,
+                                alignedFieldName: alignedFieldName,
+                                clearAlignedFieldName: alignedFieldName == null,
                               );
                             });
                           },

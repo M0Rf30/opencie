@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../services/pin_policy.dart';
 
 /// Dialog that collects current PIN + new PIN for a PIN-change operation.
 ///
@@ -102,8 +103,14 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
                         )
                       : null,
                 ),
-                validator: (v) =>
-                    v != null && v.length == 8 ? null : l10n.ciePinMust8Digits,
+                validator: (v) {
+                  if (v == null || v.length != 8) return l10n.ciePinMust8Digits;
+                  if (v == _curCtrl.text) return l10n.ciePinSameAsCurrent;
+                  final weakness = validateCiePin(v);
+                  return weakness == null
+                      ? null
+                      : _weaknessMessage(l10n, weakness);
+                },
               ),
             ),
             const SizedBox(height: 12),
@@ -145,3 +152,12 @@ class _CieChangePinDialogState extends State<CieChangePinDialog> {
     );
   }
 }
+
+String _weaknessMessage(AppLocalizations l10n, PinWeakness weakness) =>
+    switch (weakness) {
+      PinWeakness.tooShort => l10n.ciePinWeakTooShort,
+      PinWeakness.notNumeric => l10n.ciePinWeakNotNumeric,
+      PinWeakness.allSameDigit => l10n.ciePinWeakAllSameDigit,
+      PinWeakness.sequential => l10n.ciePinWeakSequential,
+      PinWeakness.repeatedPair => l10n.ciePinWeakRepeatedPair,
+    };

@@ -291,6 +291,11 @@
   "cieEnrolDialogTitle": "Enrol CIE",
   "ciePinAll8Digits": "PIN — all 8 digits",
   "ciePinMust8Digits": "PIN must be 8 digits",
+  "ciePinWeakTooShort": "PIN must be 8 digits",
+  "ciePinWeakNotNumeric": "PIN must contain only digits",
+  "ciePinWeakAllSameDigit": "PIN cannot be the same digit repeated",
+  "ciePinWeakSequential": "PIN cannot be a sequential run of digits",
+  "ciePinWeakRepeatedPair": "PIN cannot be a short pattern repeated",
   "cieEnrolButton": "Enrol",
   "cieEnrolledSuccess": "{name} enrolled successfully",
   "@cieEnrolledSuccess": { "placeholders": { "name": { "type": "String" } } },
@@ -311,6 +316,7 @@
   "cieCurrentPin8Digits": "Current PIN — 8 digits",
   "cieNewPin8Digits": "New PIN — 8 digits",
   "cieRepeatPin": "Repeat PIN",
+  "ciePinSameAsCurrent": "New PIN must be different from the current one",
   "ciePinsDoNotMatch": "PINs do not match",
   "cieChangePinButton": "Change PIN",
   "ciePinChangeFailedCode": "PIN change failed (code: {code})",
@@ -543,5 +549,10 @@
   "helpSettingsStep3Body": "Choose OCSP or CRL for certificate revocation checks, and configure a proxy if your network requires one.",
 
   "pinLockedWait": "Too many incorrect attempts. Wait {seconds}s before trying again.",
-  "@pinLockedWait": { "placeholders": { "seconds": { "type": "int" } } }
+  "@pinLockedWait": { "placeholders": { "seconds": { "type": "int" } } },
+
+  "signAlignToFieldLabel": "Align to form field",
+  "@signAlignToFieldLabel": { "description": "Label for the control that snaps the signature placement to an existing AcroForm field's rectangle" },
+  "signAlignToFieldHint": "{count, plural, one{1 field found} other{{count} fields found}}",
+  "@signAlignToFieldHint": { "placeholders": { "count": { "type": "int" } } }
 }

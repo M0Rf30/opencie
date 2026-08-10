@@ -29,6 +29,7 @@ class SignatureOptions {
     this.addTimestamp = false,
     this.reason,
     this.location,
+    this.alignedFieldName,
   });
 
   final SignatureFormat format;
@@ -38,6 +39,12 @@ class SignatureOptions {
   final double y;
   final double width;
   final double height;
+
+  /// Name of the AcroForm signature field this placement was snapped to,
+  /// or null for free placement. UI metadata only — the native signer
+  /// always creates a brand-new signature field, so this does not change
+  /// what gets passed to the sign call.
+  final String? alignedFieldName;
   final Uint8List? imageData;
   final bool addTimestamp;
   final String? reason;
@@ -55,6 +62,8 @@ class SignatureOptions {
     bool? addTimestamp,
     String? reason,
     String? location,
+    String? alignedFieldName,
+    bool clearAlignedFieldName = false,
   }) {
     return SignatureOptions(
       format: format ?? this.format,
@@ -68,6 +77,9 @@ class SignatureOptions {
       addTimestamp: addTimestamp ?? this.addTimestamp,
       reason: reason ?? this.reason,
       location: location ?? this.location,
+      alignedFieldName: clearAlignedFieldName
+          ? null
+          : (alignedFieldName ?? this.alignedFieldName),
     );
   }
 }
