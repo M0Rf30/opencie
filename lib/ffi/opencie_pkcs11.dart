@@ -272,12 +272,16 @@ class OpenCiePkcs11 {
     }
   }
 
-  static void _readerWatchLoop(SendPort port) {
+  /// Interval between polls in [_readerWatchLoop]. Polling replaces the old
+  /// blocking native watch call (`SCardGetStatusChange(hCtx, INFINITE,
+  /// ...)`), which parked the spawned isolate's OS thread inside native
+  /// code. `Isolate.kill(priority: Isolate.immediate)` cannot interrupt
+  /// that, so app shutdown used to hang until a reader was physically
+  /// unplugged. Each poll is just two cheap native calls (a few ms).
+  static const Duration _readerPollInterval = Duration(seconds: 1);
+
+  static Future<void> _readerWatchLoop(SendPort port) async {
     final lib = _openLib();
-    final watchFn = lib
-        .lookupFunction<CieReaderWatchNative, CieReaderWatchDart>(
-          'cie_reader_watch',
-        );
     final countFn = lib
         .lookupFunction<CieReaderCountNative, CieReaderCountDart>(
           'cie_reader_count',
@@ -302,8 +306,9 @@ class OpenCiePkcs11 {
     port.send(readName());
 
     while (true) {
-      final next = watchFn(current);
-      if (next < 0) break;
+      await Future<void>.delayed(_readerPollInterval);
+      final next = countFn();
+      if (next == current) continue;
       current = next;
       port.send(readName());
     }

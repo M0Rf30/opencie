@@ -225,9 +225,6 @@ typedef CieExtractP7mDart =
 typedef CieReaderCountNative = Int32 Function();
 typedef CieReaderCountDart = int Function();
 
-typedef CieReaderWatchNative = Int32 Function(Int32 currentCount);
-typedef CieReaderWatchDart = int Function(int currentCount);
-
 typedef CieReaderNameNative = Int32 Function(Pointer<Utf8> buf, Int32 bufLen);
 typedef CieReaderNameDart = int Function(Pointer<Utf8> buf, int bufLen);
 

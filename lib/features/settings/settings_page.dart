@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
@@ -39,6 +40,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _oidcIssuer = TextEditingController();
   final _oidcClientId = TextEditingController();
 
+  // App version string, sourced from the platform bundle (populated from
+  // pubspec.yaml at build time). Falls back to the license-only label until
+  // the async lookup completes.
+  String _versionLabel = 'OpenCIE · GPL-3.0';
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +57,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _proxyPass.text = settings.proxyConfig.password;
     _oidcIssuer.text = settings.oidcIssuer;
     _oidcClientId.text = settings.oidcClientId;
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() {
+      _versionLabel = 'OpenCIE ${info.version}+${info.buildNumber} · GPL-3.0';
+    });
   }
 
   @override
@@ -567,7 +582,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 // ── Footer ────────────────────────────────────────────────
                 Center(
                   child: Text(
-                    'OpenCIE 0.1.0+1 · GPL-3.0',
+                    _versionLabel,
                     style: AppTheme.monoCaption(
                       cs,
                       color: cs.onSurfaceVariant.withValues(alpha: 0.5),
