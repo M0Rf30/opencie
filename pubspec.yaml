@@ -49,6 +49,9 @@ dependencies:
   permission_handler: ^12.0.0
   collection: ^1.19.1
 
+  # App metadata (version string read from the platform bundle)
+  package_info_plus: ^8.0.0
+
   # Embedded HTTP server (mock IdP / AS)
   shelf: ^1.4.2
   shelf_router: ^1.1.4
