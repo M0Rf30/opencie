@@ -50,7 +50,7 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
       certSerial: info.serial,
       keyAlgorithm: info.keyAlgorithm,
     );
-  } catch (e, _) {
+  } catch (_) {
     return card;
   }
 }
