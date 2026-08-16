@@ -569,6 +569,18 @@ jobs:
             collect_deps "$src"
           }
 
+          # Writes one dependency per line to $2, minus the library's own
+          # LC_ID_DYLIB: `otool -L` lists the install name first, and for the
+          # prebuilt upstream dylib that is @rpath/libopencie-pkcs11.1.dylib —
+          # a name that exists nowhere on disk, so treating it as a dependency
+          # failed the whole step.
+          dep_list() {
+            local lib="$1" out="$2" id
+            id="$(otool -D "$lib" | awk 'NR==2{print $1}')"
+            otool -L "$lib" | tail -n +2 | awk '{print $1}' \
+              | awk -v id="$id" 'id == "" || $0 != id' > "$out"
+          }
+
           # Walks one dylib's `otool -L` output and bundles every non-system
           # dependency. Loops over a temp file (never a pipe) so the whole
           # walk runs in the CURRENT shell: an unresolved dep's `exit 1` must
@@ -577,7 +589,7 @@ jobs:
           collect_deps() {
             local lib="$1" dep resolved tmp
             tmp="$(mktemp)"
-            otool -L "$lib" | tail -n +2 | awk '{print $1}' > "$tmp"
+            dep_list "$lib" "$tmp"
             while read -r dep; do
               case "$dep" in
                 /usr/lib/*|/System/*)
@@ -654,7 +666,7 @@ jobs:
           verify_failed=0
           for f in "$FRAMEWORKS"/*.dylib; do
             vtmp="$(mktemp)"
-            otool -L "$f" | tail -n +2 | awk '{print $1}' > "$vtmp"
+            dep_list "$f" "$vtmp"
             while read -r dep; do
               case "$dep" in
                 /usr/lib/*|/System/*)
