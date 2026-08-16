@@ -60,6 +60,25 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.1" date="2026-08-16">
+      <description>
+        <p>macOS card reader fixes.</p>
+        <ul>
+          <li>The macOS build now bundles every library the PKCS#11 module needs and requests the smartcard entitlement, so card readers are detected.</li>
+          <li>Quitting the app no longer hangs until the USB reader is unplugged.</li>
+          <li>Settings shows the real application version instead of a hardcoded one.</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.3.0" date="2026-08-11">
+      <description>
+        <p>Signature placement and OpenID Connect hardening.</p>
+        <ul>
+          <li>Signatures are aligned to existing PDF form fields, and weak PINs are rejected.</li>
+          <li>OpenID Connect discovery now validates the issuer, requires HTTPS and pins the endpoint origin.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-08-06">
       <description>
         <p>Corrects the Windows installer, which was labelled with the previous version number.</p>

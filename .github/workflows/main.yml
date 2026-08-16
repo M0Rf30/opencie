@@ -22,6 +22,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # v0.3.0 shipped binaries labelled 0.2.1 because the tag was cut without
+      # bumping pubspec.yaml. Every job depends on this one, so failing here
+      # stops a mislabelled release before anything is built or published.
+      - name: Tag matches pubspec version and metainfo
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pubspec="$(sed -n 's/^version: \([0-9.]*\).*/\1/p' pubspec.yaml)"
+          if [ "$tag" != "$pubspec" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec"
+            exit 1
+          fi
+          for f in flatpak/io.github.m0rf30.opencie.metainfo.xml \
+                   flatpak/flathub/io.github.m0rf30.opencie.metainfo.xml; do
+            grep -q "<release version=\"$tag\"" "$f" \
+              || { echo "::error::$f has no <release version=\"$tag\"> entry"; exit 1; }
+          done
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.0

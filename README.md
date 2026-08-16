@@ -42,7 +42,7 @@ Application bundle ID: `io.github.m0rf30.opencie`. iOS is not supported.
 Download `opencie-<version>-x86_64.flatpak` from the [latest release](https://github.com/M0Rf30/opencie/releases/latest) and install it:
 
 ```bash
-flatpak install --user opencie-v0.2.1-x86_64.flatpak
+flatpak install --user opencie-v0.3.1-x86_64.flatpak
 flatpak run io.github.m0rf30.opencie
 ```
 
