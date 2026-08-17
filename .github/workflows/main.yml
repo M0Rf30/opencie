@@ -110,18 +110,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
-          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
-            --repo M0Rf30/opencie-pkcs11 \
-            --pattern '*linux-x86_64.so' \
-            --dir pkcs11-dist
-          so="$(ls pkcs11-dist/*linux-x86_64.so 2>/dev/null | head -1)"
-          if [ -z "$so" ]; then
-            echo "::error::libopencie-pkcs11 linux-x86_64 .so not found in M0Rf30/opencie-pkcs11 releases"
-            exit 1
-          fi
-          cp "$so" libopencie-pkcs11.so
-          echo "pkcs11 lib: $(ls -lh libopencie-pkcs11.so)"
+          set -euo pipefail
+          # fetch-pkcs11.sh verifies the asset against the release's SHA256SUMS
+          ./scripts/fetch-pkcs11.sh "${{ env.OPENCIE_PKCS11_VERSION }}" '*linux-x86_64.so' libopencie-pkcs11.so
 
       - name: Set PKCS11 lib path (linux)
         run: echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.so" >> "$GITHUB_ENV"
@@ -280,26 +271,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
-          # Main DLL — required; fail loudly if absent so we never ship a
-          # Windows build that cannot talk to a card (mirrors linux/macos).
-          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
-            --repo M0Rf30/opencie-pkcs11 \
-            --pattern '*windows-x86_64*.dll' \
-            --dir pkcs11-dist
-          dll="$(ls pkcs11-dist/*.dll 2>/dev/null | head -1)"
-          if [ -z "$dll" ]; then
-            echo "::error::libopencie-pkcs11 windows-x86_64 .dll not found in M0Rf30/opencie-pkcs11 releases"
-            exit 1
-          fi
-          cp "$dll" libopencie-pkcs11.dll
-          echo "DLL downloaded: $(ls -lh libopencie-pkcs11.dll)"
-
-          # Runtime deps the cross-built DLL links against — also required.
-          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
-            --repo M0Rf30/opencie-pkcs11 \
-            --pattern 'windows-x86_64-runtime-deps*' \
-            --dir pkcs11-runtime
+          set -euo pipefail
+          # fetch-pkcs11.sh verifies each asset against the release's SHA256SUMS
+          ./scripts/fetch-pkcs11.sh "${{ env.OPENCIE_PKCS11_VERSION }}" '*windows-x86_64*.dll' libopencie-pkcs11.dll
+          ./scripts/fetch-pkcs11.sh "${{ env.OPENCIE_PKCS11_VERSION }}" 'windows-x86_64-runtime-deps*' pkcs11-runtime.zip
+          # `unzip` is not guaranteed on windows-latest; PowerShell always is.
+          # The zip is flat, so the DLLs land directly in pkcs11-runtime/,
+          # which the later "Copy runtime DLLs" step globs.
+          powershell -NoProfile -Command \
+            "Expand-Archive -Path pkcs11-runtime.zip -DestinationPath pkcs11-runtime -Force"
+          rm pkcs11-runtime.zip
+          ls -l pkcs11-runtime
 
       - name: Set PKCS11 lib path (windows)
         shell: bash
@@ -466,18 +448,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO: verify native lib checksum once upstream publishes SHA256SUMS
-          gh release download "${{ env.OPENCIE_PKCS11_VERSION }}" \
-            --repo M0Rf30/opencie-pkcs11 \
-            --pattern '*macos-arm64.dylib' \
-            --dir pkcs11-dist
-          if ls pkcs11-dist/*.dylib 2>/dev/null; then
-            cp pkcs11-dist/*.dylib libopencie-pkcs11.dylib
-            echo "DYLIB downloaded: $(ls -lh libopencie-pkcs11.dylib)"
-          else
-            echo "::error::libopencie-pkcs11.dylib not found in latest release"
-            exit 1
-          fi
+          set -euo pipefail
+          # fetch-pkcs11.sh verifies the asset against the release's SHA256SUMS
+          ./scripts/fetch-pkcs11.sh "${{ env.OPENCIE_PKCS11_VERSION }}" '*macos-arm64.dylib' libopencie-pkcs11.dylib
 
       - name: Set PKCS11 lib path (macos)
         run: echo "OPENCIE_PKCS11_LIB=$(pwd)/libopencie-pkcs11.dylib" >> "$GITHUB_ENV"

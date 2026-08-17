@@ -6,6 +6,8 @@
 #   ./scripts/sync-jnilibs.sh [TAG]
 #
 # If TAG is omitted, the latest release tag is used.
+# Downloads are checksum-verified against the release's SHA256SUMS via
+# fetch-pkcs11.sh before being installed.
 # Requires: gh (GitHub CLI) or curl + jq.
 #
 # ABI mapping:
@@ -49,13 +51,8 @@ for ABI in "${!ABI_MAP[@]}"; do
 		continue
 	fi
 
-	mkdir -p "$DEST_DIR"
 	echo "  [$ABI] Downloading $ASSET_NAME ..."
-	gh release download "$TAG" \
-		--repo "$REPO" \
-		--pattern "$ASSET_NAME" \
-		--output "$DEST_FILE" \
-		--clobber
+	"$(dirname "$0")/fetch-pkcs11.sh" "$TAG" "$ASSET_NAME" "$DEST_FILE"
 	echo "  [$ABI] → $DEST_FILE"
 done
 
