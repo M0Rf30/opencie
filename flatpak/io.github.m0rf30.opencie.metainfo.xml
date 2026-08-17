@@ -63,6 +63,15 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.3" date="2026-08-17">
+      <description>
+        <p>Windows packaging fix.</p>
+        <ul>
+          <li>The Windows installer now ships the runtime libraries the PKCS#11 module links against; they were silently omitted from every previous installer.</li>
+          <li>Prebuilt native libraries are verified against the upstream SHA256 checksums before they are packaged.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-08-17">
       <description>
         <p>Updated native PKCS#11 module (opencie-pkcs11 1.0.14).</p>
