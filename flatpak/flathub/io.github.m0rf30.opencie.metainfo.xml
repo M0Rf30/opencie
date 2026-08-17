@@ -60,6 +60,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.3.2" date="2026-08-17">
+      <description>
+        <p>Updated native PKCS#11 module (opencie-pkcs11 1.0.14).</p>
+        <ul>
+          <li>Signing now hashes with raw digest octets, fixing signatures produced through the signing SDK.</li>
+          <li>Unsupported hash mechanisms are rejected instead of signing invalid data.</li>
+          <li>Audit hardening in the native library: signature verification, ASN.1 memory safety, leaks and races.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-08-16">
       <description>
         <p>macOS card reader fixes.</p>
