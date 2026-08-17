@@ -103,7 +103,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: libopencie-pkcs11.so
-          key: pkcs11-linux-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}
+          # -v2: entries below this suffix were populated before downloads were
+          # checksum-verified (and, on Windows, before the runtime-deps zip was
+          # expanded), so they must not be restored.
+          key: pkcs11-linux-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}-v2
 
       - name: Download libopencie-pkcs11.so
         if: steps.cache-pkcs11-linux.outputs.cache-hit != 'true'
@@ -263,7 +266,7 @@ jobs:
           path: |
             libopencie-pkcs11.dll
             pkcs11-runtime
-          key: pkcs11-windows-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}
+          key: pkcs11-windows-x86_64-${{ env.OPENCIE_PKCS11_VERSION }}-v2
 
       - name: Download libopencie-pkcs11.dll and runtime deps
         if: steps.cache-pkcs11-windows.outputs.cache-hit != 'true'
@@ -441,7 +444,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: libopencie-pkcs11.dylib
-          key: pkcs11-macos-arm64-${{ env.OPENCIE_PKCS11_VERSION }}
+          key: pkcs11-macos-arm64-${{ env.OPENCIE_PKCS11_VERSION }}-v2
 
       - name: Download libopencie-pkcs11.dylib
         if: steps.cache-pkcs11-macos.outputs.cache-hit != 'true'
