@@ -69,19 +69,31 @@ class OidcSession {
   };
 
   static Future<OidcSession?> load() async {
-    var jsonStr = await SecureStore.read(_prefsKey);
+    String? jsonStr;
+    var unavailable = false;
+    try {
+      jsonStr = await SecureStore.read(_prefsKey);
+    } on SecureStoreException {
+      // Secure storage unavailable (locked keyring, no Secret Service). This
+      // is NOT the same as "no session was ever stored" — fall through to
+      // the legacy plaintext blob (if any) for this run only, and skip the
+      // migration attempt below since it would just fail the same way.
+      unavailable = true;
+    }
     if (jsonStr == null || jsonStr.isEmpty) {
       // One-shot migration from the legacy plaintext SharedPreferences blob.
       final prefs = await SharedPreferences.getInstance();
       final legacy = prefs.getString(_prefsKey);
       if (legacy == null || legacy.isEmpty) return null;
       jsonStr = legacy;
-      try {
-        await SecureStore.write(_prefsKey, legacy);
-        await prefs.remove(_prefsKey);
-      } on SecureStoreException {
-        // Secure storage unavailable (locked keyring, no Secret Service).
-        // Use the legacy value for this run; migration retries next load().
+      if (!unavailable) {
+        try {
+          await SecureStore.write(_prefsKey, legacy);
+          await prefs.remove(_prefsKey);
+        } on SecureStoreException {
+          // Secure storage unavailable (locked keyring, no Secret Service).
+          // Use the legacy value for this run; migration retries next load().
+        }
       }
     }
     final map = json.decode(jsonStr) as Map<String, dynamic>;

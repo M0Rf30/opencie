@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/oidc/discovery.dart';
 import '../../services/oidc/oidc_auth_service.dart';
 import '../../services/oidc/oidc_session.dart';
 import '../../services/oidc/redirect_listener.dart';
+import '../../services/secure_store.dart';
 import '../../widgets/oc_gradient_button.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -60,6 +62,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (mounted) {
         context.go('/profile');
       }
+    } on SecureStoreException catch (e) {
+      // Secure storage unavailable: the just-authenticated session can't be
+      // persisted. Flag it so Settings can explain why, and let the user
+      // retry once a Secret Service provider is available.
+      ref.read(settingsProvider.notifier).flagSecureStorageUnavailable();
+      setState(() => _error = e.toString());
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

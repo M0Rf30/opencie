@@ -69,6 +69,7 @@
 
   "settingsTitle": "Impostazioni",
   "settingsSubtitle": "Preferenze applicate a ogni operazione",
+  "secureStorageUnavailableWarning": "L'archivio sicuro non \u00e8 disponibile su questo sistema — le carte registrate e i token di accesso non verranno salvati tra un riavvio e l'altro. Installa e avvia un provider Secret Service (es. GNOME Keyring o KeePassXC) per risolvere.",
   "settingsGeneral": "Generali",
   "settingsSignature": "Firma",
   "settingsTsa": "Marca temporale (TSA)",

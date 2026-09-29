@@ -76,13 +76,14 @@ void main() {
       expect(await SecureStore.read('absent'), isNull);
     });
 
-    test(
-      'read swallows a PlatformException from the platform and returns null',
-      () async {
-        FlutterSecureStoragePlatform.instance = _FailingSecureStoragePlatform();
-        expect(await SecureStore.read('token'), isNull);
-      },
-    );
+    test('read surfaces a SecureStoreException on a PlatformException '
+        '(unavailable, distinct from a null/absent key)', () async {
+      FlutterSecureStoragePlatform.instance = _FailingSecureStoragePlatform();
+      await expectLater(
+        () => SecureStore.read('token'),
+        throwsA(isA<SecureStoreException>()),
+      );
+    });
 
     test(
       'write surfaces a SecureStoreException on a PlatformException',

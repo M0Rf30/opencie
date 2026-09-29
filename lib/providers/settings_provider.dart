@@ -40,6 +40,7 @@ class AppSettings {
     this.oidcIssuer = 'https://idp.example/',
     this.oidcClientId = 'opencie-client',
     this.isLoaded = false,
+    this.secureStorageUnavailable = false,
   });
 
   final String locale;
@@ -66,6 +67,14 @@ class AppSettings {
   final String oidcClientId;
 
   final bool isLoaded;
+
+  /// True once, for the rest of the app session, a [SecureStore] read or
+  /// write has failed because the platform secure store is unreachable
+  /// (e.g. no Secret Service / gnome-keyring running on Linux). Drives a
+  /// non-blocking warning in the settings UI; it is never cleared back to
+  /// false so the warning stays visible even if a later save happens to
+  /// succeed transiently.
+  final bool secureStorageUnavailable;
 
   bool get isEnrolled => enrolledCards.isNotEmpty;
 
@@ -95,6 +104,7 @@ class AppSettings {
     String? oidcIssuer,
     String? oidcClientId,
     bool? isLoaded,
+    bool? secureStorageUnavailable,
   }) {
     return AppSettings(
       locale: locale ?? this.locale,
@@ -120,6 +130,8 @@ class AppSettings {
       oidcIssuer: oidcIssuer ?? this.oidcIssuer,
       oidcClientId: oidcClientId ?? this.oidcClientId,
       isLoaded: isLoaded ?? this.isLoaded,
+      secureStorageUnavailable:
+          secureStorageUnavailable ?? this.secureStorageUnavailable,
     );
   }
 }
@@ -163,27 +175,45 @@ List<EnrolledCard> _decodeEnrolledCardsJson(String jsonStr) {
 /// list or the older single `enrolledPan` string), migrates them into
 /// [SecureStore] once — [SettingsNotifier._save] strips the legacy copy
 /// from the settings blob on its next write.
-Future<({List<EnrolledCard> list, bool migrated})> _loadEnrolledCards(
-  Map<String, dynamic> settingsMap,
-) async {
-  final stored = await SecureStore.read(SettingsNotifier._enrolledCardsKey);
+///
+/// A [SecureStoreException] from the initial read means the store is
+/// unavailable, not that it is empty: [unavailable] is reported so the
+/// caller neither wipes the in-memory list nor attempts a migration write
+/// that would only fail the same way.
+Future<({List<EnrolledCard> list, bool migrated, bool unavailable})>
+_loadEnrolledCards(Map<String, dynamic> settingsMap) async {
+  String? stored;
+  var unavailable = false;
+  try {
+    stored = await SecureStore.read(SettingsNotifier._enrolledCardsKey);
+  } on SecureStoreException {
+    unavailable = true;
+  }
   if (stored != null && stored.isNotEmpty) {
-    return (list: _decodeEnrolledCardsJson(stored), migrated: false);
+    return (
+      list: _decodeEnrolledCardsJson(stored),
+      migrated: false,
+      unavailable: false,
+    );
   }
 
   final legacy = _parseEnrolledCards(settingsMap);
-  if (legacy.isEmpty) return (list: legacy, migrated: false);
+  if (legacy.isEmpty || unavailable) {
+    // Either nothing to migrate, or the store is known unavailable: don't
+    // attempt (and don't need) a migration write that would just fail again.
+    return (list: legacy, migrated: false, unavailable: unavailable);
+  }
 
   try {
     await SecureStore.write(
       SettingsNotifier._enrolledCardsKey,
       jsonEncode(legacy.map((c) => c.toJson()).toList()),
     );
-    return (list: legacy, migrated: true);
+    return (list: legacy, migrated: true, unavailable: false);
   } on SecureStoreException {
     // Secure storage unavailable; keep using the legacy cards this session
     // and retry the migration on the next load().
-    return (list: legacy, migrated: false);
+    return (list: legacy, migrated: false, unavailable: true);
   }
 }
 
@@ -264,6 +294,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
           oidcIssuer: map['oidcIssuer'] as String? ?? 'https://idp.example/',
           oidcClientId: map['oidcClientId'] as String? ?? 'opencie-client',
           isLoaded: true,
+          secureStorageUnavailable: cards.unavailable,
         );
         if (cards.migrated) {
           await _save();
@@ -276,6 +307,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = state.copyWith(isLoaded: true);
   }
 
+  /// Persists settings to [SharedPreferences] and enrolled cards to
+  /// [SecureStore]. Never throws: a [SecureStoreException] from the secure
+  /// write is caught and turned into [AppSettings.secureStorageUnavailable]
+  /// instead, and in that case any pre-existing legacy plaintext copy of
+  /// the enrolled cards already in [SharedPreferences] is preserved rather
+  /// than being stripped by this write — it may be the only surviving
+  /// record of the cards until the store comes back.
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     final map = <String, dynamic>{
@@ -299,11 +337,45 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'oidcIssuer': state.oidcIssuer,
       'oidcClientId': state.oidcClientId,
     };
+
+    var unavailable = false;
+    try {
+      await SecureStore.write(
+        _enrolledCardsKey,
+        jsonEncode(state.enrolledCards.map((c) => c.toJson()).toList()),
+      );
+    } on SecureStoreException {
+      unavailable = true;
+      final existingJson = prefs.getString(_prefsKey);
+      if (existingJson != null) {
+        try {
+          final existingMap = jsonDecode(existingJson) as Map<String, dynamic>;
+          if (existingMap['enrolledCards'] != null) {
+            map['enrolledCards'] = existingMap['enrolledCards'];
+          } else if (existingMap['enrolledPan'] != null) {
+            map['enrolledPan'] = existingMap['enrolledPan'];
+          }
+        } catch (_) {
+          // Corrupted existing blob — nothing to preserve.
+        }
+      }
+    }
+
     await prefs.setString(_prefsKey, jsonEncode(map));
-    await SecureStore.write(
-      _enrolledCardsKey,
-      jsonEncode(state.enrolledCards.map((c) => c.toJson()).toList()),
-    );
+
+    if (unavailable && !state.secureStorageUnavailable) {
+      state = state.copyWith(secureStorageUnavailable: true);
+    }
+  }
+
+  /// Marks the secure store as unavailable for the rest of this session.
+  /// Called by callers of other [SecureStore]-backed persistence (e.g. the
+  /// OIDC session) so a single warning covers both enrolled cards and
+  /// sign-in tokens.
+  void flagSecureStorageUnavailable() {
+    if (!state.secureStorageUnavailable) {
+      state = state.copyWith(secureStorageUnavailable: true);
+    }
   }
 
   void update(AppSettings Function(AppSettings) updater) {
