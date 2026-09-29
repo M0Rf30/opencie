@@ -203,7 +203,7 @@ Uint8List _buildTstToken({
   tstInfo.add(msgImprint);
 
   tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
-  tstInfo.add(ASN1GeneralizedTime(genTime)); // genTime
+  tstInfo.add(_properGeneralizedTime(genTime)); // genTime
 
   if (nonce != null) {
     // Encode nonce as INTEGER
@@ -239,8 +239,13 @@ Uint8List _buildTstToken({
 
   signedData.add(encapContentInfo);
 
-  // signerInfos SET — empty
+  // signerInfos SET — one minimal (unsigned/unverified, test-only)
+  // SignerInfo so CadesSignedData.parse() has something to attach the
+  // ats-hash-index-v3 unsigned attribute to.
+  final signerInfo = ASN1Sequence();
+  signerInfo.add(ASN1Integer(BigInt.one)); // version
   final signerInfos = ASN1Set();
+  signerInfos.add(signerInfo);
   signedData.add(signerInfos);
 
   // Wrap in ContentInfo
@@ -280,6 +285,23 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
 
   result.add(content);
   return result.toBytes();
+}
+
+/// Builds a DER-correct (zero-padded) GeneralizedTime ASN1 object.
+/// See tsp_codec_test.dart's twin helper for why this can't use
+/// pointycastle's own `ASN1GeneralizedTime(dt)` constructor.
+ASN1Object _properGeneralizedTime(DateTime dt) {
+  final utc = dt.toUtc();
+  String pad(int v, int w) => v.toString().padLeft(w, '0');
+  final s =
+      '${pad(utc.year, 4)}${pad(utc.month, 2)}${pad(utc.day, 2)}'
+      '${pad(utc.hour, 2)}${pad(utc.minute, 2)}${pad(utc.second, 2)}Z';
+  final content = Uint8List.fromList(s.codeUnits);
+  final builder = BytesBuilder();
+  builder.addByte(0x18); // GeneralizedTime tag
+  builder.addByte(content.length);
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
 }
 
 /// Create a TSA handler that returns a valid granted response.
@@ -700,12 +722,32 @@ void main() {
         final hashedMessage = msgImprint.elements![1] as ASN1OctetString;
         final hash = hashedMessage.octets!;
 
+        // Extract nonce so the mandatory nonce check (OC-06) passes.
+        Uint8List? nonce;
+        for (int i = 2; i < reqSeq.elements!.length; i++) {
+          if (reqSeq.elements![i] is ASN1Integer) {
+            final nonceInt = reqSeq.elements![i] as ASN1Integer;
+            final value = nonceInt.integer;
+            if (value != null && value != BigInt.zero) {
+              final bytes = <int>[];
+              var v = value;
+              while (v > BigInt.zero) {
+                bytes.insert(0, (v & BigInt.from(0xFF)).toInt());
+                v = v >> 8;
+              }
+              nonce = Uint8List.fromList(bytes);
+              break;
+            }
+          }
+        }
+
         // Build a synthetic TST
         final genTime = DateTime.utc(2026, 5, 4, 12, 0, 0);
         final token = _buildTstToken(
           genTime: genTime,
           hashOid: Oid.sha256,
           hash: hash,
+          nonce: nonce,
         );
 
         final statusSeq = ASN1Sequence();
@@ -785,8 +827,18 @@ void main() {
                   // Found unsignedAttrs [1]
                   final unsignedAttrsBytes = elem.valueBytes ?? Uint8List(0);
                   final p = ASN1Parser(unsignedAttrsBytes);
-                  while (p.hasNext()) {
-                    final attr = p.nextObject() as ASN1Sequence;
+                  // _wrapImplicit's payload is the raw SET encoding
+                  // (including its own universal tag), not a bare
+                  // concatenation of Attribute SEQUENCEs, so the first
+                  // (and only) parsed object here is the SET itself.
+                  final attrsSetOrSeq = p.hasNext() ? p.nextObject() : null;
+                  final attrObjs = attrsSetOrSeq is ASN1Set
+                      ? (attrsSetOrSeq.elements ?? const <ASN1Object>[])
+                      : (attrsSetOrSeq == null
+                            ? const <ASN1Object>[]
+                            : [attrsSetOrSeq]);
+                  for (final attrObj in attrObjs) {
+                    final attr = attrObj as ASN1Sequence;
                     if (attr.elements != null && attr.elements!.isNotEmpty) {
                       final oid = attr.elements![0] as ASN1ObjectIdentifier;
                       if (oid.objectIdentifierAsString == Oid.atsHashIndexV3) {

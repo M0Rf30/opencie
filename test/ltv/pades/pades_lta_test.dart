@@ -120,6 +120,67 @@ void main() {
       expect(length2, greaterThan(0));
     });
 
+    // OC-08: ETSI EN 319 142-1 §5.4 requires a DocTimeStamp to be a
+    // proper signature field (widget annotation + AcroForm /Fields
+    // entry + page /Annots), not just a bare indirect signature dict —
+    // otherwise conformant validators that walk the form tree never
+    // discover it.
+    test(
+      'DocTimeStamp is wired into AcroForm/Fields and page /Annots (OC-08)',
+      () async {
+        // Arrange
+        final pdf = buildSyntheticSignedPdf();
+        final upgrader = PadesLtaUpgrader(tspClient: tspClient, tspUrl: tsaUrl);
+
+        // Act
+        final ltaPdf = await upgrader.upgrade(pdf);
+
+        // Assert: reparsed via PdfReader, the DocTimeStamp shows up as a
+        // signature field discoverable from the Catalog's AcroForm.
+        final reader = PdfReader(ltaPdf);
+        final fields = reader.findSignatureFields();
+        final docTimeStampFields = fields.where(
+          (f) => f.name.startsWith('DocTimeStamp_'),
+        );
+        expect(
+          docTimeStampFields,
+          isNotEmpty,
+          reason:
+              'DocTimeStamp widget must be reachable via '
+              'Catalog -> AcroForm -> Fields -> Kids/widget -> page /Annots',
+        );
+
+        // Assert: /SigFlags is set (SignaturesExist | AppendOnly).
+        final ltaPdfStr = String.fromCharCodes(ltaPdf);
+        final sigFlagsMatch = RegExp(
+          r'/SigFlags\s+(\d+)',
+        ).firstMatch(ltaPdfStr);
+        expect(sigFlagsMatch, isNotNull);
+        expect(int.parse(sigFlagsMatch!.group(1)!) & 3, equals(3));
+
+        // Assert: the DocTimeStamp's own /ByteRange covers everything in
+        // the final file except its own /Contents hex.
+        final byteRangeMatches = RegExp(
+          r'/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]',
+        ).allMatches(ltaPdfStr).toList();
+        expect(byteRangeMatches, isNotEmpty);
+        final lastMatch = byteRangeMatches.last;
+        final start1 = int.parse(lastMatch.group(1)!);
+        final length1 = int.parse(lastMatch.group(2)!);
+        final start2 = int.parse(lastMatch.group(3)!);
+        final length2 = int.parse(lastMatch.group(4)!);
+
+        final contentsStart = ltaPdfStr.indexOf(
+          '<',
+          start1 + length1,
+        ); // the '<' right after range 1 ends
+        expect(start1, 0);
+        expect(start1 + length1, contentsStart);
+        expect(start2, greaterThan(contentsStart));
+        expect(start2 + length2, ltaPdf.length);
+      },
+    );
+
     test('hash correctness: TSA receives correct byte ranges', () async {
       // Arrange
       final pdf = buildSyntheticSignedPdf();
@@ -315,14 +376,15 @@ void main() {
           (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
         );
 
-        // Parse the request to extract hash
+        // Parse the request to extract hash and nonce
         final parser = ASN1Parser(body);
         final reqSeq = parser.nextObject() as ASN1Sequence;
         final msgImprint = reqSeq.elements![1] as ASN1Sequence;
         final hashedMessage = msgImprint.elements![1] as ASN1OctetString;
         capturedHash = hashedMessage.octets!;
+        final nonce = _extractRequestNonce(reqSeq);
 
-        return _buildTsaResponse(capturedHash!);
+        return _buildTsaResponse(capturedHash!, nonce: nonce);
       }
 
       await server.close(force: true);
@@ -392,21 +454,44 @@ shelf.Handler _createTsaHandler() {
       (chunks) => Uint8List.fromList(chunks.expand((c) => c).toList()),
     );
 
-    // Parse the request to extract hash
+    // Parse the request to extract hash and nonce
     final parser = ASN1Parser(body);
     final reqSeq = parser.nextObject() as ASN1Sequence;
     final msgImprint = reqSeq.elements![1] as ASN1Sequence;
     final hashedMessage = msgImprint.elements![1] as ASN1OctetString;
     final hash = hashedMessage.octets!;
+    final nonce = _extractRequestNonce(reqSeq);
 
-    return _buildTsaResponse(hash);
+    return _buildTsaResponse(hash, nonce: nonce);
   };
 }
 
-/// Build a valid TimeStampResp with granted status.
-shelf.Response _buildTsaResponse(Uint8List hash) {
+/// Extracts the raw nonce bytes from a TimeStampReq, if present
+/// (TspClient.timestampData always sends one — see tsp_client.dart §6).
+Uint8List? _extractRequestNonce(ASN1Sequence reqSeq) {
+  for (int i = 2; i < reqSeq.elements!.length; i++) {
+    if (reqSeq.elements![i] is ASN1Integer) {
+      final nonceInt = (reqSeq.elements![i] as ASN1Integer).integer;
+      if (nonceInt != null && nonceInt != BigInt.zero) {
+        final out = <int>[];
+        var v = nonceInt;
+        while (v > BigInt.zero) {
+          out.insert(0, (v & BigInt.from(0xFF)).toInt());
+          v = v >> 8;
+        }
+        return Uint8List.fromList(out);
+      }
+    }
+  }
+  return null;
+}
+
+/// Build a valid TimeStampResp with granted status. [nonce], if given, is
+/// reflected into the TSTInfo so TspClient's mandatory nonce check
+/// (OC-06) passes.
+shelf.Response _buildTsaResponse(Uint8List hash, {Uint8List? nonce}) {
   // Build a minimal TimeStampToken (CMS SignedData)
-  final tstToken = _buildMinimalTimeStampToken(hash);
+  final tstToken = _buildMinimalTimeStampToken(hash, nonce: nonce);
 
   // Build TimeStampResp: SEQUENCE { status PKIStatusInfo, timeStampToken }
   final statusSeq = ASN1Sequence();
@@ -422,21 +507,52 @@ shelf.Response _buildTsaResponse(Uint8List hash) {
   );
 }
 
-/// Build a minimal TimeStampToken for testing.
-Uint8List _buildMinimalTimeStampToken(Uint8List hash) {
-  // Build a minimal CMS SignedData structure
-  // This is a simplified version for testing purposes
-
-  // TSTInfo: SEQUENCE { version, policy, messageImprint, serialNumber, genTime }
+/// Build a minimal, structurally-correct TimeStampToken for testing:
+/// ContentInfo { id-signedData, [0] EXPLICIT SignedData { ...,
+/// EncapsulatedContentInfo { id-ct-TSTInfo, [0] EXPLICIT TSTInfo }, ... } }
+/// with a real messageImprint over [hash] — the pieces `_parseTstInfo`
+/// (tsp_codec.dart) actually walks through, now that OC-06 makes a parse
+/// failure here fail the whole upgrade closed instead of silently
+/// leaving genTime/hash/nonce null.
+Uint8List _buildMinimalTimeStampToken(Uint8List hash, {Uint8List? nonce}) {
+  // TSTInfo ::= SEQUENCE { version, policy, messageImprint, serialNumber, genTime, ... }
   final tstInfo = ASN1Sequence();
   tstInfo.add(ASN1Integer(BigInt.one)); // version
   tstInfo.add(
+    ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'),
+  ); // policy
+
+  final msgImprint = ASN1Sequence();
+  final hashAlgo = ASN1Sequence();
+  hashAlgo.add(
+    ASN1ObjectIdentifier([2, 16, 840, 1, 101, 3, 4, 2, 1]),
+  ); // SHA-256
+  hashAlgo.add(ASN1Null());
+  msgImprint.add(hashAlgo);
+  msgImprint.add(ASN1OctetString(octets: hash));
+  tstInfo.add(msgImprint);
+
+  tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
+  tstInfo.add(_properGeneralizedTime(DateTime.now().toUtc())); // genTime
+
+  if (nonce != null) {
+    var value = BigInt.zero;
+    for (final byte in nonce) {
+      value = (value << 8) | BigInt.from(byte & 0xFF);
+    }
+    tstInfo.add(ASN1Integer(value)); // nonce
+  }
+
+  // EncapsulatedContentInfo ::= SEQUENCE {
+  //   eContentType OID, eContent [0] EXPLICIT OCTET STRING }
+  final encapContentInfo = ASN1Sequence();
+  encapContentInfo.add(
     ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4]),
   ); // id-ct-TSTInfo
-  tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
-  tstInfo.add(ASN1GeneralizedTime(DateTime.now())); // genTime
+  final eContentOctet = ASN1OctetString(octets: tstInfo.encode());
+  encapContentInfo.add(_explicitContext(0, eContentOctet.encode()));
 
-  // SignedData: SEQUENCE { version, digestAlgorithms, contentInfo, certificates, signerInfos }
+  // SignedData ::= SEQUENCE { version, digestAlgorithms, encapContentInfo, signerInfos }
   final signedData = ASN1Sequence();
   signedData.add(ASN1Integer(BigInt.from(3))); // version
 
@@ -450,18 +566,62 @@ Uint8List _buildMinimalTimeStampToken(Uint8List hash) {
   digestAlgos.add(sha256Algo);
   signedData.add(digestAlgos);
 
-  // contentInfo: SEQUENCE { contentType, content [0] }
-  final contentInfo = ASN1Sequence();
-  contentInfo.add(
-    ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 9, 16, 1, 4]),
-  ); // id-ct-TSTInfo
-  contentInfo.add(ASN1OctetString(octets: tstInfo.encode()));
-  signedData.add(contentInfo);
+  signedData.add(encapContentInfo);
 
   // signerInfos: SET OF SignerInfo (empty for testing)
   signedData.add(ASN1Set());
 
-  return signedData.encode();
+  // ContentInfo ::= SEQUENCE { contentType OID, [0] EXPLICIT content }
+  final contentInfo = ASN1Sequence();
+  contentInfo.add(
+    ASN1ObjectIdentifier([1, 2, 840, 113549, 1, 7, 2]),
+  ); // id-signedData
+  contentInfo.add(_explicitContext(0, signedData.encode()));
+
+  return contentInfo.encode();
+}
+
+/// Wraps raw DER [content] bytes with an explicit context-specific
+/// constructed tag [tagNumber] and re-parses it into an [ASN1Object] so
+/// it can be `.add()`-ed into another sequence.
+ASN1Object _explicitContext(int tagNumber, Uint8List content) {
+  final tag = 0xA0 | tagNumber;
+  final builder = BytesBuilder();
+  builder.addByte(tag);
+  if (content.length < 128) {
+    builder.addByte(content.length);
+  } else {
+    final lenBytes = <int>[];
+    var len = content.length;
+    while (len > 0) {
+      lenBytes.insert(0, len & 0xFF);
+      len >>= 8;
+    }
+    builder.addByte(0x80 | lenBytes.length);
+    builder.add(lenBytes);
+  }
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
+}
+
+/// Builds a DER-correct (zero-padded) GeneralizedTime ASN1 object.
+///
+/// pointycastle 4.0.0's `ASN1GeneralizedTime(dt).encode()` formats
+/// year/month/day/hour/minute/second via bare `int.toString()`, dropping
+/// leading zeros and producing bytes its own `fromBytes` cannot re-parse.
+/// Build valid DER by hand instead of tripping over the encoder bug.
+ASN1Object _properGeneralizedTime(DateTime dt) {
+  final utc = dt.toUtc();
+  String pad(int v, int w) => v.toString().padLeft(w, '0');
+  final s =
+      '${pad(utc.year, 4)}${pad(utc.month, 2)}${pad(utc.day, 2)}'
+      '${pad(utc.hour, 2)}${pad(utc.minute, 2)}${pad(utc.second, 2)}Z';
+  final content = Uint8List.fromList(s.codeUnits);
+  final builder = BytesBuilder();
+  builder.addByte(0x18); // GeneralizedTime tag
+  builder.addByte(content.length);
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
 }
 
 /// Build a TimeStampResp with rejection status.

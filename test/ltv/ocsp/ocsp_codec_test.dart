@@ -180,6 +180,73 @@ void main() {
       final extracted = extractBasicOcspResponse(ocspResponseDer);
       expect(extracted, isNull);
     });
+
+    // OC-05: ResponseData positional parsing (RFC 6960 §4.2.1). The
+    // `DEFINITIONS EXPLICIT TAGS` module means responderID's byName [1]
+    // and the optional responseExtensions [1] share the same outer tag,
+    // so these must be disambiguated by field position, not by tag alone.
+    group('ResponseData parsing (OC-05)', () {
+      test('version omitted, responderID byName, no extensions', () {
+        final der = _buildOcspResponse(includeVersion: false, byName: true);
+        final parsed = parseOcspResponse(der);
+        expect(parsed.status, OcspResponseStatus.successful);
+        expect(parsed.producedAt, isNotNull);
+        expect(parsed.responses, hasLength(1));
+        expect(parsed.responses.single.status, OcspCertStatus.good);
+        expect(parsed.respNonce, isNull);
+      });
+
+      test('version omitted, responderID byKey, no extensions', () {
+        final der = _buildOcspResponse(includeVersion: false, byName: false);
+        final parsed = parseOcspResponse(der);
+        expect(parsed.status, OcspResponseStatus.successful);
+        expect(parsed.producedAt, isNotNull);
+        expect(parsed.responses, hasLength(1));
+        expect(parsed.responses.single.status, OcspCertStatus.good);
+        expect(parsed.respNonce, isNull);
+      });
+
+      test('version present (v1), responderID byName, no extensions', () {
+        final der = _buildOcspResponse(includeVersion: true, byName: true);
+        final parsed = parseOcspResponse(der);
+        expect(parsed.status, OcspResponseStatus.successful);
+        expect(parsed.producedAt, isNotNull);
+        expect(parsed.responses, hasLength(1));
+      });
+
+      test('version omitted, responderID byName, with nonce extension', () {
+        final nonce = Uint8List.fromList([0xAA, 0xBB, 0xCC, 0xDD]);
+        final der = _buildOcspResponse(
+          includeVersion: false,
+          byName: true,
+          includeExtensions: true,
+          nonce: nonce,
+        );
+        final parsed = parseOcspResponse(der);
+        expect(parsed.status, OcspResponseStatus.successful);
+        expect(parsed.producedAt, isNotNull);
+        expect(parsed.responses, hasLength(1));
+        // Must not be misclassified: responderID (byName, tag 0xA1) is
+        // positional field #1, extensions (also tag 0xA1) is the last,
+        // optional field — only the real extensions carry the nonce.
+        expect(parsed.respNonce, equals(nonce));
+      });
+
+      test('version omitted, responderID byKey, with nonce extension', () {
+        final nonce = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7, 8]);
+        final der = _buildOcspResponse(
+          includeVersion: false,
+          byName: false,
+          includeExtensions: true,
+          nonce: nonce,
+        );
+        final parsed = parseOcspResponse(der);
+        expect(parsed.status, OcspResponseStatus.successful);
+        expect(parsed.producedAt, isNotNull);
+        expect(parsed.responses, hasLength(1));
+        expect(parsed.respNonce, equals(nonce));
+      });
+    });
   });
 }
 
@@ -278,4 +345,99 @@ Uint8List _buildOcspResponseWithWrongOid() {
   ocspResponse.add(explicit(0, responseBytes));
 
   return derEncode(ocspResponse);
+}
+
+/// Builds a synthetic, fully DER-correct BasicOCSPResponse for OC-05 tests,
+/// covering the optional [0] version, both ResponderID CHOICE arms, and the
+/// optional [1] responseExtensions carrying the nonce extension (RFC 6960
+/// §4.2.1).
+Uint8List _buildOcspResponse({
+  required bool includeVersion,
+  required bool byName,
+  bool includeExtensions = false,
+  Uint8List? nonce,
+}) {
+  // CertID
+  final certId = ASN1Sequence();
+  certId.add(algorithmIdentifier(Oid.sha1));
+  certId.add(ASN1OctetString(octets: Uint8List(20))); // issuerNameHash
+  certId.add(ASN1OctetString(octets: Uint8List(20))); // issuerKeyHash
+  certId.add(ASN1Integer(BigInt.one)); // serialNumber
+
+  // CertStatus ::= CHOICE { good [0] IMPLICIT NULL, ... }
+  final certStatus = ASN1Parser(Uint8List.fromList([0x80, 0x00])).nextObject();
+
+  final thisUpdate = _properGeneralizedTime(DateTime.utc(2026, 1, 1, 0, 0, 0));
+
+  final singleResponse = ASN1Sequence();
+  singleResponse.add(certId);
+  singleResponse.add(certStatus);
+  singleResponse.add(thisUpdate);
+
+  final responses = ASN1Sequence();
+  responses.add(singleResponse);
+
+  final responseData = ASN1Sequence();
+  if (includeVersion) {
+    responseData.add(explicit(0, ASN1Integer(BigInt.zero)));
+  }
+
+  // ResponderID ::= CHOICE { byName [1] Name, byKey [2] KeyHash }
+  if (byName) {
+    responseData.add(explicit(1, ASN1Sequence())); // empty RDNSequence
+  } else {
+    responseData.add(explicit(2, ASN1OctetString(octets: Uint8List(20))));
+  }
+
+  responseData.add(_properGeneralizedTime(DateTime.utc(2026, 1, 2, 0, 0, 0)));
+  responseData.add(responses);
+
+  if (includeExtensions) {
+    final nonceBytes = nonce ?? Uint8List.fromList([1, 2, 3, 4]);
+    final nonceExtValue = ASN1OctetString(octets: nonceBytes);
+    final nonceExt = ASN1Sequence();
+    nonceExt.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.ocspNonce));
+    nonceExt.add(ASN1OctetString(octets: nonceExtValue.encode()));
+    final extensions = ASN1Sequence();
+    extensions.add(nonceExt);
+    responseData.add(explicit(1, extensions));
+  }
+
+  final basicOcspResponse = ASN1Sequence();
+  basicOcspResponse.add(responseData);
+  basicOcspResponse.add(algorithmIdentifier(Oid.sha256WithRSA));
+  basicOcspResponse.add(ASN1BitString(stringValues: List<int>.filled(32, 0)));
+
+  final basicOcspResponseDer = derEncode(basicOcspResponse);
+
+  final responseBytes = ASN1Sequence();
+  responseBytes.add(ASN1ObjectIdentifier.fromIdentifierString(Oid.ocspBasic));
+  responseBytes.add(ASN1OctetString(octets: basicOcspResponseDer));
+
+  final ocspResponse = ASN1Sequence();
+  ocspResponse.add(ASN1Enumerated(0)); // successful
+  ocspResponse.add(explicit(0, responseBytes));
+
+  return derEncode(ocspResponse);
+}
+
+/// Builds a DER-correct (zero-padded) GeneralizedTime ASN1 object.
+///
+/// pointycastle 4.0.0's `ASN1GeneralizedTime(dt).encode()` formats
+/// year/month/day/hour/minute/second via bare `int.toString()`, dropping
+/// leading zeros and producing bytes its own `fromBytes` cannot re-parse
+/// (fixed-width substring offsets throw `RangeError`). Build valid DER by
+/// hand instead of tripping over the dependency's own encoder bug.
+ASN1Object _properGeneralizedTime(DateTime dt) {
+  final utc = dt.toUtc();
+  String pad(int v, int w) => v.toString().padLeft(w, '0');
+  final s =
+      '${pad(utc.year, 4)}${pad(utc.month, 2)}${pad(utc.day, 2)}'
+      '${pad(utc.hour, 2)}${pad(utc.minute, 2)}${pad(utc.second, 2)}Z';
+  final content = Uint8List.fromList(s.codeUnits);
+  final builder = BytesBuilder();
+  builder.addByte(0x18); // GeneralizedTime tag
+  builder.addByte(content.length);
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
 }

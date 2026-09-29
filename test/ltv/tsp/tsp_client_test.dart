@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/services/ltv/asn1/der.dart';
 import 'package:opencie/services/ltv/asn1/oids.dart';
 import 'package:opencie/services/ltv/tsp/tsp_client.dart';
+import 'package:opencie/services/ltv/tsp/tsp_models.dart';
 import 'package:pointycastle/asn1.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
@@ -52,9 +53,10 @@ void main() {
 
       final resp = await client.timestampData(tsaUrl, data);
 
-      // Assert: Note - nonce validation requires TSTInfo parsing which is complex
-      // For now, just verify the response is processed
-      expect(resp.timeStampToken, isNotNull);
+      // Assert: a nonce that doesn't match must fail closed (OC-06).
+      expect(resp.isSuccess, false);
+      expect(resp.status, TspStatus.rejection);
+      expect(resp.statusStrings.join(), contains('nonce mismatch'));
     });
 
     test('hash mismatch returns rejection', () async {
@@ -69,9 +71,10 @@ void main() {
 
       final resp = await client.timestampData(tsaUrl, data);
 
-      // Assert: Note - hash validation requires TSTInfo parsing which is complex
-      // For now, just verify the response is processed
-      expect(resp.timeStampToken, isNotNull);
+      // Assert: an imprint that doesn't match must fail closed (OC-06).
+      expect(resp.isSuccess, false);
+      expect(resp.status, TspStatus.rejection);
+      expect(resp.statusStrings.join(), contains('hash mismatch'));
     });
 
     test('server 500 throws TspException', () async {
@@ -105,6 +108,43 @@ void main() {
       expect(
         () => client.timestampData(tsaUrl, data),
         throwsA(isA<TspException>()),
+      );
+    });
+
+    // Medium/low LTV finding (REPORT.md §4, "LTV" section): TSP HTTP
+    // client had no pre-parse size cap, unlike CrlClient's existing
+    // 8 MB post-download check — a misbehaving/malicious TSA could force
+    // unbounded buffering of an untrusted body.
+    test('requestTimestamp throws when response exceeds maxBytes', () async {
+      // Arrange: a handler that returns an oversized (but otherwise
+      // well-formed HTTP 200) body.
+      await server.close(force: true);
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.ok(
+          Uint8List(2048),
+          headers: {'content-type': 'application/timestamp-reply'},
+        );
+      }
+
+      server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, 0);
+      tsaUrl = Uri.http('localhost:${server.port}', '/tsp');
+
+      final cappedClient = TspClient(maxBytes: 1024);
+      final req = TspRequest(
+        messageImprintHash: Uint8List(32),
+        hashAlgorithmOid: Oid.sha256,
+      );
+
+      // Assert
+      expect(
+        () => cappedClient.requestTimestamp(tsaUrl, req),
+        throwsA(
+          isA<TspException>().having(
+            (e) => e.message,
+            'message',
+            contains('exceeds max size'),
+          ),
+        ),
       );
     });
   });
@@ -359,7 +399,7 @@ Uint8List _buildTstToken({
   tstInfo.add(msgImprint);
 
   tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
-  tstInfo.add(ASN1GeneralizedTime(genTime)); // genTime
+  tstInfo.add(_properGeneralizedTime(genTime)); // genTime
 
   if (nonce != null) {
     // Encode nonce as INTEGER
@@ -436,4 +476,21 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
 
   result.add(content);
   return result.toBytes();
+}
+
+/// Builds a DER-correct (zero-padded) GeneralizedTime ASN1 object.
+/// See tsp_codec_test.dart's twin helper for why this can't use
+/// pointycastle's own `ASN1GeneralizedTime(dt)` constructor.
+ASN1Object _properGeneralizedTime(DateTime dt) {
+  final utc = dt.toUtc();
+  String pad(int v, int w) => v.toString().padLeft(w, '0');
+  final s =
+      '${pad(utc.year, 4)}${pad(utc.month, 2)}${pad(utc.day, 2)}'
+      '${pad(utc.hour, 2)}${pad(utc.minute, 2)}${pad(utc.second, 2)}Z';
+  final content = Uint8List.fromList(s.codeUnits);
+  final builder = BytesBuilder();
+  builder.addByte(0x18); // GeneralizedTime tag
+  builder.addByte(content.length);
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
 }

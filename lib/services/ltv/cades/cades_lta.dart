@@ -129,9 +129,15 @@ class CadesLtaUpgrader {
         // Re-encode the modified TST
         tstToken = tstSd.encode();
       } catch (e) {
-        // If ats-hash-index-v3 addition fails, log but continue with unaugmented TST
-        // (non-conformant but better than failing the entire upgrade)
-        // In production, this should be stricter.
+        // ats-hash-index-v3 protects the antecedent unsigned attributes
+        // (including prior timestamps) — an archive timestamp without it
+        // is not ETSI EN 319 122-1 §5.5.2 conformant. Previously this
+        // silently fell back to the unaugmented TST with no signal to
+        // the caller; fail the whole upgrade instead so callers don't
+        // ship a non-conformant C-LTA believing it succeeded.
+        throw CadesException(
+          'Failed to build ats-hash-index-v3 for archive timestamp: $e',
+        );
       }
 
       // 8. Build the archive-time-stamp-v3 unsigned attribute

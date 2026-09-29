@@ -72,10 +72,81 @@ class PadesLtaUpgrader {
 
     // Build placeholder DocTimeStamp dict with reserved /Contents and /ByteRange
     final placeholderDict = _buildPlaceholderDocTimeStampDict();
-    writer.addObject(placeholderDict);
+    final tsRef = writer.addObject(placeholderDict);
+
+    // Wire the DocTimeStamp into Catalog -> AcroForm -> Fields, with a
+    // widget annotation on a page (also referenced from that page's
+    // /Annots) and /SigFlags set. Per ETSI EN 319 142-1 §5.4 and ISO
+    // 32000-2 §12.8.5, a document time-stamp MUST be a proper signature
+    // field — a bare indirect /DocTimeStamp object with no field/widget
+    // wiring is invisible to conformant validators that walk the form
+    // tree (Adobe, EU DSS) even though it hashes and verifies fine on
+    // its own (OC-08).
+    final catalogRef = trailer.rootRef;
+    final catalogBody = _readObjectBody(pdfBytes, trailer, catalogRef);
+    if (catalogBody == null) {
+      throw PadesException('Could not read catalog object');
+    }
+    if (RegExp(r'/AcroForm\s*<<').hasMatch(catalogBody)) {
+      throw PadesException('inline /AcroForm dictionary is not supported');
+    }
+
+    final pageRef = reader.findFirstPageRef();
+    if (pageRef == null) {
+      throw PadesException(
+        'Could not find a page to attach the DocTimeStamp widget to',
+      );
+    }
+    final pageBody = _readObjectBody(pdfBytes, trailer, pageRef);
+    if (pageBody == null) {
+      throw PadesException('Could not read page object');
+    }
+
+    final widgetBody = _buildDocTimeStampWidgetDict(pageRef, tsRef);
+    final widgetRef = writer.addObject(widgetBody);
+
+    // AcroForm: reuse the existing indirect dictionary if present,
+    // otherwise create one and reference it from the Catalog.
+    final acroFormRefMatch = RegExp(
+      r'/AcroForm\s+(\d+)\s+(\d+)\s+R',
+    ).firstMatch(catalogBody);
+    String? newCatalogBody;
+    if (acroFormRefMatch != null) {
+      final acroFormRef = PdfRef(
+        int.parse(acroFormRefMatch.group(1)!),
+        int.parse(acroFormRefMatch.group(2)!),
+      );
+      final acroFormBody = _readObjectBody(pdfBytes, trailer, acroFormRef);
+      if (acroFormBody == null) {
+        throw PadesException('Could not read AcroForm object');
+      }
+      writer.updateObject(
+        acroFormRef,
+        _addFieldToAcroForm(acroFormBody, widgetRef),
+      );
+    } else {
+      final acroFormRef = writer.addObject(
+        _addFieldToAcroForm('<< /Fields [] >>', widgetRef),
+      );
+      final closingIdx = catalogBody.lastIndexOf('>>');
+      if (closingIdx < 0) {
+        throw PadesException('Catalog dict does not end with >>');
+      }
+      newCatalogBody =
+          '${catalogBody.substring(0, closingIdx)} '
+          '/AcroForm ${acroFormRef.objNum} ${acroFormRef.gen} R'
+          '${catalogBody.substring(closingIdx)}';
+    }
+    if (newCatalogBody != null) {
+      writer.updateObject(catalogRef, newCatalogBody);
+    }
+
+    // Page /Annots: a widget annotation must be discoverable from the
+    // page it's displayed on (ISO 32000-2 §12.5.2).
+    writer.updateObject(pageRef, _addAnnotToPage(pageBody, widgetRef));
 
     // Finalize to get candidate bytes
-    final candidateBytes = writer.finalize(rootRef: trailer.rootRef);
+    final candidateBytes = writer.finalize(rootRef: catalogRef);
 
     // Find the placeholder /ByteRange and /Contents in candidate bytes
     final byteRangeMatch = _findPlaceholderByteRange(candidateBytes);
@@ -320,5 +391,165 @@ class PadesLtaUpgrader {
     result.add(bytes.sublist(match.end - 1)); // include '>'
 
     return result.toBytes();
+  }
+
+  /// Builds a signature-field widget annotation for the DocTimeStamp,
+  /// per ISO 32000-2 §12.7.4.3 (Widget annotations) / §12.7.3.3
+  /// (Signature fields): `/FT /Sig`, `/V` pointing at the DocTimeStamp
+  /// signature dictionary, `/P` pointing at the hosting page. Uses a
+  /// near-zero (but non-degenerate) /Rect since a document time-stamp
+  /// has no visible appearance to render.
+  String _buildDocTimeStampWidgetDict(PdfRef pageRef, PdfRef tsRef) {
+    return '<< /Type /Annot /Subtype /Widget /FT /Sig '
+        '/Rect [0 0 1 1] /F 4 '
+        '/P ${pageRef.objNum} ${pageRef.gen} R '
+        '/V ${tsRef.objNum} ${tsRef.gen} R '
+        '/T (DocTimeStamp_${tsRef.objNum}) >>';
+  }
+
+  /// Appends [fieldRef] to the AcroForm's /Fields array (creating it if
+  /// absent) and ensures /SigFlags has SignaturesExist(1) | AppendOnly(2)
+  /// set (ISO 32000-2 §12.7.2, Table 225) so conformant viewers treat any
+  /// further incremental update as append-only rather than
+  /// signature-invalidating.
+  String _addFieldToAcroForm(String acroFormBody, PdfRef fieldRef) {
+    var updated = acroFormBody;
+
+    final fieldsArrayMatch = RegExp(
+      r'/Fields\s*\[([^\]]*)\]',
+    ).firstMatch(updated);
+    if (fieldsArrayMatch != null) {
+      final existing = fieldsArrayMatch.group(0)!;
+      final newFieldsArray =
+          '${existing.substring(0, existing.length - 1)} '
+          '${fieldRef.objNum} ${fieldRef.gen} R]';
+      updated = updated.replaceRange(
+        fieldsArrayMatch.start,
+        fieldsArrayMatch.end,
+        newFieldsArray,
+      );
+    } else if (RegExp(r'/Fields\s+\d+\s+\d+\s+R').hasMatch(updated)) {
+      throw PadesException(
+        'AcroForm /Fields as an indirect array is not supported',
+      );
+    } else {
+      final closingIdx = updated.lastIndexOf('>>');
+      if (closingIdx < 0) {
+        throw PadesException('AcroForm dict does not end with >>');
+      }
+      updated =
+          '${updated.substring(0, closingIdx)} '
+          '/Fields [${fieldRef.objNum} ${fieldRef.gen} R]'
+          '${updated.substring(closingIdx)}';
+    }
+
+    final sigFlagsMatch = RegExp(r'/SigFlags\s+(\d+)').firstMatch(updated);
+    if (sigFlagsMatch != null) {
+      final current = int.parse(sigFlagsMatch.group(1)!);
+      final merged = current | 3;
+      if (merged != current) {
+        updated = updated.replaceRange(
+          sigFlagsMatch.start,
+          sigFlagsMatch.end,
+          '/SigFlags $merged',
+        );
+      }
+    } else {
+      final closingIdx = updated.lastIndexOf('>>');
+      if (closingIdx < 0) {
+        throw PadesException('AcroForm dict does not end with >>');
+      }
+      updated =
+          '${updated.substring(0, closingIdx)} /SigFlags 3'
+          '${updated.substring(closingIdx)}';
+    }
+
+    return updated;
+  }
+
+  /// Appends [annotRef] to the page's /Annots array, creating it if
+  /// absent (ISO 32000-2 §12.5.2: a widget must be reachable from its
+  /// page's /Annots to be discoverable/interactive).
+  String _addAnnotToPage(String pageBody, PdfRef annotRef) {
+    final annotsArrayMatch = RegExp(
+      r'/Annots\s*\[([^\]]*)\]',
+    ).firstMatch(pageBody);
+    if (annotsArrayMatch != null) {
+      final existing = annotsArrayMatch.group(0)!;
+      final newAnnotsArray =
+          '${existing.substring(0, existing.length - 1)} '
+          '${annotRef.objNum} ${annotRef.gen} R]';
+      return pageBody.replaceRange(
+        annotsArrayMatch.start,
+        annotsArrayMatch.end,
+        newAnnotsArray,
+      );
+    }
+    if (RegExp(r'/Annots\s+\d+\s+\d+\s+R').hasMatch(pageBody)) {
+      throw PadesException(
+        'Page /Annots as an indirect array is not supported',
+      );
+    }
+    final closingIdx = pageBody.lastIndexOf('>>');
+    if (closingIdx < 0) {
+      throw PadesException('Page dict does not end with >>');
+    }
+    return '${pageBody.substring(0, closingIdx)} '
+        '/Annots [${annotRef.objNum} ${annotRef.gen} R]'
+        '${pageBody.substring(closingIdx)}';
+  }
+
+  /// Reads the raw dict body text of an existing indirect object (between
+  /// `N G obj` and `endobj`). Mirrors PadesLtUpgrader's identically-named
+  /// helper.
+  String? _readObjectBody(
+    Uint8List pdfBytes,
+    PdfTrailerInfo trailer,
+    PdfRef ref,
+  ) {
+    PdfXrefEntry? entry;
+    for (final e in trailer.xrefEntries) {
+      if (e.objNum == ref.objNum && e.inUse) {
+        entry = e;
+        break;
+      }
+    }
+    if (entry == null || entry.offset < 0 || entry.offset >= pdfBytes.length) {
+      return null;
+    }
+
+    int pos = entry.offset;
+    while (pos < pdfBytes.length && pdfBytes[pos] != 0x6F) {
+      // 'o'
+      pos++;
+    }
+    if (pos + 3 > pdfBytes.length) return null;
+    pos += 3; // skip "obj"
+
+    while (pos < pdfBytes.length && _isWhitespace(pdfBytes[pos])) {
+      pos++;
+    }
+
+    const endKeyword = 'endobj';
+    int endPos = pos;
+    while (endPos < pdfBytes.length - endKeyword.length) {
+      bool match = true;
+      for (int i = 0; i < endKeyword.length; i++) {
+        if (pdfBytes[endPos + i] != endKeyword.codeUnits[i]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) break;
+      endPos++;
+    }
+    if (endPos >= pdfBytes.length - endKeyword.length) return null;
+
+    return String.fromCharCodes(pdfBytes.sublist(pos, endPos)).trim();
+  }
+
+  /// Helper: is whitespace
+  bool _isWhitespace(int byte) {
+    return byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D;
   }
 }
