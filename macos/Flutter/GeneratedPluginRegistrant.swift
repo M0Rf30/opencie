@@ -7,7 +7,7 @@ import Foundation
 
 import app_links
 import desktop_drop
-import file_picker
+import file_picker_darwin
 import flutter_secure_storage_darwin
 import flutter_webrtc
 import mobile_scanner
