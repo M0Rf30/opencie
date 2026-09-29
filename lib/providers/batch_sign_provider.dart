@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/signature_options.dart';
 import '../services/batch_sign/batch_sign_models.dart';
 import '../services/batch_sign/batch_sign_service.dart';
+import '../services/sign/output_path_resolver.dart';
 
 class BatchSignNotifier extends Notifier<BatchSignState> {
   late BatchSignService _service;
@@ -43,15 +44,30 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     _service = BatchSignService();
     state = state.copyWith(isRunning: true);
 
+    final items = state.items;
+    // Pre-resolve every output path asynchronously (via the shared
+    // `resolveSignedOutputPath`, which uses package:path and knows about
+    // Android's app-private documents directory) since the batch service's
+    // `outputPathBuilder` callback itself must stay synchronous.
+    final outputPaths = <String, String>{};
+    for (final item in items) {
+      outputPaths[_pathKey(item.inputPath, item.format)] =
+          await resolveSignedOutputPath(item.inputPath, item.format);
+    }
+
     _subscription = _service
         .run(
-          items: state.items,
+          items: items,
           pin: pin,
           pan: pan,
           outputPathBuilder: (inputPath, format) {
-            // Synchronous wrapper - we'll use the async version in a blocking way
-            // For batch signing, we resolve paths upfront
-            return _resolvePathSync(inputPath, format);
+            final key = _pathKey(inputPath, format);
+            final resolved = outputPaths[key];
+            assert(
+              resolved != null,
+              'output path was not pre-resolved for $inputPath ($format)',
+            );
+            return resolved ?? inputPath;
           },
         )
         .listen(
@@ -68,44 +84,8 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     _service.cancel();
   }
 
-  /// Synchronous path resolution (simplified for batch mode).
-  /// In production, paths should be pre-resolved before starting the batch.
-  String _resolvePathSync(String inputPath, SignatureFormat format) {
-    // This is a simplified sync version - in real usage, paths should be
-    // resolved asynchronously before calling start()
-    final lastSlash = inputPath.lastIndexOf('/');
-    final dir = lastSlash >= 0 ? inputPath.substring(0, lastSlash) : '.';
-    final fileName = lastSlash >= 0
-        ? inputPath.substring(lastSlash + 1)
-        : inputPath;
-
-    final baseName = format == SignatureFormat.pades
-        ? fileName
-        : _stripSignatureExtension(fileName);
-    final signedName = format == SignatureFormat.pades
-        ? _addSignedSuffix(baseName)
-        : '$baseName${format.extension}';
-
-    return '$dir/$signedName';
-  }
-
-  String _addSignedSuffix(String name) {
-    final lastDot = name.lastIndexOf('.');
-    if (lastDot < 0) return '${name}_signed';
-    final base = name.substring(0, lastDot);
-    final ext = name.substring(lastDot);
-    return '${base}_signed$ext';
-  }
-
-  String _stripSignatureExtension(String name) {
-    const extensions = ['.p7m', '.xml'];
-    for (final ext in extensions) {
-      if (name.toLowerCase().endsWith(ext)) {
-        return name.substring(0, name.length - ext.length);
-      }
-    }
-    return name;
-  }
+  String _pathKey(String inputPath, SignatureFormat format) =>
+      '$inputPath::${format.name}';
 }
 
 final batchSignProvider = NotifierProvider<BatchSignNotifier, BatchSignState>(
