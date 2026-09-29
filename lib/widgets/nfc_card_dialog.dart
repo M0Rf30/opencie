@@ -100,6 +100,34 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackAttempt();
+      },
+      child: _buildDialogContent(context),
+    );
+  }
+
+  /// Routes a back-gesture / system-pop attempt through the same
+  /// cancel/dismiss-error callbacks a button tap would use, so callers'
+  /// busy flags and NFC sessions are always cleaned up consistently
+  /// regardless of how the user tries to leave the dialog.
+  void _handleBackAttempt() {
+    if (widget.errorNotifier?.value != null) {
+      widget.onDismissError?.call();
+      return;
+    }
+    final (waiting, _, _) = widget.notifier.value;
+    if (waiting) {
+      widget.onCancel?.call();
+    }
+    // Else: mid-processing (card tapped, native call running) with no
+    // cancel affordance — intentionally not poppable.
+  }
+
+  Widget _buildDialogContent(BuildContext context) {
     final errorNotifier = widget.errorNotifier;
     if (errorNotifier == null) return _buildContent(context);
     return ValueListenableBuilder<String?>(

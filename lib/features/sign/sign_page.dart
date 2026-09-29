@@ -233,7 +233,21 @@ class _SignPageState extends ConsumerState<SignPage> {
         errorNotifier: _errorNotifier,
         onDismissError: _dismissNfcError,
       ),
-    ).whenComplete(() => _nfcDialogOpen = false);
+    ).whenComplete(() {
+      _nfcDialogOpen = false;
+      // Safety net: if the dialog route ended up closing through some path
+      // other than onCancel/onDismissError/_executeSign's finally (e.g. a
+      // Navigator.pop triggered from elsewhere), still reset the busy
+      // flags so the Sign button doesn't stay stuck disabled.
+      if (mounted && (_waitingCard || _pendingPin != null)) {
+        setState(() {
+          _waitingCard = false;
+          _pendingPin = null;
+          _pendingOptions = null;
+          _isSigning = false;
+        });
+      }
+    });
   }
 
   void _closeNfcDialog() {
