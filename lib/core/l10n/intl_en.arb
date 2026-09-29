@@ -71,6 +71,7 @@
 
   "settingsTitle": "Settings",
   "settingsSubtitle": "Preferences applied to every operation",
+  "secureStorageUnavailableWarning": "Secure storage isn't available on this system — enrolled cards and sign-in tokens won't be saved across restarts. Install and start a Secret Service provider (e.g. GNOME Keyring or KeePassXC) to fix this.",
   "settingsGeneral": "General",
   "settingsSignature": "Signature",
   "settingsTsa": "Timestamp (TSA)",

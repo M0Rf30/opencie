@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/l10n/app_localizations.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/oidc/discovery.dart';
 import '../../services/oidc/oidc_session.dart';
 import '../../services/oidc/token_exchange.dart';
 import '../../services/oidc/token_refresher.dart';
 import '../../services/oidc/userinfo.dart';
+import '../../services/secure_store.dart';
 import '../../widgets/oc_gradient_button.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -49,7 +51,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final refresher = TokenRefresher(
         session: session,
         discovery: discovery,
-        onRefreshed: (refreshed) => OidcSession.save(refreshed),
+        onRefreshed: (refreshed) => _saveSession(refreshed),
       );
       final userinfoEndpoint = discovery.userinfoEndpoint;
       if (userinfoEndpoint != null) {
@@ -74,7 +76,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
     } on TokenRefreshException catch (e) {
       if (e.isTerminal) {
-        await OidcSession.clear();
+        await _clearSession();
         if (mounted) {
           context.go('/login');
         }
@@ -117,9 +119,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
     if (confirmed != true) return;
 
-    await OidcSession.clear();
+    await _clearSession();
     if (mounted) {
       context.go('/login');
+    }
+  }
+
+  /// Persists a refreshed session, tolerating a secure store that can't be
+  /// reached (locked keyring, no Secret Service). The refreshed tokens stay
+  /// in memory for this run; only cross-restart persistence is affected.
+  Future<void> _saveSession(OidcSession session) async {
+    try {
+      await OidcSession.save(session);
+    } on SecureStoreException {
+      ref.read(settingsProvider.notifier).flagSecureStorageUnavailable();
+    }
+  }
+
+  /// Clears the persisted session, tolerating a secure store that can't be
+  /// reached. The app still treats the user as logged out for this run.
+  Future<void> _clearSession() async {
+    try {
+      await OidcSession.clear();
+    } on SecureStoreException {
+      ref.read(settingsProvider.notifier).flagSecureStorageUnavailable();
     }
   }
 

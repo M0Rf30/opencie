@@ -3,7 +3,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Thrown when a secure-storage write or delete fails at the platform layer
+/// Thrown when a secure-storage operation fails at the platform layer
 /// (locked keyring, missing Secret Service, corrupted entry, ...).
 class SecureStoreException implements Exception {
   SecureStoreException(this.message, this.cause);
@@ -16,11 +16,14 @@ class SecureStoreException implements Exception {
 /// Encrypted key-value storage backed by the OS keystore — Android Keystore,
 /// the Secret Service on Linux (via libsecret), Keychain on macOS/iOS, ...
 ///
-/// A platform failure while reading (locked keyring, no Secret Service
-/// running, a corrupted entry) must never crash the app or wedge login:
-/// [read] swallows [PlatformException] and returns null. Writes and deletes
-/// surface a [SecureStoreException] instead of failing silently — a
-/// silently-dropped write would otherwise look like a random logout later.
+/// A platform failure (locked keyring, no Secret Service running, a
+/// corrupted entry) must never crash the app or wedge login. Every
+/// operation surfaces a [SecureStoreException] instead of failing silently
+/// or pretending the store is empty — callers are expected to catch it and
+/// distinguish "the store is unavailable" from "there is nothing stored":
+/// a `null` return from [read] with no exception means the key is genuinely
+/// absent, while a thrown [SecureStoreException] means the store couldn't
+/// be reached at all and its content is unknown.
 class SecureStore {
   SecureStore._();
 
@@ -29,8 +32,11 @@ class SecureStore {
   static Future<String?> read(String key) async {
     try {
       return await _storage.read(key: key);
-    } on PlatformException {
-      return null;
+    } on PlatformException catch (e) {
+      throw SecureStoreException(
+        'Failed to read "$key" from secure storage',
+        e,
+      );
     }
   }
 

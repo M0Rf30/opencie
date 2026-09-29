@@ -189,6 +189,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
 
+          if (settings.secureStorageUnavailable)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Card(
+                  color: cs.tertiaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: cs.onTertiaryContainer,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            l10n.secureStorageUnavailableWarning,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: cs.onTertiaryContainer),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
           SliverPadding(
