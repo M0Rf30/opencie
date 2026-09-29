@@ -138,72 +138,86 @@ class _SignPageState extends ConsumerState<SignPage> {
   Future<void> _startSigning() async {
     if (_selectedFile == null || _isSigning || _waitingCard) return;
 
-    if (Platform.isAndroid) {
-      final nfcAvailable = await NfcService.instance.isAvailable;
-      if (!nfcAvailable && mounted) {
-        final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.cieNfcNotAvailable),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: l10n.nfcEnableButton,
-              onPressed: NfcService.instance.openNfcSettings,
+    // Set the busy guard synchronously, before any `await`, so a second
+    // tap arriving before the first `await` yields cannot slip past the
+    // guard check above and start a second concurrent signing flow.
+    setState(() => _isSigning = true);
+    var handedOff = false;
+    try {
+      if (Platform.isAndroid) {
+        final nfcAvailable = await NfcService.instance.isAvailable;
+        if (!nfcAvailable && mounted) {
+          final l10n = AppLocalizations.of(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(l10n.cieNfcNotAvailable),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: l10n.nfcEnableButton,
+                onPressed: NfcService.instance.openNfcSettings,
+              ),
             ),
-          ),
-        );
-        return;
+          );
+          return;
+        }
       }
-    }
 
-    final pin = await _showPinDialog();
-    if (pin == null) return;
+      final pin = await _showPinDialog();
+      if (pin == null) return;
 
-    var options = _options;
+      var options = _options;
 
-    final isPdf = _selectedFile?.toLowerCase().endsWith('.pdf') ?? false;
-    if (!isPdf && options.format == SignatureFormat.pades) {
-      options = options.copyWith(
-        format: SignatureFormat.cades,
-        graphicSignature: false,
-      );
-      setState(() => _options = options);
-    }
+      final isPdf = _selectedFile?.toLowerCase().endsWith('.pdf') ?? false;
+      if (!isPdf && options.format == SignatureFormat.pades) {
+        options = options.copyWith(
+          format: SignatureFormat.cades,
+          graphicSignature: false,
+        );
+        setState(() => _options = options);
+      }
 
-    if (options.graphicSignature &&
-        options.format == SignatureFormat.pades &&
-        options.imageData == null) {
-      try {
-        final bytes = await generateDefaultSignatureImage();
-        options = options.copyWith(imageData: bytes);
-        if (mounted) setState(() => _options = options);
-      } catch (_) {}
-    }
+      if (options.graphicSignature &&
+          options.format == SignatureFormat.pades &&
+          options.imageData == null) {
+        try {
+          final bytes = await generateDefaultSignatureImage();
+          options = options.copyWith(imageData: bytes);
+          if (mounted) setState(() => _options = options);
+        } catch (_) {}
+      }
 
-    if (Platform.isAndroid) {
-      setState(() {
-        _waitingCard = true;
-        _pendingPin = pin;
-        _pendingOptions = options;
-      });
-      _nfcNotifier.value = (true, 0.0, '');
-      _showNfcDialog();
-      NfcService.instance.startSession(
-        onTagDiscovered: _onCardDetectedForSign,
-        onTagFailed: () {
-          if (mounted) {
-            NfcService.instance.stopSession();
-            _errorNotifier.value = cieErrorMessage(
-              AppLocalizations.of(context),
-              CieErrorKind.cardCommunicationError,
-            );
-          }
-        },
-      );
-    } else {
-      _nfcNotifier.value = (false, 0.0, '');
-      _showNfcDialog();
-      await _executeSign(pin, options);
+      if (Platform.isAndroid) {
+        setState(() {
+          _waitingCard = true;
+          _pendingPin = pin;
+          _pendingOptions = options;
+        });
+        _nfcNotifier.value = (true, 0.0, '');
+        _showNfcDialog();
+        NfcService.instance.startSession(
+          onTagDiscovered: _onCardDetectedForSign,
+          onTagFailed: () {
+            if (mounted) {
+              NfcService.instance.stopSession();
+              _errorNotifier.value = cieErrorMessage(
+                AppLocalizations.of(context),
+                CieErrorKind.cardCommunicationError,
+              );
+            }
+          },
+        );
+        // Busy state now carries on via `_waitingCard` / `_onCardDetectedForSign`
+        // → `_executeSign`, or gets reset by `_cancelWaitCard`/`_dismissNfcError`.
+        handedOff = true;
+      } else {
+        _nfcNotifier.value = (false, 0.0, '');
+        _showNfcDialog();
+        await _executeSign(pin, options);
+        // `_executeSign` owns `_isSigning` for the remainder of this flow.
+        handedOff = true;
+      }
+    } finally {
+      if (!handedOff && mounted) setState(() => _isSigning = false);
     }
   }
 
@@ -236,6 +250,7 @@ class _SignPageState extends ConsumerState<SignPage> {
         _waitingCard = false;
         _pendingPin = null;
         _pendingOptions = null;
+        _isSigning = false;
       });
     }
   }
@@ -261,6 +276,7 @@ class _SignPageState extends ConsumerState<SignPage> {
         _waitingCard = false;
         _pendingPin = null;
         _pendingOptions = null;
+        _isSigning = false;
       });
     }
   }
@@ -269,7 +285,9 @@ class _SignPageState extends ConsumerState<SignPage> {
     if (_selectedFile == null) return;
     final l10n = AppLocalizations.of(context);
 
-    setState(() => _isSigning = true);
+    // `_isSigning` is already true here: `_startSigning` sets it
+    // synchronously before handing off to this method (directly on
+    // desktop, or via `_onCardDetectedForSign` on Android).
 
     String? successPath;
 
