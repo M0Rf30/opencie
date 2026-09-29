@@ -204,7 +204,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     // dialog (currently: NFC tag-read failure) instead of a SnackBar.
     final errorNotifier = ValueNotifier<String?>(null);
     bool dialogOpen = false;
-    Future<void>? dialogFuture;
+    var cleanedUp = false;
 
     void closeDialog() {
       if (dialogOpen && mounted) {
@@ -212,9 +212,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       }
     }
 
+    // Idempotent: resets `_isProcessing` and disposes the notifiers exactly
+    // once, however the dialog ends up closing (Cancel, dismiss-error,
+    // successful/failed operation, or a back-gesture/Navigator pop that
+    // bypasses all of the above).
+    void finishNfc() {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      nfcNotifier.dispose();
+      errorNotifier.dispose();
+      if (mounted) setState(() => _isProcessing = false);
+    }
+
     if (mounted) {
       dialogOpen = true;
-      dialogFuture = showDialog<void>(
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => NfcCardDialog(
@@ -223,24 +235,18 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onCancel: () async {
             await NfcService.instance.stopSession();
             closeDialog();
-            // Dispose only after the dialog route is fully gone.
-            dialogFuture?.whenComplete(() {
-              nfcNotifier.dispose();
-              errorNotifier.dispose();
-            });
-            if (mounted) setState(() => _isProcessing = false);
           },
           errorNotifier: errorNotifier,
-          onDismissError: () {
-            closeDialog();
-            dialogFuture?.whenComplete(() {
-              nfcNotifier.dispose();
-              errorNotifier.dispose();
-            });
-            if (mounted) setState(() => _isProcessing = false);
-          },
+          onDismissError: closeDialog,
         ),
-      ).whenComplete(() => dialogOpen = false);
+      ).whenComplete(() {
+        dialogOpen = false;
+        // Safety net: whatever closed the dialog route (including a
+        // back-gesture/Navigator pop that bypassed onCancel and
+        // onDismissError), make sure the busy flag and NFC session
+        // are still cleaned up.
+        finishNfc();
+      });
     }
 
     Future<void> runOperation() async {
@@ -252,12 +258,8 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       } finally {
         if (Platform.isAndroid) await NfcService.instance.stopSession();
         closeDialog();
-        // Dispose only after the dialog route is fully gone.
-        dialogFuture?.whenComplete(() {
-          nfcNotifier.dispose();
-          errorNotifier.dispose();
-        });
-        if (mounted) setState(() => _isProcessing = false);
+        // dialogFuture's whenComplete calls finishNfc() once the route is
+        // actually gone; nothing further to do here.
       }
     }
 
