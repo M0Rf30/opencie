@@ -500,6 +500,9 @@
 
      "cieProgressTimestamping": "Applicazione marca temporale…",
 
+     "timestampProgress": "Applicazione marca temporale {current} di {total}",
+     "@timestampProgress": { "placeholders": { "current": { "type": "int" }, "total": { "type": "int" } } },
+
      "timestampFailed": "Marcatura temporale fallita: {error}",
      "@timestampFailed": { "placeholders": { "error": { "type": "String" } } },
 
