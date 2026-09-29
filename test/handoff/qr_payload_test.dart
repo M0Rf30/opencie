@@ -110,30 +110,64 @@ void main() {
       },
     );
 
-    test('returns false when timestamp is older than 90 seconds', () {
+    test(
+      'returns false when timestamp is older than maxAge + clock skew tolerance',
+      () {
+        // Default maxAge=90s + clockSkew=2min => stale past 210s.
+        final p = _payload(
+          timestamp: DateTime.now().toUtc().subtract(
+            const Duration(seconds: 300),
+          ),
+        );
+        expect(p.isFresh(), isFalse);
+      },
+    );
+
+    test(
+      'a modest future timestamp (receiver clock behind sender) is accepted',
+      () {
+        // Within the default 2-minute clock-skew tolerance.
+        final p = _payload(
+          timestamp: DateTime.now().toUtc().add(const Duration(seconds: 30)),
+        );
+        expect(p.isFresh(), isTrue);
+      },
+    );
+
+    test('a future timestamp beyond the clock-skew tolerance is rejected', () {
       final p = _payload(
-        timestamp: DateTime.now().toUtc().subtract(
-          const Duration(seconds: 120),
-        ),
+        timestamp: DateTime.now().toUtc().add(const Duration(minutes: 5)),
       );
       expect(p.isFresh(), isFalse);
     });
 
-    test('returns false for a future timestamp (negative age)', () {
-      // age = now - futureTimestamp < 0; fails the age >= Duration.zero guard.
+    test('custom clockSkew widens the future-timestamp tolerance', () {
       final p = _payload(
-        timestamp: DateTime.now().toUtc().add(const Duration(seconds: 10)),
+        timestamp: DateTime.now().toUtc().add(const Duration(minutes: 5)),
       );
-      expect(p.isFresh(), isFalse);
+      expect(p.isFresh(clockSkew: const Duration(minutes: 10)), isTrue);
     });
 
-    test('custom maxAge is respected', () {
-      // 30-second window; 45-second-old payload is stale under that window.
+    test('custom maxAge is respected (skew tolerance still applies)', () {
+      // With clockSkew disabled, a 45s-old payload is stale under a 30s
+      // window but fresh under a 60s one.
       final p = _payload(
         timestamp: DateTime.now().toUtc().subtract(const Duration(seconds: 45)),
       );
-      expect(p.isFresh(maxAge: const Duration(seconds: 30)), isFalse);
-      expect(p.isFresh(maxAge: const Duration(seconds: 60)), isTrue);
+      expect(
+        p.isFresh(
+          maxAge: const Duration(seconds: 30),
+          clockSkew: Duration.zero,
+        ),
+        isFalse,
+      );
+      expect(
+        p.isFresh(
+          maxAge: const Duration(seconds: 60),
+          clockSkew: Duration.zero,
+        ),
+        isTrue,
+      );
     });
   });
 

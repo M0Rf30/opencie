@@ -18,6 +18,19 @@ enum HandoffPairingState {
   failed,
 }
 
+/// Transport abstraction consumed by [DesktopHandoffSession] and
+/// [PhoneHandoffSession]: a bidirectional binary channel with lifecycle
+/// state. [HandoffPairing] (real WebRTC) implements it directly; tests use
+/// an in-memory fake so the signing protocol/state machine can be
+/// exercised without a real peer connection.
+abstract class HandoffTransport {
+  Stream<HandoffPairingState> get states;
+  Stream<Uint8List> get messages;
+  Future<void> get channelOpen;
+  Future<void> send(Uint8List bytes);
+  Future<void> dispose();
+}
+
 /// One side of the desktop ↔ phone WebRTC P2P signing channel.
 ///
 /// This class only owns the transport: peer connection, ICE gathering,
@@ -41,7 +54,7 @@ enum HandoffPairingState {
 /// // show QR2 with answerSdp + ephemeral pubkey + sas commit
 /// // p.messages will start emitting once channel opens
 /// ```
-class HandoffPairing {
+class HandoffPairing implements HandoffTransport {
   HandoffPairing._({required this.isOfferer});
 
   factory HandoffPairing.offerer() => HandoffPairing._(isOfferer: true);
@@ -81,13 +94,16 @@ class HandoffPairing {
   HandoffPairingState get state => _state;
 
   /// Stream of state transitions. Useful for UI progress indicators.
+  @override
   Stream<HandoffPairingState> get states => _stateCtl.stream;
 
   /// Binary frames received over the data channel. The crypto layer above
   /// is responsible for decoding `seal`/`open` envelopes.
+  @override
   Stream<Uint8List> get messages => _messagesCtl.stream;
 
   /// Resolves once the underlying [RTCDataChannel] reaches the open state.
+  @override
   Future<void> get channelOpen => _channelOpen.future;
 
   void _transition(HandoffPairingState next) {
@@ -201,17 +217,45 @@ class HandoffPairing {
     return localSdp;
   }
 
+  /// High-water mark for [RTCDataChannel.bufferedAmount]: once the SCTP
+  /// send buffer is at or above this many bytes, [send] waits for it to
+  /// drain before handing over more data. Without this, chunked document
+  /// transfers (up to `HandoffLimits.maxDocumentBytes`) could be queued
+  /// into the data channel far faster than the wire can carry them,
+  /// ballooning memory and risking transport-level backpressure errors.
+  static const int _maxBufferedAmount = 256 * 1024; // 256 KiB
+
   /// Send a binary frame on the data channel. The frame is opaque to the
   /// transport; AEAD framing happens in the crypto layer above.
+  @override
   Future<void> send(Uint8List bytes) async {
     final dc = _dc;
     if (dc == null) {
       throw StateError('Data channel not yet established');
     }
+    await _waitForBufferDrain(dc);
     await dc.send(RTCDataChannelMessage.fromBinary(bytes));
   }
 
+  /// Polls [RTCDataChannel.bufferedAmount] until it drops back under
+  /// [_maxBufferedAmount]. Polling (rather than `onBufferedAmountLow`) keeps
+  /// this self-contained and easy to reason about for a channel that's
+  /// otherwise driven by a simple sequential chunk loop.
+  Future<void> _waitForBufferDrain(RTCDataChannel dc) async {
+    while (true) {
+      int buffered;
+      try {
+        buffered = await dc.getBufferedAmount();
+      } catch (_) {
+        buffered = dc.bufferedAmount ?? 0;
+      }
+      if (buffered <= _maxBufferedAmount) return;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
   /// Tear everything down. Safe to call multiple times.
+  @override
   Future<void> dispose() async {
     try {
       await _dc?.close();

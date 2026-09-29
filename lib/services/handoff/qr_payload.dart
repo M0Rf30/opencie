@@ -93,8 +93,18 @@ class HandoffQrPayload {
   }
 
   /// Whether the payload was created within [maxAge] of now.
-  bool isFresh({Duration maxAge = const Duration(seconds: 90)}) {
+  ///
+  /// Tolerates up to [clockSkew] of disagreement between the two devices'
+  /// clocks in *either* direction: a payload timestamped slightly in the
+  /// future (receiver's clock is behind the sender's) is accepted, not just
+  /// one timestamped in the past. Without this, any clock drift ahead of
+  /// the receiver made every QR look "stale" and unrecoverable short of
+  /// fixing the system clock.
+  bool isFresh({
+    Duration maxAge = const Duration(seconds: 90),
+    Duration clockSkew = const Duration(minutes: 2),
+  }) {
     final age = DateTime.now().toUtc().difference(timestamp);
-    return age >= Duration.zero && age <= maxAge;
+    return age >= -clockSkew && age <= maxAge + clockSkew;
   }
 }
