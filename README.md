@@ -55,9 +55,26 @@ runtime from Flathub automatically on first install. Card operations need
 sudo systemctl enable --now pcscd.socket
 ```
 
-### Android / macOS / Windows
+### Android
 
-Download the APK, `.dmg`, or installer from the [releases page](https://github.com/M0Rf30/opencie/releases).
+Install and auto-update via [Obtainium](https://github.com/ImranR98/Obtainium) — add the app with:
+
+```
+obtainium://add/https://github.com/M0Rf30/opencie
+```
+
+(or add it manually in Obtainium using the source URL `https://github.com/M0Rf30/opencie`).
+
+Obtainium tracks the per-ABI APK named `opencie-<version>-android-arm64-v8a.apk` on the
+[releases page](https://github.com/M0Rf30/opencie/releases); an `x86_64` build is published
+alongside it for x86_64 devices/emulators. There is no `armeabi-v7a` build — `libopencie-pkcs11`
+doesn't ship one. Release APKs are signed with the project's release key (see
+[Android release signing](#android-release-signing)); tag builds without a configured release
+key fail CI instead of shipping a debug-signed APK.
+
+### macOS / Windows
+
+Download the `.dmg` or installer from the [releases page](https://github.com/M0Rf30/opencie/releases).
 
 ## Getting Started
 
@@ -141,7 +158,7 @@ keyPassword=...
 | `KEY_ALIAS` | key alias (e.g. `opencie`) |
 | `KEY_PASSWORD` | key password |
 
-Without `KEYSTORE_BASE64` the workflow continues with a warning and produces a debug-signed APK/AAB — useful for PR builds, not for distribution. Keep the keystore and passwords offline; losing them means you can't ship updates that Android will accept as the same app.
+Without `KEYSTORE_BASE64`, PR/branch builds continue with a warning and produce a debug-signed APK/AAB (useful for local testing). Tag builds (`refs/tags/v*`) instead **fail CI** if the release keystore secrets aren't configured — the workflow never publishes a debug-signed release, and also verifies (via `apksigner verify --print-certs`) that the built APKs aren't signed with the Android Debug certificate before staging them. Keep the keystore and passwords offline; losing them means you can't ship updates that Android will accept as the same app.
 
 ## Usage
 
