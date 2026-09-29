@@ -501,6 +501,9 @@
 
     "cieProgressTimestamping": "Applying timestamp…",
 
+    "timestampProgress": "Applying timestamp {current} of {total}",
+    "@timestampProgress": { "placeholders": { "current": { "type": "int" }, "total": { "type": "int" } } },
+
     "timestampFailed": "Timestamping failed: {error}",
     "@timestampFailed": { "placeholders": { "error": { "type": "String" } } },
 

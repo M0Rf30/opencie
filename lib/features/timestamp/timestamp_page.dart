@@ -19,6 +19,7 @@ class TimestampPage extends ConsumerStatefulWidget {
 
 class _TimestampPageState extends ConsumerState<TimestampPage> {
   final List<String> _selectedFiles = [];
+  bool _isTimestamping = false;
 
   void _onFilesSelected(List<String> paths) {
     setState(() => _selectedFiles.addAll(paths));
@@ -29,73 +30,96 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
   }
 
   Future<void> _applyTimestamp() async {
-    if (_selectedFiles.isEmpty) return;
+    if (_selectedFiles.isEmpty || _isTimestamping) return;
     final l10n = AppLocalizations.of(context);
     final settings = ref.read(settingsProvider);
 
-    // Show progress dialog
-    if (!mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.cieProgressTimestamping),
-        content: const SizedBox(
-          height: 100,
-          child: Center(child: CircularProgressIndicator()),
+    setState(() => _isTimestamping = true);
+
+    final files = List<String>.of(_selectedFiles);
+    final total = files.length;
+    // 0-based index of the file currently being timestamped, driving the
+    // "i/N" title of the single batch-wide progress dialog below.
+    final progressNotifier = ValueNotifier<int>(0);
+    var dialogOpen = false;
+
+    if (mounted) {
+      dialogOpen = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => ValueListenableBuilder<int>(
+          valueListenable: progressNotifier,
+          builder: (context, current, _) => AlertDialog(
+            title: Text(
+              total > 1
+                  ? l10n.timestampProgress(current + 1, total)
+                  : l10n.cieProgressTimestamping,
+            ),
+            content: const SizedBox(
+              height: 100,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
         ),
-      ),
-    );
+      ).whenComplete(() => dialogOpen = false);
+    }
 
     try {
-      for (final file in _selectedFiles) {
-        final result = await OpenCiePkcs11.instance.timestamp(
-          inputPath: file,
-          tsaUrl: settings.tsaConfig.serverUrl,
-          tsaUsername: settings.tsaConfig.username.isEmpty
-              ? null
-              : settings.tsaConfig.username,
-          tsaPassword: settings.tsaConfig.password.isEmpty
-              ? null
-              : settings.tsaConfig.password,
-          outputPath: '$file.tsr',
-        );
-
-        if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop();
-
-        if (result.isSuccess) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.timestampSuccess),
-              behavior: SnackBarBehavior.floating,
-            ),
+      for (var i = 0; i < files.length; i++) {
+        progressNotifier.value = i;
+        final file = files[i];
+        try {
+          final result = await OpenCiePkcs11.instance.timestamp(
+            inputPath: file,
+            tsaUrl: settings.tsaConfig.serverUrl,
+            tsaUsername: settings.tsaConfig.username.isEmpty
+                ? null
+                : settings.tsaConfig.username,
+            tsaPassword: settings.tsaConfig.password.isEmpty
+                ? null
+                : settings.tsaConfig.password,
+            outputPath: '$file.tsr',
           );
-        } else {
+
+          if (!mounted) return;
+          if (result.isSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.timestampSuccess),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  l10n.timestampFailed(
+                    '0x${result.returnValue.toUnsigned(32).toRadixString(16)}',
+                  ),
+                ),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+        } catch (e) {
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                l10n.timestampFailed(
-                  '0x${result.returnValue.toUnsigned(32).toRadixString(16)}',
-                ),
-              ),
+              content: Text(l10n.timestampFailed(e.toString())),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
         }
       }
-    } catch (e) {
-      if (mounted) {
+    } finally {
+      if (dialogOpen && mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.timestampFailed(e.toString())),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
       }
+      progressNotifier.dispose();
+      if (mounted) setState(() => _isTimestamping = false);
     }
   }
 
@@ -269,7 +293,7 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
                           ),
                         ),
                         FilledButton.icon(
-                          onPressed: _applyTimestamp,
+                          onPressed: _isTimestamping ? null : _applyTimestamp,
                           icon: const Icon(Icons.schedule),
                           label: Text(l10n.timestampApplyButton),
                         ),
