@@ -209,4 +209,97 @@ void main() {
       expect(raw['enrolledCards'], isNotEmpty);
     });
   });
+
+  group('SettingsNotifier / TSA+proxy password secure storage (OC-19)', () {
+    test('a legacy plaintext TSA password is migrated into SecureStore and no '
+        'longer round-trips through the settings blob', () async {
+      SharedPreferences.setMockInitialValues({
+        'opencie_settings': jsonEncode({
+          'tsaConfig': {
+            'serverUrl': 'https://tsa.example/',
+            'username': 'alice',
+            'password': 'legacy-secret',
+          },
+        }),
+      });
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsProvider.notifier);
+      await notifier.load();
+
+      final state = container.read(settingsProvider);
+      expect(state.tsaConfig.password, 'legacy-secret');
+      expect(state.secureStorageUnavailable, isFalse);
+
+      final raw = await _rawSettings();
+      expect(
+        (raw['tsaConfig'] as Map).containsKey('password'),
+        isFalse,
+        reason:
+            'password must not round-trip through plaintext prefs '
+            'once migrated',
+      );
+
+      // A fresh notifier reading the same backing stores still sees the
+      // password, from SecureStore this time.
+      final container2 = ProviderContainer();
+      addTearDown(container2.dispose);
+      final notifier2 = container2.read(settingsProvider.notifier);
+      await notifier2.load();
+      expect(
+        container2.read(settingsProvider).tsaConfig.password,
+        'legacy-secret',
+      );
+    });
+
+    test('a secure-store write failure preserves the plaintext proxy password '
+        'in prefs instead of dropping it', () async {
+      SharedPreferences.setMockInitialValues({
+        'opencie_settings': jsonEncode({
+          'proxyConfig': {
+            'mode': 'manual',
+            'type': 'http',
+            'host': 'proxy.example',
+            'port': 8080,
+            'username': 'bob',
+            'password': 'proxy-secret',
+          },
+        }),
+      });
+      FlutterSecureStoragePlatform.instance = _FailingSecureStoragePlatform();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsProvider.notifier);
+      await notifier.load();
+
+      expect(container.read(settingsProvider).secureStorageUnavailable, isTrue);
+      expect(
+        container.read(settingsProvider).proxyConfig.password,
+        'proxy-secret',
+      );
+
+      // The plaintext copy must survive a subsequent save too, not just
+      // the initial migration attempt.
+      await notifier.update((s) => s.copyWith(uiScale: 1.15));
+      final raw = await _rawSettings();
+      expect((raw['proxyConfig'] as Map)['password'], 'proxy-secret');
+    });
+  });
+
+  group('SettingsNotifier._save awaited (OC-20)', () {
+    test('update() awaits the underlying save: state is persisted by the '
+        'time the call returns', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsProvider.notifier);
+      await notifier.load();
+
+      await notifier.update((s) => s.copyWith(uiScale: 1.30));
+
+      final raw = await _rawSettings();
+      expect(raw['uiScale'], 1.30);
+    });
+  });
 }
