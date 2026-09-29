@@ -27,6 +27,8 @@ class NfcCardDialog extends StatefulWidget {
     this.onCancel,
     this.errorNotifier,
     this.onDismissError,
+    this.onRetry,
+    this.continueLabel,
     this.nfcDisabledNotifier,
     this.onOpenNfcSettings,
     this.onDismissNfcDisabled,
@@ -51,6 +53,18 @@ class NfcCardDialog extends StatefulWidget {
   /// Called when the user dismisses the error view shown via
   /// [errorNotifier]. Should be provided whenever [errorNotifier] is.
   final VoidCallback? onDismissError;
+
+  /// When non-null, shown alongside [onDismissError] as a "Retry" action on
+  /// the [errorNotifier] view — re-runs just the failed step (e.g. a chip
+  /// read) rather than closing the dialog outright. Null (the default)
+  /// preserves the plain dismiss-only error view.
+  final VoidCallback? onRetry;
+
+  /// Overrides the dismiss button's label on the [errorNotifier] view when
+  /// [onRetry] is set (e.g. "Continue without photo/MRZ" instead of
+  /// "Close"), so the two actions read as real alternatives. Ignored when
+  /// [onRetry] is null.
+  final String? continueLabel;
 
   /// True while Android NFC is off. Takes priority over [errorNotifier]:
   /// there is no point starting a card session, or showing a card-read
@@ -297,9 +311,27 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
+              if (widget.onRetry != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('nfcCardDialogRetry'),
+                    onPressed: widget.onRetry,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(l10n.commonRetry),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
+                  key: const ValueKey('nfcCardDialogDismiss'),
                   onPressed: widget.onDismissError,
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: cs.outlineVariant),
@@ -308,7 +340,7 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: Text(l10n.commonClose),
+                  child: Text(widget.continueLabel ?? l10n.commonClose),
                 ),
               ),
             ],

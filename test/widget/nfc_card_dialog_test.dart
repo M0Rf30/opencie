@@ -11,6 +11,8 @@ Future<void> _pumpDialog(
   required VoidCallback onCancel,
   ValueNotifier<String?>? errorNotifier,
   VoidCallback? onDismissError,
+  VoidCallback? onRetry,
+  String? continueLabel,
   ValueNotifier<bool>? nfcDisabledNotifier,
   VoidCallback? onOpenNfcSettings,
   VoidCallback? onDismissNfcDisabled,
@@ -33,6 +35,8 @@ Future<void> _pumpDialog(
                     onCancel: onCancel,
                     errorNotifier: errorNotifier,
                     onDismissError: onDismissError,
+                    onRetry: onRetry,
+                    continueLabel: continueLabel,
                     nfcDisabledNotifier: nfcDisabledNotifier,
                     onOpenNfcSettings: onOpenNfcSettings,
                     onDismissNfcDisabled: onDismissNfcDisabled,
@@ -111,6 +115,109 @@ void main() {
       },
     );
   });
+
+  group(
+    'NfcCardDialog chip-read-incomplete Retry / Continue (chip-read-ux)',
+    () {
+      testWidgets(
+        'shows Retry and a continue-without button when onRetry is set, and '
+        'Retry invokes onRetry',
+        (WidgetTester tester) async {
+          final notifier = ValueNotifier<(bool, double, String)>((
+            false,
+            1.0,
+            '',
+          ));
+          final errorNotifier = ValueNotifier<String?>(
+            'The chip read did not finish.',
+          );
+          var retried = false;
+          var dismissed = false;
+
+          await _pumpDialog(
+            tester,
+            notifier: notifier,
+            onCancel: () {},
+            errorNotifier: errorNotifier,
+            onDismissError: () => dismissed = true,
+            onRetry: () => retried = true,
+            continueLabel: 'Continue without',
+          );
+
+          expect(
+            find.byKey(const ValueKey('nfcCardDialogRetry')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('nfcCardDialogDismiss')),
+            findsOneWidget,
+          );
+          expect(find.text('Continue without'), findsOneWidget);
+
+          await tester.tap(find.byKey(const ValueKey('nfcCardDialogRetry')));
+          await tester.pump();
+
+          expect(retried, isTrue);
+          expect(dismissed, isFalse);
+        },
+      );
+
+      testWidgets(
+        'tapping the dismiss button invokes onDismissError, not onRetry',
+        (WidgetTester tester) async {
+          final notifier = ValueNotifier<(bool, double, String)>((
+            false,
+            1.0,
+            '',
+          ));
+          final errorNotifier = ValueNotifier<String?>('incomplete');
+          var retried = false;
+          var dismissed = false;
+
+          await _pumpDialog(
+            tester,
+            notifier: notifier,
+            onCancel: () {},
+            errorNotifier: errorNotifier,
+            onDismissError: () => dismissed = true,
+            onRetry: () => retried = true,
+            continueLabel: 'Continue without',
+          );
+
+          await tester.tap(find.byKey(const ValueKey('nfcCardDialogDismiss')));
+          await tester.pump();
+
+          expect(dismissed, isTrue);
+          expect(retried, isFalse);
+        },
+      );
+
+      testWidgets(
+        'no Retry button when onRetry is null (plain dismiss error)',
+        (WidgetTester tester) async {
+          final notifier = ValueNotifier<(bool, double, String)>((
+            false,
+            1.0,
+            '',
+          ));
+          final errorNotifier = ValueNotifier<String?>('boom');
+
+          await _pumpDialog(
+            tester,
+            notifier: notifier,
+            onCancel: () {},
+            errorNotifier: errorNotifier,
+            onDismissError: () {},
+          );
+
+          expect(
+            find.byKey(const ValueKey('nfcCardDialogRetry')),
+            findsNothing,
+          );
+        },
+      );
+    },
+  );
 
   group('NfcCardDialog NFC-disabled inline state (IO-10)', () {
     testWidgets('shows the inline settings button instead of the waiting '

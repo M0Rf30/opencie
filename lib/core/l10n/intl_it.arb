@@ -145,6 +145,7 @@
   "commonContinue": "Continua",
   "commonBack": "Indietro",
   "commonRefresh": "Aggiorna",
+  "commonRetry": "Riprova",
   "commonSearch": "Ricerca",
   "commonOpenFolder": "Apri cartella",
   "commonSelectFile": "Seleziona file",
@@ -516,6 +517,12 @@
 
       "cieReadingChip": "Lettura dati chip in corso\u2026",
      "cieReadFailed": "Impossibile leggere i dati del chip — riprovare",
+     "cieReadIncompletePcsc": "La lettura del chip non è terminata — la carta si è spostata sul lettore. Tieni ferma la carta sul lettore per circa 20 secondi e riprova.",
+     "cieReadIncompleteNfc": "La lettura del chip non è terminata. Tieni ferma la carta contro il retro del telefono, vicino all'antenna NFC, per circa 20 secondi, e riprova.",
+     "cieReadContinueWithout": "Continua senza",
+     "cieReadKeepStill": "Tieni ferma la carta — l'operazione può richiedere fino a 20 secondi.",
+     "cieReadChipAction": "Leggi dati chip",
+     "cieReadChipActionHint": "Foto e dati anagrafici dal chip mancanti.",
 
      "cieReadStarted": "Lettura della carta in corso…",
      "cieReadProgress": "Lettura carta: {percent}%",
