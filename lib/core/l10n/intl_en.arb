@@ -147,6 +147,7 @@
   "commonContinue": "Continue",
   "commonBack": "Back",
   "commonRefresh": "Refresh",
+  "commonRetry": "Retry",
   "commonSearch": "Search",
   "commonOpenFolder": "Open folder",
   "commonSelectFile": "Select file",
@@ -517,6 +518,12 @@
 
     "cieReadingChip": "Reading chip data\u2026",
    "cieReadFailed": "Could not read chip data — try again",
+   "cieReadIncompletePcsc": "The chip read didn't finish — the card moved on the reader. Keep the card still on the reader for about 20 seconds and try again.",
+   "cieReadIncompleteNfc": "The chip read didn't finish. Keep the card against the back of your phone, near the NFC antenna, without moving it for about 20 seconds, and try again.",
+   "cieReadContinueWithout": "Continue without",
+   "cieReadKeepStill": "Keep the card still — this can take up to 20 seconds.",
+   "cieReadChipAction": "Read chip data",
+   "cieReadChipActionHint": "Photo and personal data from the chip are missing.",
 
     "cieReadStarted": "Reading your card…",
     "cieReadProgress": "Reading card: {percent}%",

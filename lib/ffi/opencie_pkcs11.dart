@@ -643,9 +643,13 @@ class OpenCiePkcs11 {
 
   /// Read both DG1 (MRZ) and DG2 (photo) in a single PACE session.
   ///
-  /// Returns a record `(mrzBytes, photoBytes)`. Either element may be null on
-  /// error. Runs in a background isolate. Requires the card PIN.
-  Future<(Uint8List?, Uint8List?)> readDgs({
+  /// Returns a [CieReadDgsResult]: `mrzBytes`/`photoBytes` are set on
+  /// success (either may still be null if that DG was empty). On failure
+  /// `returnValue` is non-zero and `statusWord`/`nativeErrorKind` carry the
+  /// `cie_last_error` detail (when the loaded library exports it) so the
+  /// caller can classify the failure with [classifyCieError] instead of
+  /// swallowing it. Runs in a background isolate. Requires the card PIN.
+  Future<CieReadDgsResult> readDgs({
     required String pin,
     ValueChanged<CieProgress>? onProgress,
   }) async {
@@ -669,7 +673,14 @@ class OpenCiePkcs11 {
 
         try {
           final rv = fn(pinPtr, mrzPtr, mrzLenPtr, photoPtr, photoLenPtr);
-          if (rv != 0) return (null, null);
+          if (rv != 0) {
+            final err = lastNativeError();
+            return CieReadDgsResult(
+              returnValue: rv,
+              statusWord: err?.statusWord,
+              nativeErrorKind: err?.kind,
+            );
+          }
 
           final mrzLen = mrzLenPtr.value;
           final photoLen = photoLenPtr.value;
@@ -679,7 +690,11 @@ class OpenCiePkcs11 {
           final photoBytes = photoLen > 0
               ? Uint8List.fromList(photoPtr.asTypedList(photoLen))
               : null;
-          return (mrzBytes, photoBytes);
+          return CieReadDgsResult(
+            returnValue: rv,
+            mrzBytes: mrzBytes,
+            photoBytes: photoBytes,
+          );
         } finally {
           _wipeUtf8(pinPtr);
           calloc.free(pinPtr);
@@ -840,6 +855,31 @@ class CieResult {
   bool get isPinIncorrect => returnValue == AppConstants.ckrPinIncorrect;
 
   bool get isPinLocked => returnValue == AppConstants.ckrPinLocked;
+}
+
+/// Result of [OpenCiePkcs11.readDgs].
+///
+/// On success [mrzBytes]/[photoBytes] hold the raw TLV bytes for the DGs
+/// that were non-empty (either may legitimately be null). On failure
+/// [returnValue] is non-zero and [statusWord]/[nativeErrorKind] carry the
+/// `cie_last_error` detail, feeding [classifyCieError] the same way
+/// [CieResult] does for the other native calls.
+class CieReadDgsResult {
+  const CieReadDgsResult({
+    required this.returnValue,
+    this.mrzBytes,
+    this.photoBytes,
+    this.statusWord,
+    this.nativeErrorKind,
+  });
+
+  final int returnValue;
+  final Uint8List? mrzBytes;
+  final Uint8List? photoBytes;
+  final int? statusWord;
+  final int? nativeErrorKind;
+
+  bool get isSuccess => returnValue == AppConstants.ckrOk;
 }
 
 /// Progress event from a long-running CIE operation.

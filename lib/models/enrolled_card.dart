@@ -73,6 +73,13 @@ class EnrolledCard {
         : 'CIE ${pan.substring(pan.length > 6 ? pan.length - 6 : 0)}';
   }
 
+  /// True when either the MRZ (surname) or the portrait photo from the
+  /// chip has never been read — e.g. an enrolment whose chip read failed
+  /// (dropped RF link mid-PACE) or was skipped. Drives the "Read chip
+  /// data" action on the card page.
+  bool get missingChipData =>
+      photoBytes == null || mrzSurname == null || mrzSurname!.trim().isEmpty;
+
   EnrolledCard copyWith({
     String? pan,
     String? name,

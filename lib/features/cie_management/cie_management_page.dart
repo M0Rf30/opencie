@@ -20,6 +20,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/ltv/asn1/x509_cert.dart';
 import '../../services/nfc_service.dart';
 import '../../widgets/nfc_card_dialog.dart';
+import '../../widgets/pin_entry_dialog.dart';
 import '../../widgets/oc_pulse_rings.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_gradient_button.dart';
@@ -60,9 +61,11 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
   }
 }
 
-/// Read MRZ + photo from the chip and return an enriched card.
-/// Returns the original card unchanged if chip reading fails.
-Future<EnrolledCard> _enrichCardWithChip(
+/// Read MRZ + photo from the chip and return the outcome (what was read,
+/// and why not when incomplete). Never throws: chip-read failures are
+/// reported through [ChipReadOutcome.errorKind] rather than an exception,
+/// so callers can offer a retry instead of silently saving a partial card.
+Future<ChipReadOutcome> _readChip(
   EnrolledCard card,
   String pin, {
   ValueChanged<CieProgress>? onProgress,
@@ -74,11 +77,72 @@ Future<EnrolledCard> _enrichCardWithChip(
       onProgress: onProgress,
     );
   } catch (e) {
-    debugPrint(
-      '_enrichCardWithChip: chip enrich failed ($e), keeping card as-is',
+    debugPrint('_readChip: chip read failed ($e), keeping card as-is');
+    return ChipReadOutcome(
+      card: card,
+      mrzRead: false,
+      photoRead: false,
+      errorKind: CieErrorKind.cardCommunicationError,
     );
-    return card;
   }
+}
+
+/// True for [CieErrorKind]s that reflect the card's own PIN verification
+/// outcome (63Cx/6983 status words) rather than a transport failure.
+/// Retrying a chip read after one of these would re-run the PIN verify
+/// step and risk burning an extra wrong-PIN attempt, so callers must stop
+/// and surface the error instead of offering Retry — see PIN safety rules.
+bool isPinStatusErrorKind(CieErrorKind? kind) {
+  switch (kind) {
+    case CieErrorKind.wrongPin:
+    case CieErrorKind.pinBlocked:
+    case CieErrorKind.wrongPinFormat:
+    case CieErrorKind.pinExpired:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/// Shows the chip-read-incomplete state (missing MRZ and/or photo) as a
+/// standalone [NfcCardDialog] error view. When [allowRetry] is true (the
+/// default) a Retry action is shown alongside "Continue without"; pass
+/// false for a plain dismiss-only error view (e.g. after a PIN-status
+/// failure, where retrying would risk an extra wrong-PIN attempt).
+/// Returns true when the user chose Retry. Shared by the wizard and the
+/// post-enrolment dialog flow, and by the card-page "Read chip data"
+/// action.
+Future<bool> showChipReadIncompleteDialog(
+  BuildContext context,
+  String message, {
+  bool allowRetry = true,
+}) async {
+  if (!context.mounted) return false;
+  final l10n = AppLocalizations.of(context);
+  final notifier = ValueNotifier<(bool, double, String)>((false, 1.0, ''));
+  final errorNotifier = ValueNotifier<String?>(message);
+  var retry = false;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => NfcCardDialog(
+      notifier: notifier,
+      processingTitle: '',
+      errorNotifier: errorNotifier,
+      onDismissError: () =>
+          Navigator.of(dialogContext, rootNavigator: true).pop(),
+      onRetry: allowRetry
+          ? () {
+              retry = true;
+              Navigator.of(dialogContext, rootNavigator: true).pop();
+            }
+          : null,
+      continueLabel: allowRetry ? l10n.cieReadContinueWithout : null,
+    ),
+  );
+  notifier.dispose();
+  errorNotifier.dispose();
+  return retry;
 }
 
 class CieManagementPage extends ConsumerStatefulWidget {
@@ -316,6 +380,80 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     );
   }
 
+  /// Reads MRZ + photo, retrying (bounded, transport failures only — see
+  /// [ChipReadOutcome.errorKind], which [CieChipReader.readAndEnrich] never
+  /// sets from a PIN status word) until the read is complete or the user
+  /// picks "Continue without". Each attempt is a full fresh PACE/DH + SM
+  /// session via [_withNfc] (re-tap on Android, same reader session on
+  /// desktop).
+  Future<ChipReadOutcome> _readChipWithRetry({
+    required EnrolledCard card,
+    required String pin,
+    required String processingTitle,
+  }) async {
+    const maxRetries = 2;
+    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
+    for (var attempt = 0; ; attempt++) {
+      await _withNfc(processingTitle, (onProgress) async {
+        outcome = await _readChip(
+          outcome.card,
+          pin,
+          onProgress: (p) => onProgress(p.percent / 100.0, p.message),
+        );
+      });
+      if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
+      final l10n = AppLocalizations.of(context);
+      final pinStatusError = isPinStatusErrorKind(outcome.errorKind);
+      final message = pinStatusError
+          ? cieErrorMessage(l10n, outcome.errorKind!)
+          : (Platform.isAndroid
+                ? l10n.cieReadIncompleteNfc
+                : l10n.cieReadIncompletePcsc);
+      if (outcome.errorKind == CieErrorKind.wrongPin) {
+        PinThrottle.recordFailure();
+      }
+      final wantsRetry = await showChipReadIncompleteDialog(
+        context,
+        message,
+        allowRetry: !pinStatusError,
+      );
+      if (pinStatusError || !wantsRetry) break;
+    }
+    return outcome;
+  }
+
+  /// Card-page "Read chip data" action for an already-enrolled card
+  /// missing MRZ/photo: asks for the PIN (shared [PinEntryDialog] +
+  /// [PinThrottle]), reads the chip with the same bounded retry as
+  /// enrolment, and upserts the result by PAN.
+  Future<void> _readChipForCard(EnrolledCard card) async {
+    if (_isProcessing) return;
+    final l10n = AppLocalizations.of(context);
+    final pin = await PinEntryDialog.show(
+      context,
+      title: l10n.cieReadChipAction,
+    );
+    if (pin == null || !mounted) return;
+
+    final outcome = await _readChipWithRetry(
+      card: card,
+      pin: pin,
+      processingTitle: l10n.cieReadingChip,
+    );
+
+    if (!mounted) return;
+    final cards = upsertEnrolledCard(
+      ref.read(settingsProvider).enrolledCards,
+      outcome.card,
+    );
+    ref
+        .read(settingsProvider.notifier)
+        .update((s) => s.copyWith(enrolledCards: cards));
+    if (outcome.isComplete) {
+      _showSuccessSnackBar(l10n.cieEnrolledSuccess(outcome.card.displayName));
+    }
+  }
+
   Future<void> _showEnrollDialog() async {
     final pin = await showDialog<String>(
       context: context,
@@ -326,107 +464,55 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     final l10n = AppLocalizations.of(context);
     EnrolledCard? enrolledCard;
 
-    if (!Platform.isAndroid) {
-      // Desktop: single NFC session — enrol (0–40%), cert
-      // (40–50%), chip read (50–100%).
-      await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
-        final result = await OpenCiePkcs11.instance.enable(
-          pan: '',
-          pin: pin,
-          // cie_enable reports 0–100; map to 0–0.40
-          onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
+    // Phase 1 — enrol (0–40%) + cert (40–50%). Same shape on desktop and
+    // Android: on Android the NFC session ends here; on desktop the card
+    // stays on the reader so phase 2 below runs immediately after.
+    await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
+      final result = await OpenCiePkcs11.instance.enable(
+        pan: '',
+        pin: pin,
+        onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
+      );
+      if (result.isSuccess && result.enrolledPan != null) {
+        PinThrottle.reset();
+        var card = EnrolledCard(
+          pan: result.enrolledPan!,
+          name: result.enrolledName ?? '',
+          serial: result.enrolledSerial ?? '',
         );
-        if (result.isSuccess && result.enrolledPan != null) {
-          PinThrottle.reset();
-          var card = EnrolledCard(
-            pan: result.enrolledPan!,
-            name: result.enrolledName ?? '',
-            serial: result.enrolledSerial ?? '',
-          );
-          // Cert fetch: 40–50%
-          onProgress(0.42, l10n.cieEnrollingProgress);
-          card = await _enrichCardWithCert(card);
-          onProgress(0.50, l10n.cieEnrollingProgress);
-          // Chip read: 50–100%
-          card = await _enrichCardWithChip(
-            card,
-            pin,
-            onProgress: (p) =>
-                onProgress(0.50 + p.percent / 100.0 * 0.50, p.message),
-          );
-          enrolledCard = card;
-        } else if (!result.isSuccess) {
-          if (classifyCieError(
-                result.returnValue,
-                nativeErrorKind: result.nativeErrorKind,
-              ) ==
-              CieErrorKind.wrongPin) {
-            PinThrottle.recordFailure();
-          }
-          _showErrorSnackBar(
-            cieErrorMessage(
-              l10n,
-              classifyCieError(
-                result.returnValue,
-                nativeErrorKind: result.nativeErrorKind,
-              ),
-              remainingAttempts: result.remainingAttempts,
-            ),
-          );
-        }
-      });
-    } else {
-      // Android: Phase 1 — enrol (0–40%) + cert (40–50%).
-      await _withNfc(l10n.cieEnrollingProgress, (onProgress) async {
-        final result = await OpenCiePkcs11.instance.enable(
-          pan: '',
-          pin: pin,
-          onProgress: (p) => onProgress(p.percent / 100.0 * 0.40, p.message),
-        );
-        if (result.isSuccess && result.enrolledPan != null) {
-          PinThrottle.reset();
-          var card = EnrolledCard(
-            pan: result.enrolledPan!,
-            name: result.enrolledName ?? '',
-            serial: result.enrolledSerial ?? '',
-          );
-          onProgress(0.42, l10n.cieEnrollingProgress);
-          card = await _enrichCardWithCert(card);
-          onProgress(0.50, l10n.cieEnrollingProgress);
-          enrolledCard = card;
-        } else if (!result.isSuccess) {
-          if (classifyCieError(
-                result.returnValue,
-                nativeErrorKind: result.nativeErrorKind,
-              ) ==
-              CieErrorKind.wrongPin) {
-            PinThrottle.recordFailure();
-          }
-          _showErrorSnackBar(
-            cieErrorMessage(
-              l10n,
-              classifyCieError(
-                result.returnValue,
-                nativeErrorKind: result.nativeErrorKind,
-              ),
-              remainingAttempts: result.remainingAttempts,
-            ),
-          );
-        }
-      });
-
-      if (enrolledCard != null) {
-        // Phase 2 — chip read (0–100% of second dialog).
-        var card = enrolledCard!;
-        await _withNfc(l10n.cieReadingChip, (onProgress) async {
-          card = await _enrichCardWithChip(
-            card,
-            pin,
-            onProgress: (p) => onProgress(p.percent / 100.0, p.message),
-          );
-        });
+        onProgress(0.42, l10n.cieEnrollingProgress);
+        card = await _enrichCardWithCert(card);
+        onProgress(0.50, l10n.cieEnrollingProgress);
         enrolledCard = card;
+      } else if (!result.isSuccess) {
+        if (classifyCieError(
+              result.returnValue,
+              nativeErrorKind: result.nativeErrorKind,
+            ) ==
+            CieErrorKind.wrongPin) {
+          PinThrottle.recordFailure();
+        }
+        _showErrorSnackBar(
+          cieErrorMessage(
+            l10n,
+            classifyCieError(
+              result.returnValue,
+              nativeErrorKind: result.nativeErrorKind,
+            ),
+            remainingAttempts: result.remainingAttempts,
+          ),
+        );
       }
+    });
+
+    if (enrolledCard != null) {
+      // Phase 2 — chip read, with bounded retry on transport failures.
+      final outcome = await _readChipWithRetry(
+        card: enrolledCard!,
+        pin: pin,
+        processingTitle: l10n.cieReadingChip,
+      );
+      enrolledCard = outcome.card;
     }
 
     if (enrolledCard == null) return;
@@ -798,6 +884,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                   onUnblockPin: _showUnblockPinDialog,
                   onInspectCertificate: () =>
                       _showCertificateDialog(context, cards[i]),
+                  onReadChip: () => _readChipForCard(cards[i]),
                 ),
               ),
               childCount: cards.length,
@@ -965,6 +1052,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                                 onInspectCertificate: () =>
                                     _showCertificateDialog(context, card),
                                 onRemove: () => _confirmRemove(context, card),
+                                onReadChip: () => _readChipForCard(card),
                               ),
                             ),
                           ),
@@ -1244,6 +1332,7 @@ class _CieActions extends StatelessWidget {
     required this.onUnblockPin,
     required this.onInspectCertificate,
     required this.onRemove,
+    this.onReadChip,
   });
 
   final EnrolledCard card;
@@ -1251,6 +1340,10 @@ class _CieActions extends StatelessWidget {
   final VoidCallback onUnblockPin;
   final VoidCallback onInspectCertificate;
   final VoidCallback onRemove;
+
+  /// Non-null only when [card.missingChipData]: reads MRZ + photo from
+  /// the chip (PIN-gated) and upserts the card in place.
+  final VoidCallback? onReadChip;
 
   String get _shortSerial {
     final s = card.serial;
@@ -1283,6 +1376,14 @@ class _CieActions extends StatelessWidget {
           subtitleMono: _shortSerial.isNotEmpty,
           onTap: onInspectCertificate,
         ),
+        if (card.missingChipData && onReadChip != null)
+          OcActionRow(
+            key: const ValueKey('readChipDataAction'),
+            leadingIcon: Icons.credit_card_outlined,
+            title: AppLocalizations.of(context).cieReadChipAction,
+            subtitle: AppLocalizations.of(context).cieReadChipActionHint,
+            onTap: onReadChip,
+          ),
         OcActionRow(
           leadingIcon: Icons.remove_circle_outline,
           title: 'Rimuovi carta',
@@ -1305,6 +1406,7 @@ class _CieHeroCard extends StatelessWidget {
     required this.onChangePin,
     required this.onUnblockPin,
     required this.onInspectCertificate,
+    this.onReadChip,
   });
 
   final EnrolledCard card;
@@ -1312,6 +1414,7 @@ class _CieHeroCard extends StatelessWidget {
   final VoidCallback onChangePin;
   final VoidCallback onUnblockPin;
   final VoidCallback onInspectCertificate;
+  final VoidCallback? onReadChip;
 
   @override
   Widget build(BuildContext context) {
@@ -1328,6 +1431,7 @@ class _CieHeroCard extends StatelessWidget {
           onUnblockPin: onUnblockPin,
           onInspectCertificate: onInspectCertificate,
           onRemove: onRemove,
+          onReadChip: onReadChip,
         ),
       ],
     );
@@ -1487,6 +1591,7 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
       _enrollMessage = '';
     });
 
+    EnrolledCard? pendingCard;
     try {
       final l10n = AppLocalizations.of(context);
       // Helper to update wizard progress bar + message.
@@ -1510,34 +1615,31 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
       );
       if (result.isSuccess && result.enrolledPan != null) {
         PinThrottle.reset();
-        var pendingCard = EnrolledCard(
+        var card = EnrolledCard(
           pan: result.enrolledPan!,
           name: result.enrolledName ?? '',
           serial: result.enrolledSerial ?? '',
         );
         // Cert fetch: 40–50%
         setProgress(0.42, l10n.cieProgressReadCertificate);
-        pendingCard = await _enrichCardWithCert(pendingCard);
+        card = await _enrichCardWithCert(card);
         setProgress(0.50, l10n.cieProgressReadCertificate);
 
-        // On desktop the card stays on the reader — read chip data immediately.
-        // On Android the NFC session is stopped in the finally block below;
-        // chip reading is skipped here and can be triggered later.
+        // On desktop the card stays on the reader — read chip data
+        // immediately, retrying (bounded) if the RF link drops mid-read.
+        // On Android the NFC session is stopped in the finally block
+        // below; chip reading runs as phase 2 after this block, prompting
+        // a second tap (same as _showEnrollDialog).
         if (!Platform.isAndroid) {
-          // Chip read: 50–100%
-          pendingCard = await _enrichCardWithChip(
-            pendingCard,
+          final outcome = await _readChipWithRetryLoop(
+            card,
             pin,
-            onProgress: (p) => setProgress(
-              0.50 + p.percent / 100.0 * 0.50,
-              l10n.localizeProgress(p.message),
-            ),
+            (frac, msg) => setProgress(0.50 + frac * 0.50, msg),
           );
+          card = outcome.card;
         }
 
-        _pendingCard = pendingCard;
-        setState(() => _step = _WizardStep.success);
-        _successCtrl.forward();
+        pendingCard = card;
       } else {
         if (classifyCieError(
               result.returnValue,
@@ -1563,6 +1665,98 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
       }
       if (mounted) setState(() => _enrolling = false);
     }
+
+    if (pendingCard == null) return;
+
+    if (Platform.isAndroid) {
+      // Phase 2 — prompt a second tap and read the chip, instead of
+      // skipping it: same behaviour as _showEnrollDialog's phase 2.
+      pendingCard = await _enrolChipReadPhase2(pendingCard, pin);
+    }
+
+    if (!mounted) return;
+    _pendingCard = pendingCard;
+    setState(() => _step = _WizardStep.success);
+    _successCtrl.forward();
+  }
+
+  /// Reads MRZ + photo, retrying (bounded to 2 attempts) via the shared
+  /// [showChipReadIncompleteDialog] Retry / "Continue without" prompt when
+  /// the read comes back incomplete. [setProgress] receives 0–1 fraction
+  /// and a localized message, already offset by the caller.
+  Future<ChipReadOutcome> _readChipWithRetryLoop(
+    EnrolledCard card,
+    String pin,
+    void Function(double frac, String msg) setProgress,
+  ) async {
+    const maxRetries = 2;
+    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
+    final l10n = AppLocalizations.of(context);
+    for (var attempt = 0; ; attempt++) {
+      outcome = await _readChip(
+        outcome.card,
+        pin,
+        onProgress: (p) =>
+            setProgress(p.percent / 100.0, l10n.localizeProgress(p.message)),
+      );
+      if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
+      final pinStatusError = isPinStatusErrorKind(outcome.errorKind);
+      final message = pinStatusError
+          ? cieErrorMessage(l10n, outcome.errorKind!)
+          : (Platform.isAndroid
+                ? l10n.cieReadIncompleteNfc
+                : l10n.cieReadIncompletePcsc);
+      if (outcome.errorKind == CieErrorKind.wrongPin) {
+        PinThrottle.recordFailure();
+      }
+      final wantsRetry = await showChipReadIncompleteDialog(
+        context,
+        message,
+        allowRetry: !pinStatusError,
+      );
+      if (pinStatusError || !wantsRetry) break;
+    }
+    return outcome;
+  }
+
+  /// Android phase 2 of enrolment: prompts a second card tap and reads
+  /// MRZ + photo (with the same bounded retry as [_showEnrollDialog]).
+  /// Returns [card] enriched with whatever was read; unchanged if NFC is
+  /// unavailable, the widget is disposed, or all retries are exhausted.
+  Future<EnrolledCard> _enrolChipReadPhase2(
+    EnrolledCard card,
+    String pin,
+  ) async {
+    if (!(widget.nfcAvailable ?? false) || !mounted) return card;
+    final l10n = AppLocalizations.of(context);
+    final completer = Completer<void>();
+    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
+
+    setState(() {
+      _enrolling = true;
+      _enrollProgress = 0;
+      _enrollMessage = l10n.wizardPlaceCardTitle;
+    });
+
+    NfcService.instance.startSession(
+      onTagDiscovered: () async {
+        if (completer.isCompleted) return;
+        outcome = await _readChipWithRetryLoop(outcome.card, pin, (frac, msg) {
+          if (mounted) {
+            setState(() {
+              _enrollProgress = frac;
+              _enrollMessage = msg;
+            });
+          }
+        });
+        await NfcService.instance.stopSession();
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+
+    await completer.future;
+    if (mounted) setState(() => _enrolling = false);
+    return outcome.card;
   }
 
   /// Navigate back one wizard step. No-op on welcome/success.
@@ -2086,7 +2280,22 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+          ],
+          if (_enrollProgress >= 0.5) ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Text(
+                l10n.cieReadKeepStill,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: cs.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
           ] else
             const SizedBox(height: 12),
           ClipRRect(
@@ -2219,6 +2428,37 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             ),
             textAlign: TextAlign.center,
           ),
+          if (card.missingChipData) ...[
+            const SizedBox(height: 16),
+            Container(
+              key: const ValueKey('chipDataMissingHint'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: theme.colorScheme.onErrorContainer,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      AppLocalizations.of(context).cieReadChipActionHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
         const SizedBox(height: 48),
         FilledButton.icon(

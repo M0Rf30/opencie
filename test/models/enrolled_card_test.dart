@@ -62,6 +62,44 @@ void main() {
     });
   });
 
+  group('missingChipData', () {
+    test('true when both photoBytes and mrzSurname are null', () {
+      const card = EnrolledCard(pan: '1', name: 'n', serial: 's');
+      expect(card.missingChipData, isTrue);
+    });
+
+    test('true when photo is missing even with mrz present', () {
+      const card = EnrolledCard(
+        pan: '1',
+        name: 'n',
+        serial: 's',
+        mrzSurname: 'ROSSI',
+      );
+      expect(card.missingChipData, isTrue);
+    });
+
+    test('true when mrz is missing even with photo present', () {
+      final card = EnrolledCard(
+        pan: '1',
+        name: 'n',
+        serial: 's',
+        photoBytes: Uint8List.fromList([1, 2, 3]),
+      );
+      expect(card.missingChipData, isTrue);
+    });
+
+    test('false once both mrz and photo are present', () {
+      final card = EnrolledCard(
+        pan: '1',
+        name: 'n',
+        serial: 's',
+        mrzSurname: 'ROSSI',
+        photoBytes: Uint8List.fromList([1, 2, 3]),
+      );
+      expect(card.missingChipData, isFalse);
+    });
+  });
+
   group('copyWith', () {
     test('sets lastUsed without touching other fields', () {
       const card = EnrolledCard(pan: '0000111122223333', name: 'MARIO ROSSI');

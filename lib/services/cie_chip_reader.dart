@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart' show ValueChanged, debugPrint;
 
 import '../ffi/opencie_pkcs11.dart';
 import '../models/enrolled_card.dart';
+import 'cie_error.dart';
 
 // ---------------------------------------------------------------------------
 // Public result types
@@ -287,52 +288,111 @@ class PhotoExtractor {
 // High-level reader
 // ---------------------------------------------------------------------------
 
+/// Outcome of [CieChipReader.readAndEnrich]: what was actually read from
+/// the chip, so callers can show a precise message instead of silently
+/// saving a card with missing photo/MRZ.
+class ChipReadOutcome {
+  const ChipReadOutcome({
+    required this.card,
+    required this.mrzRead,
+    required this.photoRead,
+    this.errorKind,
+  });
+
+  /// The card, enriched with whichever of MRZ/photo were read.
+  final EnrolledCard card;
+
+  /// True when EF.DG1 (MRZ) was read and parsed successfully.
+  final bool mrzRead;
+
+  /// True when EF.DG2 (photo) was read and extracted successfully.
+  final bool photoRead;
+
+  /// Classified reason MRZ and/or photo are missing, or null when both
+  /// were read (or the card had no PIN attempt — see [mrzRead]/[photoRead]).
+  final CieErrorKind? errorKind;
+
+  /// True when both MRZ and photo were read.
+  bool get isComplete => mrzRead && photoRead;
+}
+
 /// Reads DG1 (MRZ) and DG2 (photo) from the CIE chip and returns parsed data.
 class CieChipReader {
   const CieChipReader._();
 
-  /// Read chip data and return an [EnrolledCard] enriched with MRZ + photo.
+  /// Read chip data and return a [ChipReadOutcome] describing what was
+  /// read and, when something is missing, why.
   ///
   /// Uses [cie_read_dgs] to read DG1 and DG2 in a single PACE session.
-  /// If either read fails, the corresponding field in the result is null.
-  /// The original [card] is returned unchanged on total failure.
-  static Future<EnrolledCard> readAndEnrich({
+  /// Never throws for a failed/partial chip read: transport failures
+  /// (dropped RF link mid-DH-exchange, garbled secure-messaging frame,
+  /// etc.) are classified via [classifyCieError] and reported through
+  /// [ChipReadOutcome.errorKind] instead, so the UI can offer a retry
+  /// rather than silently saving an incomplete card.
+  static Future<ChipReadOutcome> readAndEnrich({
     required EnrolledCard card,
     required String pin,
     ValueChanged<CieProgress>? onProgress,
+
+    /// Injectable for tests. Defaults to [OpenCiePkcs11.instance.readDgs].
+    Future<CieReadDgsResult> Function({
+      required String pin,
+      ValueChanged<CieProgress>? onProgress,
+    })?
+    readDgs,
   }) async {
-    final pkcs11 = OpenCiePkcs11.instance;
+    final read = readDgs ?? OpenCiePkcs11.instance.readDgs;
 
     MrzData? mrz;
     Uint8List? photoBytes;
+    CieErrorKind? errorKind;
 
     try {
-      final (rawMrz, rawPhoto) = await pkcs11.readDgs(
-        pin: pin,
-        onProgress: onProgress,
-      );
+      final result = await read(pin: pin, onProgress: onProgress);
 
-      if (rawMrz != null && rawMrz.isNotEmpty) {
-        mrz = MrzParser.parse(rawMrz);
-      }
-      if (rawPhoto != null && rawPhoto.isNotEmpty) {
-        photoBytes = PhotoExtractor.extract(rawPhoto);
+      if (!result.isSuccess) {
+        errorKind = classifyCieError(
+          result.returnValue,
+          statusWord: result.statusWord,
+          nativeErrorKind: result.nativeErrorKind,
+        );
+      } else {
+        final rawMrz = result.mrzBytes;
+        final rawPhoto = result.photoBytes;
+        if (rawMrz != null && rawMrz.isNotEmpty) {
+          mrz = MrzParser.parse(rawMrz);
+        }
+        if (rawPhoto != null && rawPhoto.isNotEmpty) {
+          photoBytes = PhotoExtractor.extract(rawPhoto);
+        }
+        if (mrz == null || photoBytes == null) {
+          // Native call reported success but a DG came back empty: still
+          // surface a generic communication error rather than pretending
+          // nothing is wrong.
+          errorKind = CieErrorKind.cardCommunicationError;
+        }
       }
     } catch (e) {
       debugPrint(
         'CieChipReader.readAndEnrich: chip read failed (mrz/photo unavailable): $e',
       );
-      // Intentional: NFC/PACE read failures must not crash the enrolment UI;
-      // unread fields remain null and the original card is returned below.
+      errorKind = CieErrorKind.cardCommunicationError;
     }
 
-    if (mrz == null && photoBytes == null) return card;
+    final enrichedCard = (mrz == null && photoBytes == null)
+        ? card
+        : card.copyWith(
+            mrzSurname: mrz?.surname,
+            mrzGivenNames: mrz?.givenNames,
+            mrzExpiry: mrz?.expiry,
+            photoBytes: photoBytes,
+          );
 
-    return card.copyWith(
-      mrzSurname: mrz?.surname,
-      mrzGivenNames: mrz?.givenNames,
-      mrzExpiry: mrz?.expiry,
-      photoBytes: photoBytes,
+    return ChipReadOutcome(
+      card: enrichedCard,
+      mrzRead: mrz != null,
+      photoRead: photoBytes != null,
+      errorKind: (mrz != null && photoBytes != null) ? null : errorKind,
     );
   }
 }
