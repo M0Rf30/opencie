@@ -44,11 +44,14 @@ class TsaConfig {
     );
   }
 
+  /// Deliberately omits [password]: TSA credentials are persisted
+  /// separately in [SecureStore] (OC-19), not in the plaintext settings
+  /// blob. [SettingsNotifier._save] preserves any pre-existing legacy
+  /// plaintext password on a secure-write failure.
   Map<String, dynamic> toJson() => {
     'serverUrl': serverUrl,
     'fallbackUrl': fallbackUrl,
     'username': username,
-    'password': password,
     'policyOid': policyOid,
     'autoSummerTime': autoSummerTime,
   };

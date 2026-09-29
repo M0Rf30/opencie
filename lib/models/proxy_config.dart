@@ -50,13 +50,16 @@ class ProxyConfig {
     );
   }
 
+  /// Deliberately omits [password]: proxy credentials are persisted
+  /// separately in [SecureStore] (OC-19), not in the plaintext settings
+  /// blob. [SettingsNotifier._save] preserves any pre-existing legacy
+  /// plaintext password on a secure-write failure.
   Map<String, dynamic> toJson() => {
     'mode': mode.name,
     'type': type.name,
     'host': host,
     'port': port,
     'username': username,
-    'password': password,
   };
 
   factory ProxyConfig.fromJson(Map<String, dynamic> json) => ProxyConfig(

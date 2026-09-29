@@ -217,6 +217,41 @@ _loadEnrolledCards(Map<String, dynamic> settingsMap) async {
   }
 }
 
+/// Reads a single secret string (TSA/proxy password) from [SecureStore],
+/// migrating a plaintext [legacyValue] from the settings blob into the
+/// secure store once. Mirrors [_loadEnrolledCards]'s availability handling:
+/// a read failure means "unavailable", not "absent", so callers neither
+/// discard the legacy plaintext value nor attempt a migration write that
+/// would only fail the same way. The legacy plaintext value keeps being
+/// used in-memory (and preserved in the settings blob by
+/// [SettingsNotifier._save]) until a migration write actually succeeds.
+Future<({String value, bool migrated, bool unavailable})> _loadSecret(
+  String key,
+  String legacyValue,
+) async {
+  String? stored;
+  var unavailable = false;
+  try {
+    stored = await SecureStore.read(key);
+  } on SecureStoreException {
+    unavailable = true;
+  }
+  if (stored != null) {
+    return (value: stored, migrated: false, unavailable: false);
+  }
+
+  if (legacyValue.isEmpty || unavailable) {
+    return (value: legacyValue, migrated: false, unavailable: unavailable);
+  }
+
+  try {
+    await SecureStore.write(key, legacyValue);
+    return (value: legacyValue, migrated: true, unavailable: false);
+  } on SecureStoreException {
+    return (value: legacyValue, migrated: false, unavailable: true);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
@@ -230,6 +265,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   static const _prefsKey = 'opencie_settings';
   static const _enrolledCardsKey = 'opencie_enrolled_cards';
+  static const _tsaPasswordKey = 'opencie_tsa_password';
+  static const _proxyPasswordKey = 'opencie_proxy_password';
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -261,6 +298,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
         }
 
         final cards = await _loadEnrolledCards(map);
+        final tsaJson = map['tsaConfig'] as Map<String, dynamic>?;
+        final proxyJson = map['proxyConfig'] as Map<String, dynamic>?;
+        final tsaSecret = await _loadSecret(
+          _tsaPasswordKey,
+          tsaJson?['password'] as String? ?? '',
+        );
+        final proxySecret = await _loadSecret(
+          _proxyPasswordKey,
+          proxyJson?['password'] as String? ?? '',
+        );
 
         state = AppSettings(
           locale: map['locale'] as String? ?? 'it',
@@ -278,12 +325,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
           alwaysTimestamp: map['alwaysTimestamp'] as bool? ?? false,
           openFolderAfterSign: map['openFolderAfterSign'] as bool? ?? true,
           destinationFolder: map['destinationFolder'] as String?,
-          tsaConfig: map['tsaConfig'] != null
-              ? TsaConfig.fromJson(map['tsaConfig'] as Map<String, dynamic>)
-              : const TsaConfig(),
-          proxyConfig: map['proxyConfig'] != null
-              ? ProxyConfig.fromJson(map['proxyConfig'] as Map<String, dynamic>)
-              : const ProxyConfig(),
+          tsaConfig:
+              (tsaJson != null
+                      ? TsaConfig.fromJson(tsaJson)
+                      : const TsaConfig())
+                  .copyWith(password: tsaSecret.value),
+          proxyConfig:
+              (proxyJson != null
+                      ? ProxyConfig.fromJson(proxyJson)
+                      : const ProxyConfig())
+                  .copyWith(password: proxySecret.value),
           validationType: ValidationType.values.byName(
             map['validationType'] as String? ?? 'ocspFirst',
           ),
@@ -294,9 +345,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
           oidcIssuer: map['oidcIssuer'] as String? ?? 'https://idp.example/',
           oidcClientId: map['oidcClientId'] as String? ?? 'opencie-client',
           isLoaded: true,
-          secureStorageUnavailable: cards.unavailable,
+          secureStorageUnavailable:
+              cards.unavailable ||
+              tsaSecret.unavailable ||
+              proxySecret.unavailable,
         );
-        if (cards.migrated) {
+        if (cards.migrated || tsaSecret.migrated || proxySecret.migrated) {
           await _save();
         }
         return;
@@ -307,13 +361,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = state.copyWith(isLoaded: true);
   }
 
-  /// Persists settings to [SharedPreferences] and enrolled cards to
-  /// [SecureStore]. Never throws: a [SecureStoreException] from the secure
-  /// write is caught and turned into [AppSettings.secureStorageUnavailable]
-  /// instead, and in that case any pre-existing legacy plaintext copy of
-  /// the enrolled cards already in [SharedPreferences] is preserved rather
-  /// than being stripped by this write — it may be the only surviving
-  /// record of the cards until the store comes back.
+  /// Persists settings to [SharedPreferences] and enrolled cards / TSA and
+  /// proxy passwords to [SecureStore]. Never throws: a
+  /// [SecureStoreException] from any secure write is caught and turned
+  /// into [AppSettings.secureStorageUnavailable] instead, and in that case
+  /// any pre-existing legacy plaintext copy of the affected value already
+  /// in [SharedPreferences] is preserved rather than being stripped by
+  /// this write — it may be the only surviving record until the store
+  /// comes back.
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     final map = <String, dynamic>{
@@ -338,7 +393,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'oidcClientId': state.oidcClientId,
     };
 
+    // Lazily-parsed snapshot of whatever is already on disk, reused as a
+    // plaintext fallback source for every secret whose secure write fails
+    // below (enrolled cards, TSA password, proxy password).
+    final existingJson = prefs.getString(_prefsKey);
+    Map<String, dynamic>? existing;
+    if (existingJson != null) {
+      try {
+        existing = jsonDecode(existingJson) as Map<String, dynamic>;
+      } catch (_) {
+        existing = null; // Corrupted existing blob — nothing to preserve.
+      }
+    }
+
     var unavailable = false;
+
     try {
       await SecureStore.write(
         _enrolledCardsKey,
@@ -346,22 +415,48 @@ class SettingsNotifier extends Notifier<AppSettings> {
       );
     } on SecureStoreException {
       unavailable = true;
-      final existingJson = prefs.getString(_prefsKey);
-      if (existingJson != null) {
-        try {
-          final existingMap = jsonDecode(existingJson) as Map<String, dynamic>;
-          if (existingMap['enrolledCards'] != null) {
-            map['enrolledCards'] = existingMap['enrolledCards'];
-          } else if (existingMap['enrolledPan'] != null) {
-            map['enrolledPan'] = existingMap['enrolledPan'];
-          }
-        } catch (_) {
-          // Corrupted existing blob — nothing to preserve.
-        }
+      if (existing?['enrolledCards'] != null) {
+        map['enrolledCards'] = existing!['enrolledCards'];
+      } else if (existing?['enrolledPan'] != null) {
+        map['enrolledPan'] = existing!['enrolledPan'];
       }
     }
 
-    await prefs.setString(_prefsKey, jsonEncode(map));
+    try {
+      await SecureStore.write(_tsaPasswordKey, state.tsaConfig.password);
+    } on SecureStoreException {
+      unavailable = true;
+      final existingPassword =
+          (existing?['tsaConfig'] as Map<String, dynamic>?)?['password']
+              as String?;
+      if (existingPassword != null) {
+        (map['tsaConfig'] as Map<String, dynamic>)['password'] =
+            existingPassword;
+      }
+    }
+
+    try {
+      await SecureStore.write(_proxyPasswordKey, state.proxyConfig.password);
+    } on SecureStoreException {
+      unavailable = true;
+      final existingPassword =
+          (existing?['proxyConfig'] as Map<String, dynamic>?)?['password']
+              as String?;
+      if (existingPassword != null) {
+        (map['proxyConfig'] as Map<String, dynamic>)['password'] =
+            existingPassword;
+      }
+    }
+
+    try {
+      await prefs.setString(_prefsKey, jsonEncode(map));
+    } catch (_) {
+      // Platform-level SharedPreferences failure (e.g. disk full/read-only
+      // filesystem). No dedicated banner exists for this; reuse the same
+      // "persistence unavailable" warning as the secure-store case rather
+      // than fail silently.
+      unavailable = true;
+    }
 
     if (unavailable && !state.secureStorageUnavailable) {
       state = state.copyWith(secureStorageUnavailable: true);
@@ -378,24 +473,28 @@ class SettingsNotifier extends Notifier<AppSettings> {
     }
   }
 
-  void update(AppSettings Function(AppSettings) updater) {
+  /// Applies [updater] and persists the result. Awaits the write so
+  /// callers (and tests) observe persistence failures via
+  /// [AppSettings.secureStorageUnavailable] instead of a fire-and-forget
+  /// save racing the rest of the app.
+  Future<void> update(AppSettings Function(AppSettings) updater) async {
     state = updater(state);
-    _save();
+    await _save();
   }
 
-  void clearDestinationFolder() {
+  Future<void> clearDestinationFolder() async {
     state = state.copyWith(destinationFolder: _unset);
-    _save();
+    await _save();
   }
 
-  void setUiScale(double scale) {
+  Future<void> setUiScale(double scale) async {
     state = state.copyWith(uiScale: scale);
-    _save();
+    await _save();
   }
 
-  void setThemeMode(ThemeMode mode) {
+  Future<void> setThemeMode(ThemeMode mode) async {
     state = state.copyWith(themeMode: mode);
-    _save();
+    await _save();
   }
 
   static double _clampUiScale(double scale) {
