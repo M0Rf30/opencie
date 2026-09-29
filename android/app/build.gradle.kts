@@ -54,11 +54,16 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        ndk {
-            // armeabi-v7a is intentionally excluded: libopencie-pkcs11 has
-            // never shipped an Android armeabi-v7a build, so an armeabi-v7a
-            // APK installs but can't load its native library at all.
-            abiFilters += listOf("arm64-v8a", "x86_64")
+        // armeabi-v7a is intentionally excluded: libopencie-pkcs11 has
+        // never shipped an Android armeabi-v7a build, so an armeabi-v7a
+        // APK installs but can't load its native library at all.
+        // `flutter build apk --split-per-abi` configures ABI splits itself,
+        // and AGP rejects ndk.abiFilters alongside splits, so only filter
+        // for single (fat) builds; CI restricts splits via --target-platform.
+        if (!project.hasProperty("split-per-abi")) {
+            ndk {
+                abiFilters += listOf("arm64-v8a", "x86_64")
+            }
         }
     }
 
