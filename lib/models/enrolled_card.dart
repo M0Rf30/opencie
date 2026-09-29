@@ -19,6 +19,7 @@ class EnrolledCard {
     this.mrzGivenNames,
     this.mrzExpiry,
     this.photoBytes,
+    this.lastUsed,
   });
 
   final String pan;
@@ -55,6 +56,11 @@ class EnrolledCard {
   /// Portrait photo bytes from DG2.
   final Uint8List? photoBytes;
 
+  /// Timestamp of the last successful signing/timestamp operation with
+  /// this card. Null if the card has never been used, or predates this
+  /// field being tracked.
+  final DateTime? lastUsed;
+
   String get displayName {
     if (mrzSurname != null && mrzSurname!.trim().isNotEmpty) {
       final given = mrzGivenNames?.trim() ?? '';
@@ -81,6 +87,7 @@ class EnrolledCard {
     String? mrzGivenNames,
     DateTime? mrzExpiry,
     Uint8List? photoBytes,
+    DateTime? lastUsed,
   }) => EnrolledCard(
     pan: pan ?? this.pan,
     name: name ?? this.name,
@@ -95,6 +102,7 @@ class EnrolledCard {
     mrzGivenNames: mrzGivenNames ?? this.mrzGivenNames,
     mrzExpiry: mrzExpiry ?? this.mrzExpiry,
     photoBytes: photoBytes ?? this.photoBytes,
+    lastUsed: lastUsed ?? this.lastUsed,
   );
 
   Map<String, dynamic> toJson() => {
@@ -111,6 +119,7 @@ class EnrolledCard {
     if (mrzGivenNames != null) 'mrzGivenNames': mrzGivenNames,
     if (mrzExpiry != null) 'mrzExpiry': mrzExpiry!.toIso8601String(),
     if (photoBytes != null) 'photoBytes': base64Encode(photoBytes!),
+    if (lastUsed != null) 'lastUsed': lastUsed!.toIso8601String(),
   };
 
   factory EnrolledCard.fromJson(Map<String, dynamic> m) => EnrolledCard(
@@ -134,6 +143,9 @@ class EnrolledCard {
         : null,
     photoBytes: m['photoBytes'] != null
         ? base64Decode(m['photoBytes'] as String)
+        : null,
+    lastUsed: m['lastUsed'] != null
+        ? DateTime.tryParse(m['lastUsed'] as String)
         : null,
   );
 

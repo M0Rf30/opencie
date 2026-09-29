@@ -349,6 +349,11 @@
   "cieEnrollingProgress": "Registrazione CIE in corso\u2026",
   "cieChangingPinProgress": "Cambio PIN in corso\u2026",
   "cieUnblockingPinProgress": "Sblocco PIN in corso\u2026",
+  "cieStatLabelStatus": "STATO",
+  "cieStatValueActive": "ATTIVA",
+  "cieStatLabelSerial": "SERIALE",
+  "cieStatLabelExpiry": "SCADENZA",
+  "cieStatLabelLastUsed": "ULTIMO USO",
 
   "wizardSetupTitle": "Configura la tua CIE",
   "wizardSetupBodyNfc": "Attiva l'NFC e avvicina la tua carta d'identit\u00e0 al telefono per registrarla.",
