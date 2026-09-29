@@ -425,6 +425,11 @@
   "cieErrorAlreadyEnrolled": "This CIE is already enrolled on this device. Remove it first if you want to enrol it again.",
   "cieErrorUnknown": "Unexpected error (code {code}). Try again, and contact support if the problem persists.",
   "@cieErrorUnknown": { "placeholders": { "code": { "type": "String" } } },
+  "cieErrorReaderNotFound": "No card reader found. Connect a PC/SC reader and try again.",
+  "cieErrorExtendedApduNotSupported": "This phone or reader does not support the extended commands your CIE needs. Try a different NFC phone or a PC/SC reader.",
+  "cieErrorCardExpired": "This CIE has expired and can no longer be used to sign. Renew your card at the municipality.",
+  "nfcUxDisabledTitle": "NFC is off",
+  "nfcUxDisabledBody": "Turn on NFC in system settings, then try again.",
 
   "handoffEntryDesktopButton": "Sign with phone",
   "handoffEntryPhoneButton": "Sign for a desktop",
@@ -559,6 +564,10 @@
 
   "pinLockedWait": "Too many incorrect attempts. Wait {seconds}s before trying again.",
   "@pinLockedWait": { "placeholders": { "seconds": { "type": "int" } } },
+  "nfcUxPinDigitCount": "{count} of {max} digits entered",
+  "@nfcUxPinDigitCount": { "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } } },
+  "nfcUxPinValidLength": "{count} of {max} digits entered, PIN length valid",
+  "@nfcUxPinValidLength": { "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } } },
 
   "signAlignToFieldLabel": "Align to form field",
   "@signAlignToFieldLabel": { "description": "Label for the control that snaps the signature placement to an existing AcroForm field's rectangle" },

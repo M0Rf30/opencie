@@ -13,12 +13,18 @@ enum PinWeakness {
 
 /// Returns the first problem found, or null if the PIN is acceptable.
 ///
+/// Accepts either the full 8-digit CIE PIN or just its last 4 digits: the
+/// card design lets a native caller cache the first 4 digits across
+/// re-entries within the same session and only require the remaining 4
+/// (see `cie_sign_csp.cpp`'s PIN-prefix handling), so a bare 4-digit entry
+/// is a legitimate length here, not a typo.
+///
 /// Rules are checked in order: length, then digit-only, then all-same-digit,
 /// then a strictly monotonic run of consecutive digits (no wrap-around, so
 /// `89012345` is not flagged as sequential), then a 2- or 4-digit group
 /// repeated to fill the PIN.
 PinWeakness? validateCiePin(String pin) {
-  if (pin.length != AppConstants.ciePinLength) {
+  if (pin.length != 4 && pin.length != AppConstants.ciePinLength) {
     return PinWeakness.tooShort;
   }
   if (!RegExp(r'^[0-9]+$').hasMatch(pin)) {

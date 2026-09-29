@@ -42,6 +42,7 @@ class AppConstants {
   // ---------------------------------------------------------------------------
 
   static const int ckrOk = 0x00000000;
+  static const int ckrSlotIdInvalid = 0x00000003;
   static const int ckrCancel = 0x00000001;
   static const int ckrGeneralError = 0x00000005;
   static const int ckrFunctionFailed = 0x00000006;

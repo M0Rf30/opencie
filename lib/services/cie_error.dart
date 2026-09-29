@@ -6,13 +6,24 @@ import '../core/l10n/app_localizations.dart';
 
 /// Classified CIE card-operation failure.
 ///
-/// Narrowed to the failure modes `opencie-pkcs11` actually reports as
-/// PKCS#11 return codes.
+/// Covers the failure modes `opencie-pkcs11` reports as PKCS#11 return
+/// codes ([classifyCieError]) plus a few kinds no `CK_RV`/status-word path
+/// currently reaches on their own:
 ///
-/// Deliberately omitted: a wrong-CAN kind (OpenCIE has no CAN entry path)
-/// and certificate-status / extended-APDU kinds (`opencie-pkcs11` never
-/// returns those as PKCS#11 codes). They would be dead branches no return
-/// value can ever reach.
+/// - [readerNotFound] IS reachable, from `CKR_SLOT_ID_INVALID` (no PC/SC
+///   reader attached — distinct from [cardNotPresent], which means a
+///   reader exists but no card is on it).
+/// - [extendedApduNotSupported] IS reachable, from SW `0x6D00`/`0x6E00`
+///   (`CIE_ERR_INS_NOT_SUPPORTED` in `cie_ext.h`) — a reader/phone that
+///   rejects the extended-length APDUs CIE operations require.
+/// - [cardExpired] is NOT set by [classifyCieError]: no PKCS#11 return
+///   code carries certificate-expiry information. Callers that already
+///   parse the card's certificate (e.g. `cie_management_page.dart`'s
+///   enrichment) should set this kind directly when `notAfter` is in the
+///   past, so the shared message/hint copy stays in one place.
+///
+/// Deliberately still omitted: a wrong-CAN kind (OpenCIE has no CAN entry
+/// path).
 enum CieErrorKind {
   wrongPin,
   pinBlocked,
@@ -24,6 +35,9 @@ enum CieErrorKind {
   cardCommunicationError,
   cancelledByUser,
   alreadyEnrolled,
+  readerNotFound,
+  extendedApduNotSupported,
+  cardExpired,
   unknown,
 }
 
@@ -70,6 +84,8 @@ CieErrorKind classifyCieError(
       return CieErrorKind.cancelledByUser;
     case AppConstants.ckrAlreadyEnabled:
       return CieErrorKind.alreadyEnrolled;
+    case AppConstants.ckrSlotIdInvalid:
+      return CieErrorKind.readerNotFound;
     default:
       return CieErrorKind.unknown;
   }
@@ -95,9 +111,10 @@ CieErrorKind? _kindFromNative(int? nativeErrorKind) {
     case 4:
     case 5:
     case 6:
-    case 7:
     case 8:
       return CieErrorKind.cardCommunicationError;
+    case 7: // CIE_ERR_INS_NOT_SUPPORTED (SW 6D00/6E00)
+      return CieErrorKind.extendedApduNotSupported;
     case 0:
     case 9:
     default:
@@ -124,14 +141,15 @@ CieErrorKind _classifyGenericFailure(int? statusWord) {
       return CieErrorKind.pinBlocked;
     case 0x6984:
       return CieErrorKind.wrongPinFormat;
+    case 0x6D00:
+    case 0x6E00:
+      return CieErrorKind.extendedApduNotSupported;
     case 0x6982:
     case 0x6A82:
     case 0x6A80:
     case 0x6A86:
     case 0x6A88:
     case 0x6B00:
-    case 0x6D00:
-    case 0x6E00:
       return CieErrorKind.cardCommunicationError;
     default:
       return CieErrorKind.cardCommunicationError;
@@ -177,6 +195,12 @@ String cieErrorMessage(
       return l10n.cieErrorCancelledByUser;
     case CieErrorKind.alreadyEnrolled:
       return l10n.cieErrorAlreadyEnrolled;
+    case CieErrorKind.readerNotFound:
+      return l10n.cieErrorReaderNotFound;
+    case CieErrorKind.extendedApduNotSupported:
+      return l10n.cieErrorExtendedApduNotSupported;
+    case CieErrorKind.cardExpired:
+      return l10n.cieErrorCardExpired;
     case CieErrorKind.unknown:
       return l10n.cieErrorUnknown(_hexCode(rawCode ?? 0));
   }
