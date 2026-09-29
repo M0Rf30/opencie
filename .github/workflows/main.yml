@@ -178,19 +178,48 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/sync-jnilibs.sh "${{ env.OPENCIE_PKCS11_VERSION }}"
 
+      - name: Provision libc++_shared.so for all packaged ABIs
+        # libopencie-pkcs11.so is prebuilt and dynamically links against
+        # libc++_shared.so from the *same* NDK version pinned as
+        # `ndkVersion` in build.gradle.kts. Only the arm64-v8a copy used to
+        # be hand-committed to jniLibs/, so the new x86_64 split would ship
+        # a native library with no C++ runtime to load. (OC-45: the x86_64
+        # pkcs11 .so used to be downloaded by sync-jnilibs.sh and then
+        # discarded by abiFilters — dead weight. Now it's an actual,
+        # working split instead of being dropped.)
+        run: |
+          set -euo pipefail
+          NDK_VERSION="$(sed -n 's/.*ndkVersion = "\(.*\)".*/\1/p' android/app/build.gradle.kts)"
+          SDKMANAGER="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/cmdline-tools/latest/bin/sdkmanager"
+          echo "Ensuring NDK $NDK_VERSION is installed..."
+          yes | "$SDKMANAGER" --install "ndk;$NDK_VERSION" >/dev/null
+          NDK_LIB_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib"
+          declare -A TRIPLE=(
+            ["arm64-v8a"]="aarch64-linux-android"
+            ["x86_64"]="x86_64-linux-android"
+          )
+          for abi in "${!TRIPLE[@]}"; do
+            dest="android/app/src/main/jniLibs/$abi"
+            mkdir -p "$dest"
+            cp "$NDK_LIB_DIR/${TRIPLE[$abi]}/libc++_shared.so" "$dest/libc++_shared.so"
+            echo "  [$abi] $dest/libc++_shared.so ($(stat -c%s "$dest/libc++_shared.so") bytes)"
+          done
+
       - run: flutter pub get
 
       - name: Decode release keystore
-        # Optional: when KEYSTORE_BASE64 is configured, the release APK/AAB
-        # are signed with the upload keystore. Otherwise the build falls back
-        # to debug signing (still produces installable artifacts, but unsuitable
-        # for stores like IzzyOnDroid / Play).
+        # Tag builds (refs/tags/*) MUST ship a release-signed APK/AAB — fail
+        # the job instead of silently falling back to debug signing (OC-03/
+        # OC-11: v0.3.3 was published debug-signed because this used to be
+        # only a warning). PR/branch builds keep the debug-signing fallback
+        # so `flutter build apk --release` still works without a keystore.
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           if [ -n "${KEYSTORE_BASE64:-}" ]; then
             echo "Configuring release signing keystore"
             echo "$KEYSTORE_BASE64" | base64 -d > android/opencie.keystore
@@ -200,34 +229,72 @@ jobs:
           keyAlias=${KEY_ALIAS}
           keyPassword=${KEY_PASSWORD}
           EOF
+          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            echo "::error::KEYSTORE_BASE64 (and friends) are not set — refusing to build a tag release with debug signing. Configure the KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD repository secrets."
+            exit 1
           else
-            echo "::warning::No KEYSTORE_BASE64 secret set — release build will use debug signing"
+            echo "::warning::No KEYSTORE_BASE64 secret set — release build will use debug signing (fine for PR/branch builds, never for tag releases)"
           fi
 
       - name: flutter build apk
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
       - name: flutter build appbundle
         run: flutter build appbundle --release
 
+      - name: Verify release APK is not debug-signed (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          build_tools_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/build-tools"
+          build_tools_version="$(find "$build_tools_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -1)"
+          apksigner="$build_tools_root/$build_tools_version/apksigner"
+          shopt -s nullglob
+          apks=(build/app/outputs/flutter-apk/app-*-release.apk)
+          shopt -u nullglob
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::No release APKs found to verify"
+            exit 1
+          fi
+          for apk in "${apks[@]}"; do
+            echo "=== Verifying signer of $apk ==="
+            out="$("$apksigner" verify --print-certs "$apk")"
+            echo "$out"
+            if grep -q 'CN=Android Debug' <<<"$out"; then
+              echo "::error::$apk is signed with the Android Debug certificate — refusing to release a debug-signed tag build"
+              exit 1
+            fi
+          done
+
       - name: Stage Android artifacts
         run: |
+          set -euo pipefail
           TAG="${GITHUB_REF_NAME:-}"
           # Use plain version label when not building from a tag
           if [[ ! "$TAG" =~ ^v[0-9] ]]; then
             TAG="snapshot"
           fi
           mkdir -p build/apk
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             "build/apk/opencie-${TAG}-android-arm64-v8a.apk"
+          shopt -s nullglob
+          for src in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi="$(basename "$src")"
+            abi="${abi#app-}"
+            abi="${abi%-release.apk}"
+            # armeabi-v7a has no libopencie-pkcs11.so and must never be
+            # published (see README Obtainium note); --target-platform
+            # above already excludes it — this is a belt-and-braces guard.
+            [ "$abi" = "armeabi-v7a" ] && continue
+            cp "$src" "build/apk/opencie-${TAG}-android-${abi}.apk"
+          done
+          shopt -u nullglob
           cp build/app/outputs/bundle/release/app-release.aab \
              "build/apk/opencie-${TAG}-android.aab"
           ls -lh build/apk/
 
       - uses: actions/upload-artifact@v7
         with:
-          name: opencie-android-arm64-v8a
-          path: build/apk/opencie-*-android-arm64-v8a.apk
+          name: opencie-android-apk
+          path: build/apk/opencie-*-android-*.apk
 
       - uses: actions/upload-artifact@v7
         with:
@@ -837,7 +904,7 @@ jobs:
       - name: Download android artifact
         uses: actions/download-artifact@v8
         with:
-          name: opencie-android-arm64-v8a
+          name: opencie-android-apk
           path: dist/android
 
       - name: Download android aab
@@ -871,7 +938,7 @@ jobs:
           # Linux bundle tarball
           tar -czf release/opencie-${TAG}-linux-x86_64.tar.gz \
             -C dist/linux-x86_64 .
-          # Android APK + AAB (already named with tag in the android job)
+          # Android APKs (one per ABI, already named with tag in the android job) + AAB
           cp dist/android/*.apk release/ 2>/dev/null || true
           cp dist/android-aab/*.aab release/ 2>/dev/null || true
           # Windows installer
