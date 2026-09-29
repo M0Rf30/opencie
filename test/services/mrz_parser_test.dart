@@ -193,6 +193,25 @@ void main() {
       expect(r, isNotNull);
       expect(r!.dateOfBirth, equals(DateTime(1999, 1, 1)));
     });
+
+    test('expiry yy=10 (past, expired card) → 2010-01-01, not 2110', () {
+      // Regression for OC-13: expiry dates must never roll into 2100+
+      // even when the two-digit year is numerically "in the past".
+      final r = parseTd1WithLine2('8001014M1001012ITA<<<<<<<<<<<6');
+      expect(r, isNotNull);
+      expect(r!.expiry, equals(DateTime(2010, 1, 1)));
+      expect(
+        r.expiry!.isBefore(DateTime.now()),
+        isTrue,
+        reason: 'card must be reported as expired',
+      );
+    });
+
+    test('expiry yy=99 → 2099-01-01 (not 1999)', () {
+      final r = parseTd1WithLine2('8001014M9901012ITA<<<<<<<<<<<6');
+      expect(r, isNotNull);
+      expect(r!.expiry, equals(DateTime(2099, 1, 1)));
+    });
   });
 
   // ---------------------------------------------------------------------------

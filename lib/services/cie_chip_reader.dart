@@ -212,9 +212,11 @@ class MrzParser {
 
   /// Parse a 6-digit YYMMDD date string.
   ///
-  /// For expiry dates, years 00–30 are interpreted as 2000–2030;
-  /// years 31–99 as 1931–1999 (ICAO 9303 convention).
-  /// For birth dates, the same heuristic applies but reversed.
+  /// For expiry dates, CIE documents are always issued in the 2000s for the
+  /// foreseeable future, so years 00-99 are interpreted as 2000-2099.
+  /// For birth dates, years greater than the current two-digit year are
+  /// interpreted as 1900-1999 (the holder was born last century); otherwise
+  /// 2000-2099 (ICAO 9303 convention).
   static DateTime? _parseDate(String s, {required bool isBirth}) {
     if (s.length != 6) return null;
     final yy = int.tryParse(s.substring(0, 2));
@@ -228,7 +230,7 @@ class MrzParser {
     if (isBirth) {
       year = yy > (now % 100) ? 1900 + yy : 2000 + yy;
     } else {
-      year = yy < (now % 100) ? 2100 + yy : 2000 + yy;
+      year = 2000 + yy;
     }
 
     try {
