@@ -53,7 +53,9 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
       keyAlgorithm: info.keyAlgorithm,
     );
   } catch (e) {
-    debugPrint('_enrichCardWithCert: cert fetch failed ($e), keeping card as-is');
+    debugPrint(
+      '_enrichCardWithCert: cert fetch failed ($e), keeping card as-is',
+    );
     return card;
   }
 }
@@ -72,7 +74,9 @@ Future<EnrolledCard> _enrichCardWithChip(
       onProgress: onProgress,
     );
   } catch (e) {
-    debugPrint('_enrichCardWithChip: chip enrich failed ($e), keeping card as-is');
+    debugPrint(
+      '_enrichCardWithChip: chip enrich failed ($e), keeping card as-is',
+    );
     return card;
   }
 }

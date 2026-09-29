@@ -423,7 +423,9 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     if (anySuccess) {
       ref
           .read(settingsProvider.notifier)
-          .update((s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)));
+          .update(
+            (s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)),
+          );
     }
   }
 }

@@ -140,8 +140,14 @@ void main() {
       const a = EnrolledCard(pan: 'AAAA', name: 'V1');
       var cards = <EnrolledCard>[];
       cards = upsertEnrolledCard(cards, a);
-      cards = upsertEnrolledCard(cards, const EnrolledCard(pan: 'AAAA', name: 'V2'));
-      cards = upsertEnrolledCard(cards, const EnrolledCard(pan: 'AAAA', name: 'V3'));
+      cards = upsertEnrolledCard(
+        cards,
+        const EnrolledCard(pan: 'AAAA', name: 'V2'),
+      );
+      cards = upsertEnrolledCard(
+        cards,
+        const EnrolledCard(pan: 'AAAA', name: 'V3'),
+      );
 
       expect(cards.length, 1);
       expect(cards.single.name, 'V3');
