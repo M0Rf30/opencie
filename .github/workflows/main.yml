@@ -440,9 +440,22 @@ jobs:
         run: |
           # JRSoftware migrated downloads to GitHub releases; the old
           # download.php/is.exe alias now redirects to an HTML page, not
-          # the installer binary. Pull the exe directly from GitHub.
-          $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+          # the installer binary. Pull the exe directly from GitHub and
+          # verify it against the SHA-256 published in JRSoftware's own
+          # .issig signature file for this exact release before executing
+          # it (see https://jrsoftware.org/isdl-verify.php — "you can also
+          # compare the SHA-256 hash of a file against the hash stored in
+          # the corresponding .issig file"). Bump both $innoVersion and
+          # $innoSha256 together when upgrading.
+          $innoVersion = "6.7.3"
+          $innoSha256 = "9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732"
+          $innoUrl = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-$innoVersion.exe"
           Invoke-WebRequest -Uri $innoUrl -OutFile innosetup.exe -MaximumRedirection 5
+          $actualHash = (Get-FileHash -Path innosetup.exe -Algorithm SHA256).Hash.ToLower()
+          if ($actualHash -ne $innoSha256) {
+            Write-Error "innosetup-$innoVersion.exe SHA-256 mismatch: expected $innoSha256, got $actualHash"
+            exit 1
+          }
           Start-Process -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/DIR=C:\InnoSetup' -Wait
           # Version comes from pubspec.yaml so the installer filename and the
           # Add/Remove Programs entry track the release instead of a hardcoded
