@@ -68,6 +68,11 @@ class _SignPageState extends ConsumerState<SignPage> {
   /// Non-null shows a classified failure inline in the NFC dialog instead
   /// of a SnackBar (currently: NFC tag-read failure).
   final _errorNotifier = ValueNotifier<String?>(null);
+
+  /// True while Android NFC is off; shown inline in the NFC dialog
+  /// instead of a SnackBar so the user gets a settings shortcut without
+  /// leaving the sign flow.
+  final _nfcDisabledNotifier = ValueNotifier<bool>(false);
   bool _nfcDialogOpen = false;
 
   /// PC/SC reader name (desktop only).
@@ -84,6 +89,7 @@ class _SignPageState extends ConsumerState<SignPage> {
   void dispose() {
     _nfcNotifier.dispose();
     _errorNotifier.dispose();
+    _nfcDisabledNotifier.dispose();
     _readerSub?.cancel();
     super.dispose();
   }
@@ -147,17 +153,11 @@ class _SignPageState extends ConsumerState<SignPage> {
       if (Platform.isAndroid) {
         final nfcAvailable = await NfcService.instance.isAvailable;
         if (!nfcAvailable && mounted) {
-          final l10n = AppLocalizations.of(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.cieNfcNotAvailable),
-              behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(
-                label: l10n.nfcEnableButton,
-                onPressed: NfcService.instance.openNfcSettings,
-              ),
-            ),
-          );
+          _nfcDisabledNotifier.value = true;
+          _nfcNotifier.value = (true, 0.0, '');
+          setState(() => _waitingCard = true);
+          _showNfcDialog();
+          handedOff = true;
           return;
         }
       }
@@ -232,9 +232,13 @@ class _SignPageState extends ConsumerState<SignPage> {
         onCancel: _cancelWaitCard,
         errorNotifier: _errorNotifier,
         onDismissError: _dismissNfcError,
+        nfcDisabledNotifier: _nfcDisabledNotifier,
+        onOpenNfcSettings: NfcService.instance.openNfcSettings,
+        onDismissNfcDisabled: _dismissNfcDisabled,
       ),
     ).whenComplete(() {
       _nfcDialogOpen = false;
+      _nfcDisabledNotifier.value = false;
       // Safety net: if the dialog route ended up closing through some path
       // other than onCancel/onDismissError/_executeSign's finally (e.g. a
       // Navigator.pop triggered from elsewhere), still reset the busy
@@ -264,6 +268,17 @@ class _SignPageState extends ConsumerState<SignPage> {
         _waitingCard = false;
         _pendingPin = null;
         _pendingOptions = null;
+        _isSigning = false;
+      });
+    }
+  }
+
+  void _dismissNfcDisabled() {
+    _nfcDisabledNotifier.value = false;
+    _closeNfcDialog();
+    if (mounted) {
+      setState(() {
+        _waitingCard = false;
         _isSigning = false;
       });
     }

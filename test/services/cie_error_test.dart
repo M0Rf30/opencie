@@ -26,6 +26,7 @@ void main() {
       AppConstants.ckrCancel: CieErrorKind.cancelledByUser,
       AppConstants.ckrFunctionCanceled: CieErrorKind.cancelledByUser,
       AppConstants.ckrAlreadyEnabled: CieErrorKind.alreadyEnrolled,
+      AppConstants.ckrSlotIdInvalid: CieErrorKind.readerNotFound,
     };
 
     cases.forEach((code, expected) {
@@ -118,7 +119,7 @@ void main() {
         4: CieErrorKind.cardCommunicationError,
         5: CieErrorKind.cardCommunicationError,
         6: CieErrorKind.cardCommunicationError,
-        7: CieErrorKind.cardCommunicationError,
+        7: CieErrorKind.extendedApduNotSupported,
         8: CieErrorKind.cardCommunicationError,
       };
       expected.forEach((kind, want) {
@@ -147,6 +148,18 @@ void main() {
           nativeErrorKind: 9,
         ),
         CieErrorKind.pinBlocked,
+      );
+    });
+
+    test('ckrGeneralError + 0x6D00/0x6E00 (INS/CLA not supported) refines to '
+        'extendedApduNotSupported', () {
+      expect(
+        classifyCieError(AppConstants.ckrGeneralError, statusWord: 0x6D00),
+        CieErrorKind.extendedApduNotSupported,
+      );
+      expect(
+        classifyCieError(AppConstants.ckrGeneralError, statusWord: 0x6E00),
+        CieErrorKind.extendedApduNotSupported,
       );
     });
   });
@@ -189,6 +202,11 @@ void main() {
           l.cieErrorCancelledByUser,
       CieErrorKind.alreadyEnrolled: (AppLocalizationsEn l) =>
           l.cieErrorAlreadyEnrolled,
+      CieErrorKind.readerNotFound: (AppLocalizationsEn l) =>
+          l.cieErrorReaderNotFound,
+      CieErrorKind.extendedApduNotSupported: (AppLocalizationsEn l) =>
+          l.cieErrorExtendedApduNotSupported,
+      CieErrorKind.cardExpired: (AppLocalizationsEn l) => l.cieErrorCardExpired,
     };
 
     kinds.forEach((kind, expected) {

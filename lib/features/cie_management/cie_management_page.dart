@@ -173,27 +173,18 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
   ) async {
     if (_isProcessing) return;
 
-    // NFC availability guard (Android only).
+    // NFC availability guard (Android only). Rather than a SnackBar-and-bail,
+    // open the dialog in its inline "NFC is off" state so the user gets an
+    // in-context settings shortcut without losing the operation they picked.
+    final nfcDisabledNotifier = ValueNotifier<bool>(false);
     if (Platform.isAndroid) {
       final available = await NfcService.instance.isAvailable;
       if (!available && mounted) {
-        final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.cieNfcNotAvailable),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: l10n.nfcEnableButton,
-              onPressed: NfcService.instance.openNfcSettings,
-            ),
-          ),
-        );
-        return;
+        nfcDisabledNotifier.value = true;
       }
     }
 
     setState(() => _isProcessing = true);
-
     // (isWaiting, progress 0-1, progressMessage)
     final nfcNotifier = ValueNotifier<(bool, double, String)>((
       Platform.isAndroid,
@@ -221,6 +212,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       cleanedUp = true;
       nfcNotifier.dispose();
       errorNotifier.dispose();
+      nfcDisabledNotifier.dispose();
       if (mounted) setState(() => _isProcessing = false);
     }
 
@@ -238,6 +230,9 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           },
           errorNotifier: errorNotifier,
           onDismissError: closeDialog,
+          nfcDisabledNotifier: nfcDisabledNotifier,
+          onOpenNfcSettings: NfcService.instance.openNfcSettings,
+          onDismissNfcDisabled: closeDialog,
         ),
       ).whenComplete(() {
         dialogOpen = false;
@@ -261,6 +256,13 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         // dialogFuture's whenComplete calls finishNfc() once the route is
         // actually gone; nothing further to do here.
       }
+    }
+
+    if (nfcDisabledNotifier.value) {
+      // Dialog is open showing the inline "NFC is off" state; the user
+      // must dismiss it (via `closeDialog` → `finishNfc`) and retry once
+      // NFC is back on — no session to start or card to wait for yet.
+      return;
     }
 
     if (!Platform.isAndroid) {

@@ -27,6 +27,9 @@ class NfcCardDialog extends StatefulWidget {
     this.onCancel,
     this.errorNotifier,
     this.onDismissError,
+    this.nfcDisabledNotifier,
+    this.onOpenNfcSettings,
+    this.onDismissNfcDisabled,
   });
 
   /// (isWaiting, progress 0–1, progressMessage)
@@ -48,6 +51,21 @@ class NfcCardDialog extends StatefulWidget {
   /// Called when the user dismisses the error view shown via
   /// [errorNotifier]. Should be provided whenever [errorNotifier] is.
   final VoidCallback? onDismissError;
+
+  /// True while Android NFC is off. Takes priority over [errorNotifier]:
+  /// there is no point starting a card session, or showing a card-read
+  /// error, while the radio itself is disabled. Null (the default)
+  /// preserves the normal flow unchanged.
+  final ValueListenable<bool>? nfcDisabledNotifier;
+
+  /// Called when the user taps the "enable NFC" action in the
+  /// [nfcDisabledNotifier] view. Should open the platform NFC settings
+  /// screen (typically `NfcService.instance.openNfcSettings`).
+  final VoidCallback? onOpenNfcSettings;
+
+  /// Called when the user dismisses the [nfcDisabledNotifier] view.
+  /// Should be provided whenever [nfcDisabledNotifier] is.
+  final VoidCallback? onDismissNfcDisabled;
 
   @override
   State<NfcCardDialog> createState() => _NfcCardDialogState();
@@ -115,6 +133,10 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
   /// busy flags and NFC sessions are always cleaned up consistently
   /// regardless of how the user tries to leave the dialog.
   void _handleBackAttempt() {
+    if (widget.nfcDisabledNotifier?.value == true) {
+      widget.onDismissNfcDisabled?.call();
+      return;
+    }
     if (widget.errorNotifier?.value != null) {
       widget.onDismissError?.call();
       return;
@@ -129,12 +151,108 @@ class _NfcCardDialogState extends State<NfcCardDialog> {
 
   Widget _buildDialogContent(BuildContext context) {
     final errorNotifier = widget.errorNotifier;
-    if (errorNotifier == null) return _buildContent(context);
-    return ValueListenableBuilder<String?>(
-      valueListenable: errorNotifier,
-      builder: (context, error, child) =>
-          error != null ? _buildError(context, error) : child!,
-      child: _buildContent(context),
+    final content = errorNotifier == null
+        ? _buildContent(context)
+        : ValueListenableBuilder<String?>(
+            valueListenable: errorNotifier,
+            builder: (context, error, child) =>
+                error != null ? _buildError(context, error) : child!,
+            child: _buildContent(context),
+          );
+
+    final nfcDisabledNotifier = widget.nfcDisabledNotifier;
+    if (nfcDisabledNotifier == null) return content;
+    return ValueListenableBuilder<bool>(
+      valueListenable: nfcDisabledNotifier,
+      builder: (context, disabled, child) =>
+          disabled ? _buildNfcDisabled(context) : child!,
+      child: content,
+    );
+  }
+
+  /// Inline "NFC is off" view — same rounded-container shell as the
+  /// normal content, shown instead of starting/continuing a card session
+  /// while Android NFC is disabled. Takes priority over [_buildError].
+  Widget _buildNfcDisabled(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainer,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: cs.error.withValues(alpha: 0.14),
+                ),
+                child: Icon(
+                  Icons.nfc_rounded,
+                  color: cs.error,
+                  size: 84 * 0.48,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                l10n.nfcUxDisabledTitle,
+                style: AppTheme.headlineBold(cs),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  l10n.nfcUxDisabledBody,
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: widget.onOpenNfcSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: Text(l10n.nfcEnableButton),
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: widget.onDismissNfcDisabled,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: cs.outlineVariant),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(l10n.commonClose),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

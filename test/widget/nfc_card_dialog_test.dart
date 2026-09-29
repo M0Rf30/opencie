@@ -11,6 +11,9 @@ Future<void> _pumpDialog(
   required VoidCallback onCancel,
   ValueNotifier<String?>? errorNotifier,
   VoidCallback? onDismissError,
+  ValueNotifier<bool>? nfcDisabledNotifier,
+  VoidCallback? onOpenNfcSettings,
+  VoidCallback? onDismissNfcDisabled,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -30,6 +33,9 @@ Future<void> _pumpDialog(
                     onCancel: onCancel,
                     errorNotifier: errorNotifier,
                     onDismissError: onDismissError,
+                    nfcDisabledNotifier: nfcDisabledNotifier,
+                    onOpenNfcSettings: onOpenNfcSettings,
+                    onDismissNfcDisabled: onDismissNfcDisabled,
                   ),
                 );
               },
@@ -94,6 +100,55 @@ void main() {
           onCancel: () {},
           errorNotifier: errorNotifier,
           onDismissError: () => dismissed = true,
+        );
+
+        final dynamic state = tester.state(find.byType(Navigator).first);
+        await state.maybePop();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(dismissed, isTrue);
+      },
+    );
+  });
+
+  group('NfcCardDialog NFC-disabled inline state (IO-10)', () {
+    testWidgets('shows the inline settings button instead of the waiting '
+        'view when NFC is off', (WidgetTester tester) async {
+      final notifier = ValueNotifier<(bool, double, String)>((true, 0.0, ''));
+      final nfcDisabledNotifier = ValueNotifier<bool>(true);
+      var openedSettings = false;
+
+      await _pumpDialog(
+        tester,
+        notifier: notifier,
+        onCancel: () {},
+        nfcDisabledNotifier: nfcDisabledNotifier,
+        onOpenNfcSettings: () => openedSettings = true,
+        onDismissNfcDisabled: () {},
+      );
+
+      expect(find.byIcon(Icons.nfc_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pump();
+      expect(openedSettings, isTrue);
+    });
+
+    testWidgets(
+      'a pop attempt while NFC is disabled invokes onDismissNfcDisabled',
+      (WidgetTester tester) async {
+        final notifier = ValueNotifier<(bool, double, String)>((true, 0.0, ''));
+        final nfcDisabledNotifier = ValueNotifier<bool>(true);
+        var dismissed = false;
+
+        await _pumpDialog(
+          tester,
+          notifier: notifier,
+          onCancel: () {},
+          nfcDisabledNotifier: nfcDisabledNotifier,
+          onOpenNfcSettings: () {},
+          onDismissNfcDisabled: () => dismissed = true,
         );
 
         final dynamic state = tester.state(find.byType(Navigator).first);

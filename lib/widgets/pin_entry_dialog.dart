@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../core/constants/app_constants.dart';
 import '../core/l10n/app_localizations.dart';
 import '../core/theme/app_theme.dart';
+import '../services/pin_policy.dart';
 import '../services/pin_throttle.dart';
 import '../services/screen_guard.dart';
 import 'oc_section_label.dart';
@@ -100,7 +101,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
     if (PinThrottle.isLocked) {
       return;
     }
-    if (_pin.length == widget.maxLength) {
+    if (_pin.length == 4 || _pin.length == widget.maxLength) {
       Navigator.pop(context, _pin);
     }
   }
@@ -245,6 +246,38 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                                 : null,
                           );
                         }),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Live feedback: digit count + a check once the current
+                  // length (4 or 8 digits) forms an acceptable CIE PIN.
+                  Semantics(
+                    liveRegion: true,
+                    label: validateCiePin(_pin) == null
+                        ? l10n.nfcUxPinValidLength(pinLength, widget.maxLength)
+                        : l10n.nfcUxPinDigitCount(pinLength, widget.maxLength),
+                    child: ExcludeSemantics(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$pinLength/${widget.maxLength}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (validateCiePin(_pin) == null) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 16,
+                              color: cs.primary,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),

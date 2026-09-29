@@ -420,6 +420,11 @@
   "cieErrorAlreadyEnrolled": "Questa CIE è già registrata su questo dispositivo. Rimuovila prima se vuoi registrarla di nuovo.",
   "cieErrorUnknown": "Errore imprevisto (codice {code}). Riprova e contatta l'assistenza se il problema persiste.",
   "@cieErrorUnknown": { "placeholders": { "code": { "type": "String" } } },
+  "cieErrorReaderNotFound": "Nessun lettore di carte trovato. Collega un lettore PC/SC e riprova.",
+  "cieErrorExtendedApduNotSupported": "Questo telefono o lettore non supporta i comandi estesi richiesti dalla CIE. Prova con un altro telefono NFC o un lettore PC/SC.",
+  "cieErrorCardExpired": "Questa CIE è scaduta e non può più essere usata per firmare. Rinnova la carta in comune.",
+  "nfcUxDisabledTitle": "NFC disattivato",
+  "nfcUxDisabledBody": "Attiva l'NFC nelle impostazioni di sistema, poi riprova.",
 
   "signNoCardEnrolled": "Nessuna CIE registrata",
   "signNoCardEnrolledBody": "Registra una CIE nella scheda CIE per poter firmare i documenti.",
@@ -557,6 +562,11 @@
   "helpSettingsStep3Body": "Scegli OCSP o CRL per i controlli di revoca dei certificati, e configura un proxy se la rete lo richiede.",
 
   "pinLockedWait": "Troppi tentativi errati. Attendi {seconds}s prima di riprovare.",
+  "@pinLockedWait": { "placeholders": { "seconds": { "type": "int" } } },
+  "nfcUxPinDigitCount": "{count} di {max} cifre inserite",
+  "@nfcUxPinDigitCount": { "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } } },
+  "nfcUxPinValidLength": "{count} di {max} cifre inserite, lunghezza PIN valida",
+  "@nfcUxPinValidLength": { "placeholders": { "count": { "type": "int" }, "max": { "type": "int" } } },
 
   "signAlignToFieldLabel": "Allinea al campo del modulo",
   "signAlignToFieldHint": "{count, plural, one{1 campo trovato} other{{count} campi trovati}}",
