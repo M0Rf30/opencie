@@ -95,6 +95,60 @@ void main() {
         CieErrorKind.cardCommunicationError,
       );
     });
+
+    test('OC-44: nativeErrorKind wins over a contradictory status word for a '
+        'generic CK_RV failure', () {
+      // native kind 1 == CIE_ERR_WRONG_PIN, but statusWord looks like a
+      // pin-blocked SW; the native classification must take precedence.
+      expect(
+        classifyCieError(
+          AppConstants.ckrGeneralError,
+          statusWord: 0x6983,
+          nativeErrorKind: 1,
+        ),
+        CieErrorKind.wrongPin,
+      );
+    });
+
+    test('OC-44: every non-trivial native cie_error_kind maps correctly', () {
+      const expected = {
+        1: CieErrorKind.wrongPin,
+        2: CieErrorKind.pinBlocked,
+        3: CieErrorKind.wrongPinFormat,
+        4: CieErrorKind.cardCommunicationError,
+        5: CieErrorKind.cardCommunicationError,
+        6: CieErrorKind.cardCommunicationError,
+        7: CieErrorKind.cardCommunicationError,
+        8: CieErrorKind.cardCommunicationError,
+      };
+      expected.forEach((kind, want) {
+        expect(
+          classifyCieError(AppConstants.ckrGeneralError, nativeErrorKind: kind),
+          want,
+          reason: 'native kind $kind',
+        );
+      });
+    });
+
+    test('OC-44: CIE_ERR_NONE (0) and CIE_ERR_UNKNOWN (9) fall back to the '
+        'status-word heuristic instead of masking it', () {
+      expect(
+        classifyCieError(
+          AppConstants.ckrGeneralError,
+          statusWord: 0x6983,
+          nativeErrorKind: 0,
+        ),
+        CieErrorKind.pinBlocked,
+      );
+      expect(
+        classifyCieError(
+          AppConstants.ckrGeneralError,
+          statusWord: 0x6983,
+          nativeErrorKind: 9,
+        ),
+        CieErrorKind.pinBlocked,
+      );
+    });
   });
 
   group('cieErrorMessage — wrongPin', () {

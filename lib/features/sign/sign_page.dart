@@ -390,7 +390,13 @@ class _SignPageState extends ConsumerState<SignPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              cieErrorMessage(l10n, classifyCieError(result.returnValue)),
+              cieErrorMessage(
+                l10n,
+                classifyCieError(
+                  result.returnValue,
+                  nativeErrorKind: result.nativeErrorKind,
+                ),
+              ),
             ),
             behavior: SnackBarBehavior.floating,
             backgroundColor: Theme.of(context).colorScheme.error,
