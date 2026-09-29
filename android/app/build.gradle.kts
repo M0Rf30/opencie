@@ -55,7 +55,10 @@ android {
         versionName = flutter.versionName
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // armeabi-v7a is intentionally excluded: libopencie-pkcs11 has
+            // never shipped an Android armeabi-v7a build, so an armeabi-v7a
+            // APK installs but can't load its native library at all.
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -81,6 +84,13 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+    }
+
+    // IzzyOnDroid reproducible-build / F-Droid-style repo readiness: don't
+    // embed the Play Store dependency manifest block in the APK/AAB.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 }
 
