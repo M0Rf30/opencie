@@ -100,6 +100,7 @@ class TokenExchanger {
       expectedIssuer: discovery.issuer,
       expectedClientId: clientId,
       expectedNonce: expectedNonce,
+      allowedAlgs: discovery.idTokenSigningAlgValuesSupported,
     );
 
     return TokenResponse(

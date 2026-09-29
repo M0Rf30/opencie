@@ -241,25 +241,39 @@ class OidcDiscoveryClient {
   static String _stripTrailingSlash(String s) =>
       s.endsWith('/') ? s.substring(0, s.length - 1) : s;
 
+  /// Requires every discovery endpoint to use a secure transport — HTTPS in
+  /// production, or the loopback-HTTP exception also used for [issuer]
+  /// (the bundled mock authorization server).
+  ///
+  /// Does NOT require the endpoints to share the issuer's origin (OC-36):
+  /// RFC 8414 never mandates that, and several real providers legitimately
+  /// publish `jwks_uri`/`token_endpoint`/`authorization_endpoint` on
+  /// separate hosts or even separate registrable domains from the issuer
+  /// (e.g. Google: issuer `accounts.google.com`, `jwks_uri` on
+  /// `www.googleapis.com`, `token_endpoint` on `oauth2.googleapis.com`) —
+  /// the strict same-origin check this replaced rejected such providers
+  /// outright. Trust still comes from the issuer match above (RFC 8414
+  /// §3.3) and from each ID token's signature being independently
+  /// verified against the resolved `jwks_uri`.
   static void _requireSameOrigin(Uri issuer, OidcDiscovery disc) {
-    _requireSameOriginAs(
+    _requireSecureEndpoint(
       issuer,
       disc.authorizationEndpoint,
       'authorization_endpoint',
     );
-    _requireSameOriginAs(issuer, disc.tokenEndpoint, 'token_endpoint');
-    _requireSameOriginAs(issuer, disc.jwksUri, 'jwks_uri');
+    _requireSecureEndpoint(issuer, disc.tokenEndpoint, 'token_endpoint');
+    _requireSecureEndpoint(issuer, disc.jwksUri, 'jwks_uri');
   }
 
-  static void _requireSameOriginAs(Uri issuer, Uri endpoint, String field) {
-    if (endpoint.scheme == issuer.scheme &&
-        endpoint.host == issuer.host &&
-        endpoint.port == issuer.port) {
+  static void _requireSecureEndpoint(Uri issuer, Uri endpoint, String field) {
+    if (endpoint.scheme == 'https') return;
+    if (endpoint.scheme == 'http' &&
+        _isLoopbackHost(issuer.host) &&
+        _isLoopbackHost(endpoint.host)) {
       return;
     }
     throw OidcDiscoveryException(
-      'OIDC discovery "$field" origin ($endpoint) does not match the '
-      'issuer origin ($issuer)',
+      'OIDC discovery "$field" ($endpoint) is not HTTPS',
     );
   }
 }

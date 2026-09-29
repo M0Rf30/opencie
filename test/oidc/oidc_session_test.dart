@@ -115,6 +115,58 @@ void main() {
         expect(session, isNotNull);
         expect(session!.accessToken, 'access');
         expect(session.issuer, 'https://idp.example');
+        // OC-23: load() must not drop idTokenRaw, or the first refresh
+        // built from this loaded session would persist `id_token_raw:
+        // null` and silently log the user out on the next load().
+        expect(session.idTokenRaw, idTokenRaw);
+      },
+    );
+
+    test(
+      'OC-23: idTokenRaw survives a load → refresh → save → load round-trip',
+      () async {
+        final idTokenRaw = _fakeIdTokenRaw();
+        final now = DateTime.now().toUtc();
+        await OidcSession.save(
+          OidcSession(
+            issuer: 'https://idp.example',
+            clientId: 'test-client',
+            idToken: IdToken(
+              issuer: 'https://idp.example',
+              subject: 'test-subject',
+              audience: 'test-client',
+              expiration: now.add(const Duration(hours: 1)),
+              issuedAt: now,
+            ),
+            idTokenRaw: idTokenRaw,
+            accessToken: 'access-1',
+            tokenType: 'Bearer',
+            refreshToken: 'refresh-1',
+          ),
+        );
+
+        final loaded = await OidcSession.load();
+        expect(loaded, isNotNull);
+        expect(loaded!.idTokenRaw, isNotNull);
+
+        // Simulate TokenRefresher._doRefresh(), which threads the prior
+        // session's idTokenRaw through unchanged (refresh grants often
+        // omit a new id_token).
+        final refreshed = OidcSession(
+          issuer: loaded.issuer,
+          clientId: loaded.clientId,
+          idToken: loaded.idToken,
+          idTokenRaw: loaded.idTokenRaw,
+          accessToken: 'access-2',
+          tokenType: loaded.tokenType,
+          refreshToken: 'refresh-2',
+        );
+        await OidcSession.save(refreshed);
+
+        final reloaded = await OidcSession.load();
+        expect(reloaded, isNotNull);
+        expect(reloaded!.accessToken, 'access-2');
+        expect(reloaded.idTokenRaw, idTokenRaw);
       },
     );
 

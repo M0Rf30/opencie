@@ -64,5 +64,45 @@ void main() {
         throwsA(isA<UserInfoException>()),
       );
     });
+
+    test(
+      'OC-37: matching expectedSubject returns the claims normally',
+      () async {
+        final client = MockClient((request) async {
+          return http.Response(
+            json.encode({'sub': 'user-1', 'email': 'user@example.com'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        final claims = await UserInfoClient(
+          httpClient: client,
+        ).fetch(endpoint, 'access-token', expectedSubject: 'user-1');
+
+        expect(claims['sub'], 'user-1');
+      },
+    );
+
+    test(
+      'OC-37: sub mismatch against the ID token throws UserInfoException '
+      '(OIDC Core §5.3.2) instead of returning attacker-controlled claims',
+      () async {
+        final client = MockClient((request) async {
+          return http.Response(
+            json.encode({'sub': 'someone-else', 'name': 'Attacker'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+
+        await expectLater(
+          UserInfoClient(
+            httpClient: client,
+          ).fetch(endpoint, 'access-token', expectedSubject: 'user-1'),
+          throwsA(isA<UserInfoException>()),
+        );
+      },
+    );
   });
 }

@@ -124,6 +124,7 @@ class SpidAuthService {
           userinfoClaims = await _userInfo.fetch(
             discovery.userinfoEndpoint!,
             tokenResponse.accessToken,
+            expectedSubject: tokenResponse.idToken.subject,
           );
         } on Exception {
           // Silently ignore userinfo errors; attributes will be empty
@@ -236,6 +237,7 @@ class SpidAuthService {
       expectedIssuer: discovery.issuer,
       expectedClientId: clientId,
       expectedNonce: expectedNonce,
+      allowedAlgs: discovery.idTokenSigningAlgValuesSupported,
     );
 
     return _TokenResponse(
