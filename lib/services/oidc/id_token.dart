@@ -35,6 +35,13 @@ class IdToken {
   /// the authorize request. [expectedNonce] is the exact `nonce` parameter
   /// sent to the provider; if `null` nonce checking is skipped.
   ///
+  /// [allowedAlgs] should be the provider's advertised
+  /// `id_token_signing_alg_values_supported` (OC-36): when given and
+  /// non-empty, the token's header `alg` must be one of them, so a
+  /// compromised/downgraded algorithm can't slip through even if the JWKS
+  /// key itself would technically verify it. `alg: "none"` is always
+  /// rejected regardless of [allowedAlgs].
+  ///
   /// [clockTolerance] allows small clock skew (default 5 s).
   static Future<IdToken> verify({
     required String tokenString,
@@ -43,22 +50,59 @@ class IdToken {
     required String expectedIssuer,
     required String expectedClientId,
     String? expectedNonce,
+    List<String>? allowedAlgs,
     Duration clockTolerance = const Duration(seconds: 5),
   }) async {
     // Decode header to pick the right key from the JWKS.
     final decoded = JWT.decode(tokenString);
     final header = decoded.header;
-    final kid = header?['kid'] as String?;
+    final alg = header?['alg'] as String?;
 
-    if (kid == null || kid.isEmpty) {
+    if (alg == null || alg.isEmpty || alg.toLowerCase() == 'none') {
       throw const IdTokenVerificationException(
-        'ID token missing kid in header',
+        'ID token missing or unsigned (alg) in header',
+      );
+    }
+    if (allowedAlgs != null &&
+        allowedAlgs.isNotEmpty &&
+        !allowedAlgs.contains(alg)) {
+      throw IdTokenVerificationException(
+        'ID token alg "$alg" not in provider-advertised '
+        'id_token_signing_alg_values_supported $allowedAlgs',
       );
     }
 
-    final jwk = await jwks.getKey(jwksUri, kid);
-    if (jwk == null) {
-      throw IdTokenVerificationException('key "$kid" not found in JWKS');
+    final kid = header?['kid'] as String?;
+    final keys = await jwks.fetch(jwksUri);
+    JwksKey jwk;
+    if (kid != null && kid.isNotEmpty) {
+      final found = keys.cast<JwksKey?>().firstWhere(
+        (k) => k?.kid == kid,
+        orElse: () => null,
+      );
+      if (found == null) {
+        throw IdTokenVerificationException('key "$kid" not found in JWKS');
+      }
+      jwk = found;
+    } else {
+      // Missing kid is only unambiguous when the JWKS publishes exactly
+      // one key (OC-36): some real IdPs omit kid for single-key JWKS,
+      // which RFC 7517 permits — there's nothing to disambiguate. Two or
+      // more keys with no kid is a genuine error, not tolerated.
+      if (keys.length != 1) {
+        throw IdTokenVerificationException(
+          'ID token missing kid in header and JWKS has ${keys.length} '
+          'keys (ambiguous)',
+        );
+      }
+      jwk = keys.single;
+    }
+
+    if (jwk.alg.isNotEmpty && jwk.alg != alg) {
+      throw IdTokenVerificationException(
+        'ID token alg "$alg" does not match JWKS key "${jwk.kid}" alg '
+        '"${jwk.alg}"',
+      );
     }
 
     final key = JWTKey.fromJWK(jwk.raw!);

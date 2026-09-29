@@ -56,8 +56,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final userinfoEndpoint = discovery.userinfoEndpoint;
       if (userinfoEndpoint != null) {
         final claims = await refresher.withFreshToken(
-          (accessToken) =>
-              UserInfoClient().fetch(userinfoEndpoint, accessToken),
+          (accessToken) => UserInfoClient().fetch(
+            userinfoEndpoint,
+            accessToken,
+            expectedSubject: refresher.session.idToken.subject,
+          ),
         );
         final refreshed = refresher.session;
         displaySession = OidcSession(

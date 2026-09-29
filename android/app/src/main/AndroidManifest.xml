@@ -37,7 +37,17 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-
+            <!-- OIDC login redirect (OC-22): the browser custom-tab sends
+                 the authorization callback here as opencie://oidc/callback.
+                 Without this filter Android never routes the redirect back
+                 into the app, so app_links (redirect_listener.dart) never
+                 fires and the login spinner never resolves. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="opencie" android:host="oidc" android:pathPrefix="/callback"/>
+            </intent-filter>
         </activity>
         <meta-data
             android:name="flutterEmbedding"

@@ -122,45 +122,32 @@ void main() {
       expect(calls, 0);
     });
 
-    test('jwks_uri on a different host throws', () async {
+    test('jwks_uri on a different HTTPS host is allowed (OC-36)', () async {
+      // Real providers (e.g. Google) legitimately publish jwks_uri on a
+      // different host/domain from the issuer; same-origin is not an
+      // OIDC/RFC 8414 requirement, only HTTPS is.
       final client = MockClient(
         (request) async =>
             _discoveryResponse(_doc(jwksUri: 'https://attacker.example/jwks')),
       );
-      await expectLater(
-        OidcDiscoveryClient(
-          httpClient: client,
-        ).fetch(Uri.parse('https://idp.example')),
-        throwsA(
-          isA<OidcDiscoveryException>().having(
-            (e) => e.message,
-            'message',
-            contains('jwks_uri'),
-          ),
-        ),
-      );
+      final disc = await OidcDiscoveryClient(
+        httpClient: client,
+      ).fetch(Uri.parse('https://idp.example'));
+      expect(disc.jwksUri, Uri.parse('https://attacker.example/jwks'));
     });
 
-    test('jwks_uri on a different port throws', () async {
+    test('jwks_uri on a different HTTPS port is allowed (OC-36)', () async {
       final client = MockClient(
         (request) async =>
             _discoveryResponse(_doc(jwksUri: 'https://idp.example:8443/jwks')),
       );
-      await expectLater(
-        OidcDiscoveryClient(
-          httpClient: client,
-        ).fetch(Uri.parse('https://idp.example')),
-        throwsA(
-          isA<OidcDiscoveryException>().having(
-            (e) => e.message,
-            'message',
-            contains('jwks_uri'),
-          ),
-        ),
-      );
+      final disc = await OidcDiscoveryClient(
+        httpClient: client,
+      ).fetch(Uri.parse('https://idp.example'));
+      expect(disc.jwksUri, Uri.parse('https://idp.example:8443/jwks'));
     });
 
-    test('jwks_uri on a different scheme throws', () async {
+    test('jwks_uri on a non-HTTPS scheme still throws', () async {
       final client = MockClient(
         (request) async =>
             _discoveryResponse(_doc(jwksUri: 'http://idp.example/jwks')),
@@ -179,10 +166,41 @@ void main() {
       );
     });
 
-    test('authorization_endpoint off-origin throws', () async {
+    test('authorization_endpoint on a different HTTPS host is allowed '
+        '(OC-36)', () async {
       final client = MockClient(
         (request) async => _discoveryResponse(
-          _doc(authorizationEndpoint: 'https://attacker.example/authorize'),
+          _doc(authorizationEndpoint: 'https://login.example/authorize'),
+        ),
+      );
+      final disc = await OidcDiscoveryClient(
+        httpClient: client,
+      ).fetch(Uri.parse('https://idp.example'));
+      expect(
+        disc.authorizationEndpoint,
+        Uri.parse('https://login.example/authorize'),
+      );
+    });
+
+    test(
+      'token_endpoint on a different HTTPS host is allowed (OC-36)',
+      () async {
+        final client = MockClient(
+          (request) async => _discoveryResponse(
+            _doc(tokenEndpoint: 'https://token.example/token'),
+          ),
+        );
+        final disc = await OidcDiscoveryClient(
+          httpClient: client,
+        ).fetch(Uri.parse('https://idp.example'));
+        expect(disc.tokenEndpoint, Uri.parse('https://token.example/token'));
+      },
+    );
+
+    test('authorization_endpoint on a non-HTTPS scheme still throws', () async {
+      final client = MockClient(
+        (request) async => _discoveryResponse(
+          _doc(authorizationEndpoint: 'http://idp.example/authorize'),
         ),
       );
       await expectLater(
@@ -194,26 +212,6 @@ void main() {
             (e) => e.message,
             'message',
             contains('authorization_endpoint'),
-          ),
-        ),
-      );
-    });
-
-    test('token_endpoint off-origin throws', () async {
-      final client = MockClient(
-        (request) async => _discoveryResponse(
-          _doc(tokenEndpoint: 'https://attacker.example/token'),
-        ),
-      );
-      await expectLater(
-        OidcDiscoveryClient(
-          httpClient: client,
-        ).fetch(Uri.parse('https://idp.example')),
-        throwsA(
-          isA<OidcDiscoveryException>().having(
-            (e) => e.message,
-            'message',
-            contains('token_endpoint'),
           ),
         ),
       );

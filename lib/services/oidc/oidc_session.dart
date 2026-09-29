@@ -135,6 +135,7 @@ class OidcSession {
       issuer: map['issuer'] as String,
       clientId: map['client_id'] as String,
       idToken: idToken,
+      idTokenRaw: idTokenRaw,
       accessToken: map['access_token'] as String,
       tokenType: map['token_type'] as String,
       refreshToken: map['refresh_token'] as String?,

@@ -14,10 +14,18 @@ class UserInfoClient {
 
   /// GETs userinfo with the access token in the `Authorization: Bearer`
   /// header. Returns the parsed JSON claims map.
+  ///
+  /// [expectedSubject], when given, is compared against the response's
+  /// `sub` claim: per OIDC Core §5.3.2, the Subject Identifier in the
+  /// UserInfo Response MUST exactly match the `sub` claim in the ID Token,
+  /// and the client MUST NOT use the UserInfo Response otherwise (OC-37);
+  /// a mismatch or missing `sub` throws [UserInfoException] rather than
+  /// silently trusting a response whose identity can't be corroborated.
   Future<Map<String, Object?>> fetch(
     Uri userinfoEndpoint,
-    String accessToken,
-  ) async {
+    String accessToken, {
+    String? expectedSubject,
+  }) async {
     final res = await _http.get(
       userinfoEndpoint,
       headers: {
@@ -34,6 +42,15 @@ class UserInfoClient {
     final body = json.decode(res.body);
     if (body is! Map<String, Object?>) {
       throw const UserInfoException('UserInfo body is not a JSON object');
+    }
+    if (expectedSubject != null) {
+      final sub = body['sub'];
+      if (sub != expectedSubject) {
+        throw UserInfoException(
+          'UserInfo sub "$sub" does not match ID token sub '
+          '"$expectedSubject" (OIDC Core §5.3.2)',
+        );
+      }
     }
     return body;
   }

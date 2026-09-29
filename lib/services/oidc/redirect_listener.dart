@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 /// Captures the OIDC authorization callback.
 ///
@@ -13,7 +14,16 @@ import 'package:app_links/app_links.dart';
 /// In both cases the returned [OidcCallback] contains `code`, `state`,
 /// and any error fields sent by the provider.
 class OidcRedirectListener {
-  OidcRedirectListener._();
+  OidcRedirectListener._({Duration? desktopCallbackTimeout})
+    : _desktopCallbackTimeout =
+          desktopCallbackTimeout ?? const Duration(minutes: 5);
+
+  /// Test-only escape hatch for a short [_desktopCallbackTimeout] (OC-24):
+  /// production always uses the 5-minute default via [instance].
+  @visibleForTesting
+  factory OidcRedirectListener.testing({
+    required Duration desktopCallbackTimeout,
+  }) => OidcRedirectListener._(desktopCallbackTimeout: desktopCallbackTimeout);
 
   static OidcRedirectListener? _instance;
   static OidcRedirectListener get instance =>
@@ -37,16 +47,29 @@ class OidcRedirectListener {
     return _desktopRedirectUri!;
   }
 
+  /// Maximum time to wait for the browser to redirect back to the desktop
+  /// loopback server before giving up and releasing the port (OC-24): an
+  /// abandoned login (browser tab closed, user switches away) must not
+  /// wedge the single-subscription [HttpServer] forever.
+  final Duration _desktopCallbackTimeout;
+
   /// Starts listening. On desktop this binds a loopback server first;
   /// on Android it subscribes to `app_links`.
   ///
   /// Returns a future that resolves once the listener is ready.
+  ///
+  /// Always binds a fresh [HttpServer] on desktop (closing any leftover
+  /// one from a prior attempt first — OC-24): [HttpServer]'s default
+  /// request stream is single-subscription, so a server that already had
+  /// [handleCallback] await its `.first` request (even one that never
+  /// resolved, e.g. an abandoned login) cannot be reused for a retry.
   Future<void> start() async {
     if (Platform.isAndroid) {
       // app_links stream is set up lazily on first listen in handleCallback.
       return;
     }
-    _desktopServer ??= await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    await stop();
+    _desktopServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _desktopRedirectUri = Uri(
       scheme: 'http',
       host: _desktopServer!.address.host,
@@ -57,8 +80,9 @@ class OidcRedirectListener {
 
   /// Waits for a single callback and returns it.
   ///
-  /// Automatically calls [stop] after receiving the callback so the
-  /// desktop server isn't left hanging.
+  /// Always calls [stop] afterwards — on success, on error, and on timeout
+  /// (OC-24) — so an abandoned or failed attempt never leaves the desktop
+  /// server bound and blocking a subsequent [start].
   Future<OidcCallback> handleCallback() async {
     if (Platform.isAndroid) {
       final completer = Completer<OidcCallback>();
@@ -76,22 +100,35 @@ class OidcRedirectListener {
       }
     }
 
-    if (_desktopServer == null) {
+    final server = _desktopServer;
+    if (server == null) {
       throw StateError('start() must be called before handleCallback()');
     }
-    final request = await _desktopServer!.first;
-    final uri = request.requestedUri;
-    final callback = parseUri(uri);
+    try {
+      final request = await server.first.timeout(
+        _desktopCallbackTimeout,
+        onTimeout: () => throw OidcCallbackException(
+          'Timed out waiting for the OIDC redirect after '
+          '${_desktopCallbackTimeout.inMinutes} minutes',
+        ),
+      );
+      final uri = request.requestedUri;
+      final callback = parseUri(uri);
 
-    // Return a minimal success page so the browser isn't left spinning.
-    request.response
-      ..statusCode = 200
-      ..headers.contentType = ContentType.html
-      ..write(_successHtml)
-      ..close();
+      // Return a minimal success page so the browser isn't left spinning.
+      // Awaited (unlike the fire-and-forget cascade this replaced) so the
+      // response is fully flushed before the `finally` below force-closes
+      // the server.
+      request.response
+        ..statusCode = 200
+        ..headers.contentType = ContentType.html
+        ..write(_successHtml);
+      await request.response.close();
 
-    await stop();
-    return callback;
+      return callback;
+    } finally {
+      await stop();
+    }
   }
 
   /// Cleans up resources.
