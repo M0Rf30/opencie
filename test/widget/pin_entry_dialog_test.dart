@@ -72,14 +72,26 @@ void main() {
       },
     );
 
-    testWidgets('no check is shown for a weak (sequential) full-length PIN', (
+    testWidgets(
+      'shows a check for any full-length PIN, even one a new-PIN policy '
+      'would call weak (the card PIN is what it is)',
+      (WidgetTester tester) async {
+        await _pumpDialog(tester);
+        for (final d in ['1', '2', '3', '4', '5', '6', '7', '8']) {
+          await _tapDigit(tester, d);
+        }
+        expect(find.text('8/8'), findsOneWidget);
+        expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+      },
+    );
+
+    testWidgets('no check for a length that is neither 4 nor 8', (
       WidgetTester tester,
     ) async {
       await _pumpDialog(tester);
-      for (final d in ['1', '2', '3', '4', '5', '6', '7', '8']) {
+      for (final d in ['4', '0', '3', '9', '1']) {
         await _tapDigit(tester, d);
       }
-      expect(find.text('8/8'), findsOneWidget);
       expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
     });
 

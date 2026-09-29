@@ -11,20 +11,28 @@ enum PinWeakness {
   repeatedPair,
 }
 
-/// Returns the first problem found, or null if the PIN is acceptable.
+/// Whether [pin] can be *entered* to authenticate: digits only, either the
+/// full 8-digit CIE PIN or, on a paired card, just its last 4 digits (the
+/// native library prepends the cached first half; any other length is
+/// rejected there before reaching the card).
 ///
-/// Accepts either the full 8-digit CIE PIN or just its last 4 digits: the
-/// card design lets a native caller cache the first 4 digits across
-/// re-entries within the same session and only require the remaining 4
-/// (see `cie_sign_csp.cpp`'s PIN-prefix handling), so a bare 4-digit entry
-/// is a legitimate length here, not a typo.
+/// This is deliberately not a strength check: the card's existing PIN is
+/// whatever it is, so strength rules only apply to a *new* PIN
+/// ([validateCiePin]).
+bool isAcceptedPinEntry(String pin) =>
+    (pin.length == 4 || pin.length == AppConstants.ciePinLength) &&
+    RegExp(r'^[0-9]+$').hasMatch(pin);
+
+/// Strength policy for a *new* PIN (enrolment, change, unblock). Returns the
+/// first problem found, or null if the PIN is acceptable. A new CIE PIN is
+/// always the full 8 digits.
 ///
 /// Rules are checked in order: length, then digit-only, then all-same-digit,
 /// then a strictly monotonic run of consecutive digits (no wrap-around, so
 /// `89012345` is not flagged as sequential), then a 2- or 4-digit group
 /// repeated to fill the PIN.
 PinWeakness? validateCiePin(String pin) {
-  if (pin.length != 4 && pin.length != AppConstants.ciePinLength) {
+  if (pin.length != AppConstants.ciePinLength) {
     return PinWeakness.tooShort;
   }
   if (!RegExp(r'^[0-9]+$').hasMatch(pin)) {
