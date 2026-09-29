@@ -43,6 +43,10 @@ modules:
   - name: pcsc-lite
     buildsystem: meson
     config-opts:
+      # meson would pick lib64 on x86_64; /app/lib64 is not on the loader
+      # path, so libopencie-pkcs11.so failed with "libpcsclite.so.1: cannot
+      # open shared object file" (issue #21).
+      - --libdir=lib
       - -Dlibsystemd=false
       - -Dlibudev=false
       - -Dpolkit=false
