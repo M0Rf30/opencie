@@ -9,6 +9,8 @@ import 'package:path/path.dart' as p;
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/signature_options.dart';
+import '../../models/enrolled_card_utils.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/batch_sign_provider.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../services/batch_sign/batch_sign_models.dart';
@@ -411,10 +413,17 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
 
     // Add signed files to recent files
     final state = ref.read(batchSignProvider);
+    var anySuccess = false;
     for (final item in state.items) {
       if (item.status == BatchSignItemStatus.success) {
         ref.read(recentSignedFilesProvider.notifier).add(item.inputPath);
+        anySuccess = true;
       }
+    }
+    if (anySuccess) {
+      ref
+          .read(settingsProvider.notifier)
+          .update((s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)));
     }
   }
 }

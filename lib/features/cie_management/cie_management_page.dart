@@ -14,6 +14,7 @@ import '../../core/l10n/app_localizations_ext.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/color_schemes.dart';
 import '../../ffi/opencie_pkcs11.dart';
+import '../../models/enrolled_card_utils.dart';
 import '../../models/enrolled_card.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/ltv/asn1/x509_cert.dart';
@@ -27,6 +28,7 @@ import '../../widgets/oc_section_label.dart';
 import '../../services/cie_error.dart';
 import '../../services/pin_throttle.dart';
 import '../../services/cie_chip_reader.dart';
+import 'cert_refresh.dart';
 import 'widgets/cie_certificate_dialog.dart';
 import 'widgets/cie_change_pin_dialog.dart';
 import 'widgets/cie_confirm_remove_dialog.dart';
@@ -50,7 +52,8 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
       certSerial: info.serial,
       keyAlgorithm: info.keyAlgorithm,
     );
-  } catch (_) {
+  } catch (e) {
+    debugPrint('_enrichCardWithCert: cert fetch failed ($e), keeping card as-is');
     return card;
   }
 }
@@ -68,7 +71,8 @@ Future<EnrolledCard> _enrichCardWithChip(
       pin: pin,
       onProgress: onProgress,
     );
-  } catch (_) {
+  } catch (e) {
+    debugPrint('_enrichCardWithChip: chip enrich failed ($e), keeping card as-is');
     return card;
   }
 }
@@ -88,12 +92,33 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
   bool _readerChecked = false;
   bool _wizardSkipped = false;
   StreamSubscription<String?>? _readerSub;
+  bool _certRefreshDone = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkNfc();
+    _refreshMissingCerts();
+  }
+
+  /// One-shot, per-page-lifetime refresh of certificate fields for cards
+  /// that were enrolled while cert enrichment failed (e.g. legacy pkcs11
+  /// cache format). No-op when the native lib can't produce a cert
+  /// (getCertificate throws/returns null — already caught internally by
+  /// [_enrichCardWithCert]), so this is safe in widget tests too.
+  Future<void> _refreshMissingCerts() async {
+    if (_certRefreshDone) return;
+    _certRefreshDone = true;
+    final cards = ref.read(settingsProvider).enrolledCards;
+    final updated = await refreshMissingCertData(
+      cards,
+      fetchCert: _enrichCardWithCert,
+    );
+    if (updated == null || !mounted) return;
+    ref
+        .read(settingsProvider.notifier)
+        .update((s) => s.copyWith(enrolledCards: updated));
   }
 
   @override
@@ -384,17 +409,14 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
 
     if (enrolledCard == null) return;
 
-    // Persist the fully-enriched card.
+    // Persist the fully-enriched card. Merges into any existing entry
+    // with the same PAN (re-enrolment) so a partial read doesn't wipe
+    // out previously-captured fields such as the MRZ photo.
     final card = enrolledCard!;
-    final cards = List<EnrolledCard>.from(
+    final cards = upsertEnrolledCard(
       ref.read(settingsProvider).enrolledCards,
+      card,
     );
-    final idx = cards.indexWhere((c) => c.pan == card.pan);
-    if (idx >= 0) {
-      cards[idx] = card;
-    } else {
-      cards.add(card);
-    }
     ref
         .read(settingsProvider.notifier)
         .update((s) => s.copyWith(enrolledCards: cards));
@@ -1107,18 +1129,30 @@ class _CieStats extends StatelessWidget {
 
   final EnrolledCard card;
 
-  String get _shortSerial {
+  String get _serialLabel {
+    if (card.certSerial != null && card.certSerial!.isNotEmpty) {
+      return card.certSerial!;
+    }
     final s = card.serial;
     if (s.isEmpty) return '';
     return s.length > 8 ? s.substring(s.length - 8) : s;
   }
 
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/'
+      '${d.month.toString().padLeft(2, '0')}/'
+      '${d.year}';
+
   String get _expiryLabel {
     final d = card.mrzExpiry ?? card.notAfter;
     if (d == null) return '—';
-    return '${d.day.toString().padLeft(2, '0')}/'
-        '${d.month.toString().padLeft(2, '0')}/'
-        '${d.year}';
+    return _formatDate(d);
+  }
+
+  String get _lastUsedLabel {
+    final d = card.lastUsed;
+    if (d == null) return '—';
+    return _formatDate(d);
   }
 
   Color? _expiryColor(BuildContext context) {
@@ -1134,6 +1168,7 @@ class _CieStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 10,
@@ -1143,20 +1178,20 @@ class _CieStats extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       children: [
         _StatCard(
-          label: 'STATO',
-          value: 'ATTIVA',
+          label: l10n.cieStatLabelStatus,
+          value: l10n.cieStatValueActive,
           valueColor: ColorSchemes.valid,
         ),
         _StatCard(
-          label: 'SERIALE',
-          value: _shortSerial.isNotEmpty ? _shortSerial : '—',
+          label: l10n.cieStatLabelSerial,
+          value: _serialLabel.isNotEmpty ? _serialLabel : '—',
         ),
         _StatCard(
-          label: 'SCADENZA',
+          label: l10n.cieStatLabelExpiry,
           value: _expiryLabel,
           valueColor: _expiryColor(context),
         ),
-        _StatCard(label: 'ULTIMO USO', value: '—'),
+        _StatCard(label: l10n.cieStatLabelLastUsed, value: _lastUsedLabel),
       ],
     );
   }
@@ -1507,10 +1542,10 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
   void _finish() {
     final card = _pendingCard;
     if (card != null) {
-      final cards = List<EnrolledCard>.from(
+      final cards = upsertEnrolledCard(
         ref.read(settingsProvider).enrolledCards,
+        card,
       );
-      cards.add(card);
       ref
           .read(settingsProvider.notifier)
           .update((s) => s.copyWith(enrolledCards: cards));

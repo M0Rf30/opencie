@@ -26,6 +26,7 @@ import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../models/signature_options.dart';
+import '../../models/enrolled_card_utils.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../providers/sign_backend_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -307,6 +308,9 @@ class _SignPageState extends ConsumerState<SignPage> {
       if (result.isSuccess) {
         PinThrottle.reset();
         ref.read(recentSignedFilesProvider.notifier).add(file);
+        ref
+            .read(settingsProvider.notifier)
+            .update((s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)));
         successPath = outputPath;
 
         if (Platform.isAndroid) {

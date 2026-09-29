@@ -354,6 +354,11 @@
   "cieEnrollingProgress": "Enrolling CIE\u2026",
   "cieChangingPinProgress": "Changing PIN\u2026",
   "cieUnblockingPinProgress": "Unblocking PIN\u2026",
+  "cieStatLabelStatus": "STATUS",
+  "cieStatValueActive": "ACTIVE",
+  "cieStatLabelSerial": "SERIAL",
+  "cieStatLabelExpiry": "EXPIRY",
+  "cieStatLabelLastUsed": "LAST USED",
 
   "wizardSetupTitle": "Set up your CIE",
   "wizardSetupBodyNfc": "Enable NFC and hold your Italian ID card to your phone to enrol.",
