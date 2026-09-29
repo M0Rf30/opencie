@@ -104,8 +104,27 @@ class OidcRedirectListener {
     if (server == null) {
       throw StateError('start() must be called before handleCallback()');
     }
+    // Not `server.first`: that cancels the server's subscription as soon as
+    // the first request arrives, which tears the HttpServer down while the
+    // response below is still being written and can leave both sides
+    // waiting on each other. Listen explicitly and cancel only at the end.
+    final received = Completer<HttpRequest>();
+    final sub = server.listen(
+      (request) {
+        if (!received.isCompleted) {
+          received.complete(request);
+        } else {
+          request.response
+            ..statusCode = HttpStatus.conflict
+            ..close();
+        }
+      },
+      onError: (Object e) {
+        if (!received.isCompleted) received.completeError(e);
+      },
+    );
     try {
-      final request = await server.first.timeout(
+      final request = await received.future.timeout(
         _desktopCallbackTimeout,
         onTimeout: () => throw OidcCallbackException(
           'Timed out waiting for the OIDC redirect after '
@@ -116,17 +135,20 @@ class OidcRedirectListener {
       final callback = parseUri(uri);
 
       // Return a minimal success page so the browser isn't left spinning.
-      // Awaited (unlike the fire-and-forget cascade this replaced) so the
-      // response is fully flushed before the `finally` below force-closes
-      // the server.
+      // Awaited so it is flushed before the server is closed below, but
+      // bounded: a browser that goes away must not block the login.
       request.response
         ..statusCode = 200
         ..headers.contentType = ContentType.html
         ..write(_successHtml);
-      await request.response.close();
+      await request.response.close().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => null,
+      );
 
       return callback;
     } finally {
+      await sub.cancel();
       await stop();
     }
   }
