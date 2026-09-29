@@ -254,7 +254,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                   // length (4 or 8 digits) forms an acceptable CIE PIN.
                   Semantics(
                     liveRegion: true,
-                    label: validateCiePin(_pin) == null
+                    label: isAcceptedPinEntry(_pin)
                         ? l10n.nfcUxPinValidLength(pinLength, widget.maxLength)
                         : l10n.nfcUxPinDigitCount(pinLength, widget.maxLength),
                     child: ExcludeSemantics(
@@ -269,7 +269,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          if (validateCiePin(_pin) == null) ...[
+                          if (isAcceptedPinEntry(_pin)) ...[
                             const SizedBox(width: 6),
                             Icon(
                               Icons.check_circle_rounded,

@@ -21,14 +21,26 @@ void main() {
       expect(validateCiePin('123456789'), PinWeakness.tooShort);
     });
 
-    test('accepts a 4-digit PIN (cached-prefix re-entry)', () {
-      expect(validateCiePin('4039'), isNull);
+    test('rejects a 4-digit new PIN (a new CIE PIN is always 8 digits)', () {
+      expect(validateCiePin('4039'), PinWeakness.tooShort);
+    });
+  });
+
+  group('isAcceptedPinEntry', () {
+    test('accepts 4 or 8 digits, including weak-looking PINs', () {
+      expect(isAcceptedPinEntry('4039'), isTrue);
+      expect(isAcceptedPinEntry('40391827'), isTrue);
+      expect(isAcceptedPinEntry('12345678'), isTrue);
     });
 
-    test('rejects a 5-digit PIN as tooShort (neither 4 nor 8)', () {
-      expect(validateCiePin('40391'), PinWeakness.tooShort);
+    test('rejects other lengths and non-digits', () {
+      expect(isAcceptedPinEntry('40391'), isFalse);
+      expect(isAcceptedPinEntry(''), isFalse);
+      expect(isAcceptedPinEntry('4039182a'), isFalse);
     });
+  });
 
+  group('validateCiePin (continued)', () {
     test('rejects non-numeric input', () {
       expect(validateCiePin('1234abcd'), PinWeakness.notNumeric);
     });
