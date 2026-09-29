@@ -85,8 +85,8 @@ modules:
       - install -Dm644 io.github.m0rf30.opencie.png /app/share/icons/hicolor/512x512/apps/io.github.m0rf30.opencie.png
     sources:
       - type: archive
-        url: https://github.com/M0Rf30/opencie/releases/download/v0.3.3/opencie-v0.3.3-linux-x86_64.tar.gz
-        sha256: 29e41d19b930c545a30f34fe1359f9331ddac05bc3f69d80c32e625f9e416fd4
+        url: https://github.com/M0Rf30/opencie/releases/download/v0.4.0/opencie-v0.4.0-linux-x86_64.tar.gz
+        sha256: 138e74099d1fa6f0b8da85fae77a10cd724b72ce14606b6cc882cee5ce44a252
         dest: bundle
         strip-components: 0
       - type: file
