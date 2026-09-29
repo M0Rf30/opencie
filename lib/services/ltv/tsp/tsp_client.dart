@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 
 import '../asn1/der.dart';
@@ -103,7 +104,7 @@ class TspClient {
     // (RFC 3161 §2.4.2: a TSA that received a nonce and omits/mismatches it
     // must not be trusted; treating a missing nonce as "no check needed"
     // defeats the whole anti-replay purpose of sending one).
-    if (resp.respNonce == null || !bytesEqual(resp.respNonce!, nonce)) {
+    if (resp.respNonce == null || !nonceEquals(resp.respNonce!, nonce)) {
       return TspResponse(
         status: TspStatus.rejection,
         statusStrings: [
@@ -139,6 +140,23 @@ class TspClient {
     }
 
     return resp;
+  }
+
+  /// Whether two nonces denote the same INTEGER value. The nonce travels as
+  /// a DER INTEGER, so leading 0x00 bytes are not preserved: a random
+  /// 8-byte nonce starting with 0x00 comes back as 7 bytes (~1 in 256
+  /// requests), and a byte-for-byte comparison would reject a valid reply.
+  @visibleForTesting
+  static bool nonceEquals(Uint8List a, Uint8List b) {
+    Uint8List strip(Uint8List x) {
+      var i = 0;
+      while (i < x.length - 1 && x[i] == 0) {
+        i++;
+      }
+      return Uint8List.sublistView(x, i);
+    }
+
+    return bytesEqual(strip(a), strip(b));
   }
 
   /// Generate cryptographically random bytes.

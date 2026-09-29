@@ -83,9 +83,9 @@ void main() {
       final pending = listener.handleCallback();
       final client = http.Client();
       try {
-        await client.get(
-          uri.replace(queryParameters: {'code': 'abc', 'state': 'xyz'}),
-        );
+        await client
+            .get(uri.replace(queryParameters: {'code': 'abc', 'state': 'xyz'}))
+            .timeout(const Duration(seconds: 10));
       } finally {
         client.close();
       }

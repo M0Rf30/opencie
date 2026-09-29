@@ -12,6 +12,24 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
 void main() {
+  group('TspClient.nonceEquals', () {
+    test('a nonce whose leading 0x00 was dropped by DER still matches', () {
+      final sent = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]);
+      final got = Uint8List.fromList([1, 2, 3, 4, 5, 6, 7]);
+      expect(TspClient.nonceEquals(got, sent), isTrue);
+    });
+
+    test('different values do not match', () {
+      final sent = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]);
+      final got = Uint8List.fromList([1, 2, 3, 4, 5, 6, 8]);
+      expect(TspClient.nonceEquals(got, sent), isFalse);
+      expect(
+        TspClient.nonceEquals(Uint8List.fromList([1]), Uint8List(0)),
+        isFalse,
+      );
+    });
+  });
+
   group('TspClient', () {
     late HttpServer server;
     late Uri tsaUrl;
