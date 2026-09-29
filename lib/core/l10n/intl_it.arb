@@ -559,5 +559,21 @@
   "pinLockedWait": "Troppi tentativi errati. Attendi {seconds}s prima di riprovare.",
 
   "signAlignToFieldLabel": "Allinea al campo del modulo",
-  "signAlignToFieldHint": "{count, plural, one{1 campo trovato} other{{count} campi trovati}}"
+  "signAlignToFieldHint": "{count, plural, one{1 campo trovato} other{{count} campi trovati}}",
+
+  "signPlacerCustomImageTooltip": "Immagine personalizzata — tocca per cambiare",
+  "signPlacerDefaultImageTooltip": "Timbro predefinito — tocca per cambiare",
+  "signPlacerImageMenuTooltip": "Immagine firma",
+  "signPlacerPickImageMenuItem": "Immagine personalizzata…",
+  "signPlacerResetDefaultMenuItem": "Ripristina predefinito",
+  "signPlacerTitle": "Posiziona la firma",
+  "signPlacerPageCounter": "Pagina {current} / {total}",
+  "signPlacerPreviousPage": "Pagina precedente",
+  "signPlacerNextPage": "Pagina successiva",
+  "signPlacerReset": "Reset",
+  "signPlacerFieldPage": "Pagina {page}",
+  "signPlacerPdfError": "Impossibile visualizzare il PDF: {error}",
+  "signPlacerNoPage": "Nessuna pagina disponibile",
+  "signPlacerAreaSemanticsLabel": "Area di destinazione della firma sulla pagina",
+  "signPlacerSignHere": "FIRMA QUI"
 }
