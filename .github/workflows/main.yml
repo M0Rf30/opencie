@@ -192,7 +192,9 @@ jobs:
           NDK_VERSION="$(sed -n 's/.*ndkVersion = "\(.*\)".*/\1/p' android/app/build.gradle.kts)"
           SDKMANAGER="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/cmdline-tools/latest/bin/sdkmanager"
           echo "Ensuring NDK $NDK_VERSION is installed..."
-          yes | "$SDKMANAGER" --install "ndk;$NDK_VERSION" >/dev/null
+          # `yes` dies of SIGPIPE when sdkmanager exits; with pipefail that
+          # failed the step even though the install succeeded.
+          "$SDKMANAGER" --install "ndk;$NDK_VERSION" >/dev/null < <(yes)
           NDK_LIB_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib"
           declare -A TRIPLE=(
             ["arm64-v8a"]="aarch64-linux-android"
