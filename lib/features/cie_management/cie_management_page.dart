@@ -354,13 +354,20 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           );
           enrolledCard = card;
         } else if (!result.isSuccess) {
-          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+          if (classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ) ==
+              CieErrorKind.wrongPin) {
             PinThrottle.recordFailure();
           }
           _showErrorSnackBar(
             cieErrorMessage(
               l10n,
-              classifyCieError(result.returnValue),
+              classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ),
               remainingAttempts: result.remainingAttempts,
             ),
           );
@@ -386,13 +393,20 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           onProgress(0.50, l10n.cieEnrollingProgress);
           enrolledCard = card;
         } else if (!result.isSuccess) {
-          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+          if (classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ) ==
+              CieErrorKind.wrongPin) {
             PinThrottle.recordFailure();
           }
           _showErrorSnackBar(
             cieErrorMessage(
               l10n,
-              classifyCieError(result.returnValue),
+              classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ),
               remainingAttempts: result.remainingAttempts,
             ),
           );
@@ -471,13 +485,20 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           PinThrottle.reset();
           _showSuccessSnackBar(l10n.ciePinChanged);
         } else {
-          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+          if (classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ) ==
+              CieErrorKind.wrongPin) {
             PinThrottle.recordFailure();
           }
           _showErrorSnackBar(
             cieErrorMessage(
               l10n,
-              classifyCieError(result.returnValue),
+              classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ),
               remainingAttempts: result.remainingAttempts,
             ),
           );
@@ -504,11 +525,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
           PinThrottle.reset();
           _showSuccessSnackBar(l10n.ciePinUnblocked);
         } else {
-          if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+          if (classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ) ==
+              CieErrorKind.wrongPin) {
             PinThrottle.recordFailure();
           }
           _showErrorSnackBar(
-            cieErrorMessage(l10n, classifyCieError(result.returnValue)),
+            cieErrorMessage(
+              l10n,
+              classifyCieError(
+                result.returnValue,
+                nativeErrorKind: result.nativeErrorKind,
+              ),
+            ),
           );
         }
       });
@@ -1506,13 +1537,20 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         setState(() => _step = _WizardStep.success);
         _successCtrl.forward();
       } else {
-        if (classifyCieError(result.returnValue) == CieErrorKind.wrongPin) {
+        if (classifyCieError(
+              result.returnValue,
+              nativeErrorKind: result.nativeErrorKind,
+            ) ==
+            CieErrorKind.wrongPin) {
           PinThrottle.recordFailure();
         }
         setState(() {
           _enrollError = cieErrorMessage(
             l10n,
-            classifyCieError(result.returnValue),
+            classifyCieError(
+              result.returnValue,
+              nativeErrorKind: result.nativeErrorKind,
+            ),
             remainingAttempts: result.remainingAttempts,
           );
         });

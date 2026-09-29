@@ -262,17 +262,28 @@ typedef MakeDigestInfoDart =
 ///                            unsigned char** outDer,
 ///                            unsigned long* outLen);
 typedef CieGetCertificateNative =
-    Uint64 Function(
+    UnsignedLong Function(
       Pointer<Utf8> pan,
       Pointer<Pointer<Uint8>> outDer,
-      Pointer<Uint64> outLen,
+      Pointer<UnsignedLong> outLen,
     );
 typedef CieGetCertificateDart =
     int Function(
       Pointer<Utf8> pan,
       Pointer<Pointer<Uint8>> outDer,
-      Pointer<Uint64> outLen,
+      Pointer<UnsignedLong> outLen,
     );
+
+/// void cie_free(void* ptr);
+///
+/// Releases a buffer libopencie-pkcs11 allocated and returned through an
+/// out-parameter (currently only cie_get_certificate()'s *outDer). Must be
+/// used instead of the caller's own free()/calloc.free(): on Windows the
+/// DLL and a statically-linked caller can be bound to different CRT heaps,
+/// so freeing a cross-module allocation with the wrong heap's free() is
+/// undefined behavior.
+typedef CieFreeNative = Void Function(Pointer<Void> ptr);
+typedef CieFreeDart = void Function(Pointer<Void> ptr);
 
 // --- Timestamp ---
 

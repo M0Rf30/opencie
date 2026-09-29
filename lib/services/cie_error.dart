@@ -29,12 +29,21 @@ enum CieErrorKind {
 
 /// Classifies a raw PKCS#11 return value from [CieResult.returnValue].
 ///
-/// [statusWord] is the raw ISO 7816 status word from [CieResult.statusWord],
-/// when available. It only refines the generic codes (`ckrGeneralError`,
+/// [statusWord] is the raw ISO 7816 status word from [CieResult.statusWord].
+/// [nativeErrorKind] is the already-classified `cie_error_kind` from
+/// [CieResult.nativeErrorKind] (the `cie_last_error` channel): when present
+/// it is used directly instead of re-deriving a classification from
+/// [statusWord] in Dart, so the two layers cannot drift out of sync.
+/// [statusWord] remains as a fallback for libraries predating
+/// `cie_last_error`, and only refines the generic codes (`ckrGeneralError`,
 /// `ckrFunctionFailed`, `ckrDeviceError`) that the native layer falls back
 /// to when it has no more specific `CK_RV` for a card failure — every other
-/// `CK_RV` mapping below is authoritative and ignores [statusWord].
-CieErrorKind classifyCieError(int returnValue, {int? statusWord}) {
+/// `CK_RV` mapping below is authoritative and ignores both.
+CieErrorKind classifyCieError(
+  int returnValue, {
+  int? statusWord,
+  int? nativeErrorKind,
+}) {
   switch (returnValue) {
     case AppConstants.ckrPinIncorrect:
       return CieErrorKind.wrongPin;
@@ -54,7 +63,8 @@ CieErrorKind classifyCieError(int returnValue, {int? statusWord}) {
     case AppConstants.ckrDeviceError:
     case AppConstants.ckrGeneralError:
     case AppConstants.ckrFunctionFailed:
-      return _classifyGenericFailure(statusWord);
+      return _kindFromNative(nativeErrorKind) ??
+          _classifyGenericFailure(statusWord);
     case AppConstants.ckrCancel:
     case AppConstants.ckrFunctionCanceled:
       return CieErrorKind.cancelledByUser;
@@ -65,10 +75,41 @@ CieErrorKind classifyCieError(int returnValue, {int? statusWord}) {
   }
 }
 
+/// Maps opencie-pkcs11's already-classified `cie_error_kind` enum (from
+/// `cie_last_error`, surfaced as [CieResult.nativeErrorKind]) directly onto
+/// [CieErrorKind]. Values mirror `enum cie_error_kind` in `cie_ext.h`:
+/// 0 NONE, 1 WRONG_PIN, 2 PIN_BLOCKED, 3 PIN_NOT_SET,
+/// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND, 6 WRONG_PARAMS,
+/// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN.
+///
+/// Returns null for NONE/UNKNOWN/an absent value, letting the caller fall
+/// back to [_classifyGenericFailure]'s status-word heuristic.
+CieErrorKind? _kindFromNative(int? nativeErrorKind) {
+  switch (nativeErrorKind) {
+    case 1:
+      return CieErrorKind.wrongPin;
+    case 2:
+      return CieErrorKind.pinBlocked;
+    case 3:
+      return CieErrorKind.wrongPinFormat;
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+      return CieErrorKind.cardCommunicationError;
+    case 0:
+    case 9:
+    default:
+      return null;
+  }
+}
+
 /// Refines a generic `CK_RV` failure using the ISO 7816 status word, when
-/// one is available. Falls back to [CieErrorKind.cardCommunicationError] —
-/// the pre-existing mapping for these `CK_RV` codes — for a null/zero
-/// [statusWord] or one this taxonomy does not recognise.
+/// [_kindFromNative] found no usable native classification. Falls back to
+/// [CieErrorKind.cardCommunicationError] — the pre-existing mapping for
+/// these `CK_RV` codes — for a null/zero [statusWord] or one this taxonomy
+/// does not recognise.
 CieErrorKind _classifyGenericFailure(int? statusWord) {
   if (statusWord == null || statusWord == 0) {
     return CieErrorKind.cardCommunicationError;

@@ -110,6 +110,21 @@ bool _cieLastErrorLookupDone = false;
   }
 }
 
+/// Overwrite a NUL-terminated native UTF-8 buffer with zeros before it is
+/// released with `calloc.free`. Used for PIN/PUK buffers (OC-30): freed
+/// heap memory can be reused, paged to disk, or captured in a crash dump,
+/// so secrets should not be left readable in it any longer than necessary.
+void _wipeUtf8(Pointer<Utf8> ptr) {
+  final bytes = ptr.cast<Uint8>();
+  var len = 0;
+  while (bytes[len] != 0) {
+    len++;
+  }
+  for (var i = 0; i < len; i++) {
+    bytes[i] = 0;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -204,18 +219,19 @@ class OpenCiePkcs11 {
             Pointer.fromFunction<ProgressCallbackNative>(_onProgress, 0),
             Pointer.fromFunction<CompletedCallbackNative>(_onCompleted, 0),
           );
+          final err = rv == AppConstants.ckrOk ? null : lastNativeError();
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
-            statusWord: rv == AppConstants.ckrOk
-                ? null
-                : lastNativeError()?.statusWord,
+            statusWord: err?.statusWord,
+            nativeErrorKind: err?.kind,
             enrolledPan: _completedData?.elementAtOrNull(0),
             enrolledName: _completedData?.elementAtOrNull(1),
             enrolledSerial: _completedData?.elementAtOrNull(2),
           );
         } finally {
           calloc.free(panPtr);
+          _wipeUtf8(pinPtr);
           calloc.free(pinPtr);
           calloc.free(attemptsPtr);
           _activeProgressPort = null;
@@ -364,15 +380,17 @@ class OpenCiePkcs11 {
             attemptsPtr,
             Pointer.fromFunction<ProgressCallbackNative>(_onProgress, 0),
           );
+          final err = rv == AppConstants.ckrOk ? null : lastNativeError();
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
-            statusWord: rv == AppConstants.ckrOk
-                ? null
-                : lastNativeError()?.statusWord,
+            statusWord: err?.statusWord,
+            nativeErrorKind: err?.kind,
           );
         } finally {
+          _wipeUtf8(curPtr);
           calloc.free(curPtr);
+          _wipeUtf8(newPtr);
           calloc.free(newPtr);
           calloc.free(attemptsPtr);
           _activeProgressPort = null;
@@ -407,15 +425,17 @@ class OpenCiePkcs11 {
             attemptsPtr,
             Pointer.fromFunction<ProgressCallbackNative>(_onProgress, 0),
           );
+          final err = rv == AppConstants.ckrOk ? null : lastNativeError();
           return CieResult(
             returnValue: rv,
             remainingAttempts: attemptsPtr.value,
-            statusWord: rv == AppConstants.ckrOk
-                ? null
-                : lastNativeError()?.statusWord,
+            statusWord: err?.statusWord,
+            nativeErrorKind: err?.kind,
           );
         } finally {
+          _wipeUtf8(pukPtr);
           calloc.free(pukPtr);
+          _wipeUtf8(newPtr);
           calloc.free(newPtr);
           calloc.free(attemptsPtr);
           _activeProgressPort = null;
@@ -482,11 +502,17 @@ class OpenCiePkcs11 {
               0,
             ),
           );
-          return CieResult(returnValue: rv);
+          final err = rv == AppConstants.ckrOk ? null : lastNativeError();
+          return CieResult(
+            returnValue: rv,
+            statusWord: err?.statusWord,
+            nativeErrorKind: err?.kind,
+          );
         } finally {
           calloc.free(inPtr);
           calloc.free(outPtr);
           calloc.free(typePtr);
+          _wipeUtf8(pinPtr);
           calloc.free(pinPtr);
           calloc.free(panPtr);
           if (imageData != null && imageData.isNotEmpty) calloc.free(imgPtr);
@@ -580,20 +606,32 @@ class OpenCiePkcs11 {
           .lookupFunction<CieGetCertificateNative, CieGetCertificateDart>(
             'cie_get_certificate',
           );
+      final freeFn = lib.lookupFunction<CieFreeNative, CieFreeDart>('cie_free');
 
       final panPtr = pan.toNativeUtf8();
       final outDerPtr = calloc<Pointer<Uint8>>();
-      final outLenPtr = calloc<Uint64>();
+      final outLenPtr = calloc<UnsignedLong>();
 
       try {
         final rv = fn(panPtr, outDerPtr, outLenPtr);
         if (rv != 0) return null; // CKR_OK == 0
 
         final len = outLenPtr.value;
-        if (len == 0) return null;
+        final nativeBuf = outDerPtr.value;
+        if (len == 0) {
+          // Native may still have allocated a zero-length buffer; release it
+          // through cie_free rather than leaking it (cross-heap free() is
+          // never safe, even for a zero-length allocation).
+          if (nativeBuf != nullptr) freeFn(nativeBuf.cast());
+          return null;
+        }
 
-        final der = Uint8List.fromList(outDerPtr.value.asTypedList(len));
-        calloc.free(outDerPtr.value); // free malloc'd buffer from native side
+        final der = Uint8List.fromList(nativeBuf.asTypedList(len));
+        // Release the native-owned buffer with cie_free, not calloc.free:
+        // cross-heap free() is undefined behavior (worst on Windows, where
+        // the DLL and a statically-linked caller may use different CRT
+        // heaps).
+        freeFn(nativeBuf.cast());
         return der;
       } finally {
         calloc.free(panPtr);
@@ -643,6 +681,7 @@ class OpenCiePkcs11 {
               : null;
           return (mrzBytes, photoBytes);
         } finally {
+          _wipeUtf8(pinPtr);
           calloc.free(pinPtr);
           calloc.free(mrzPtr);
           calloc.free(mrzLenPtr);
@@ -769,6 +808,7 @@ class CieResult {
     required this.returnValue,
     this.remainingAttempts,
     this.statusWord,
+    this.nativeErrorKind,
     this.enrolledPan,
     this.enrolledName,
     this.enrolledSerial,
@@ -781,6 +821,15 @@ class CieResult {
   /// populated only when [returnValue] indicates failure. Null when the
   /// call succeeded or the loaded library predates `cie_last_error`.
   final int? statusWord;
+
+  /// Classified error kind from the native `cie_last_error` channel (the
+  /// `cie_error_kind` enum in `cie_ext.h`, e.g. `CIE_ERR_WRONG_PIN = 1`).
+  /// Populated only when [returnValue] indicates failure. Null when the
+  /// call succeeded or the loaded library predates `cie_last_error`.
+  ///
+  /// Prefer this over re-deriving a classification from [statusWord] in
+  /// Dart: see [classifyCieError]'s `nativeErrorKind` parameter.
+  final int? nativeErrorKind;
 
   final String? enrolledPan;
   final String? enrolledName;
