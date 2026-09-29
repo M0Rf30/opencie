@@ -43,17 +43,14 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
   // ── File picking (unchanged FFI layer) ────────────────────────────────────
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.pickFiles(
-      allowMultiple: false,
+    final file = await FilePicker.pickFile(
       type: Platform.isAndroid ? FileType.any : FileType.custom,
       allowedExtensions: Platform.isAndroid
           ? null
           : const ['pdf', 'p7m', 'p7s', 'xml'],
     );
-    if (result != null && result.paths.isNotEmpty) {
-      final path = result.paths.first;
-      if (path != null) _setFile(path);
-    }
+    final path = file?.path;
+    if (path != null) _setFile(path);
   }
 
   void _setFile(String path) {

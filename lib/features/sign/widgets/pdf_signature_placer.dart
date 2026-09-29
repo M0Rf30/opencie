@@ -274,12 +274,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-    if (result != null && result.paths.isNotEmpty) {
-      final path = result.paths.first;
+    final file = await FilePicker.pickFile(type: FileType.image);
+    {
+      final path = file?.path;
       if (path != null) {
         final bytes = await File(path).readAsBytes();
         widget.onChanged(

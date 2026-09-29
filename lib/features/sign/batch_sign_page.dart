@@ -386,13 +386,11 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
   }
 
   Future<void> _pickFiles() async {
-    final result = await FilePicker.pickFiles(
-      allowMultiple: true,
-      type: FileType.any,
-    );
-
-    if (result != null) {
-      _handleDroppedFiles(result.paths.whereType<String>().toList());
+    final files = await FilePicker.pickFiles(type: FileType.any);
+    if (files.isNotEmpty) {
+      _handleDroppedFiles(
+        files.map((f) => f.path).whereType<String>().toList(),
+      );
     }
   }
 
