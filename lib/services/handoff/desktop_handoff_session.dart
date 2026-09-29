@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import 'audit_log.dart';
 import 'crypto.dart';
@@ -13,6 +16,8 @@ import 'descriptor.dart';
 import 'messages.dart';
 import 'pairing.dart';
 import 'qr_payload.dart';
+import '../../ffi/opencie_pkcs11.dart';
+import '../../ffi/models/verify_info.dart';
 
 /// Desktop-side state machine for the QR-paired phone signing handoff.
 enum DesktopHandoffState {
@@ -32,13 +37,21 @@ enum DesktopHandoffState {
   /// (and to read the matching SAS on this desktop).
   awaitingSasConfirm,
 
-  /// Descriptor sent, waiting for `pin_ok`.
-  descriptorSent,
+  /// Descriptor + document chunks are being streamed to the phone.
+  sendingDocument,
 
-  /// Phone reported PIN accepted, waiting for the signature frame.
+  /// Document fully sent; waiting for the phone user to enter the PIN
+  /// (`pin_ok`).
+  awaitingPin,
+
+  /// `pin_ok` received; waiting for the signed-document frames.
   signing,
 
-  /// Signature received and audited; UI can write the signed file.
+  /// Signed document fully received; verifying the embedded signature
+  /// before writing it to disk.
+  verifying,
+
+  /// Signature verified and written to disk; UI can open the file.
   done,
 
   /// Aborted or failed. Inspect [DesktopHandoffSession.errorMessage].
@@ -46,18 +59,56 @@ enum DesktopHandoffState {
 }
 
 class DesktopHandoffSession {
-  DesktopHandoffSession({required this.filePath});
+  DesktopHandoffSession({
+    required this.filePath,
+    @visibleForTesting
+    Future<List<VerifyInfo>> Function({required String inputPath})? verify,
+  }) : _verify = verify ?? OpenCiePkcs11.instance.verify;
+
+  /// Test-only constructor: skips the QR/SDP/ECDH handshake entirely and
+  /// wires the session directly onto a pre-established transport + crypto
+  /// session, landing in [DesktopHandoffState.awaitingSasConfirm]. Used by
+  /// session-level protocol tests with an in-memory fake transport.
+  @visibleForTesting
+  DesktopHandoffSession.forTesting({
+    required this.filePath,
+    required HandoffTransport transport,
+    required HandoffSession cryptoSession,
+    List<String>? sasWords,
+    Future<List<VerifyInfo>> Function({required String inputPath})? verify,
+  }) : _verify = verify ?? OpenCiePkcs11.instance.verify {
+    _pairing = transport;
+    _session = cryptoSession;
+    _sasWords = sasWords ?? cryptoSession.sasWords;
+    _msgSub = transport.messages.listen(_onIncomingFrame);
+    _pairingSub = transport.states.listen(_onTransportState);
+    _transition(DesktopHandoffState.awaitingSasConfirm);
+  }
 
   /// Path to the local file the user wants signed. Bytes never leave the
   /// desktop; only descriptor + hash do.
   final String filePath;
 
-  HandoffPairing? _pairing;
+  /// Verifies a candidate signed document before it's trusted/written to
+  /// disk. Defaults to the real native PKCS#11 verify path; overridable in
+  /// tests so session-level protocol tests don't need a real card/library.
+  final Future<List<VerifyInfo>> Function({required String inputPath}) _verify;
+
+  HandoffTransport? _pairing;
   SimpleKeyPair? _myKeyPair;
   HandoffSession? _session;
   StreamSubscription<Uint8List>? _msgSub;
+  StreamSubscription<HandoffPairingState>? _pairingSub;
   DescriptorPayload? _descriptor;
+
+  BytesBuilder? _signedBuilder;
+  SignedStartPayload? _signedStart;
+  int _signedChunksReceived = 0;
+  int _signedBytesReceived = 0;
+
   Uint8List? _signatureBytes;
+  String? _signatureFormat;
+  String? _signedFilePath;
 
   DesktopHandoffState _state = DesktopHandoffState.idle;
   final _stateCtl = StreamController<DesktopHandoffState>.broadcast();
@@ -72,6 +123,7 @@ class DesktopHandoffSession {
   List<String>? get sasWords => _sasWords;
   DescriptorPayload? get descriptor => _descriptor;
   Uint8List? get signatureBytes => _signatureBytes;
+  String? get signedFilePath => _signedFilePath;
   String? get errorMessage => _errorMessage;
 
   void _transition(DesktopHandoffState next, {String? error}) {
@@ -83,12 +135,39 @@ class DesktopHandoffSession {
 
   /// Step 1: build the offer SDP, generate the X25519 keypair, return the
   /// QR1 string the UI should render.
+  ///
+  /// May also be called again while in [DesktopHandoffState.showingQr] (or
+  /// [DesktopHandoffState.idle]) to mint a fresh QR1 — e.g. because the
+  /// user waited long enough that the original went stale. This tears down
+  /// any in-progress pairing attempt and starts over.
   Future<String> start() async {
+    if (_state != DesktopHandoffState.idle &&
+        _state != DesktopHandoffState.showingQr) {
+      throw StateError('start in wrong state $_state');
+    }
+    if (_state == DesktopHandoffState.showingQr) {
+      // Refreshing an existing QR1: tear down the stale pairing attempt
+      // first so we don't leak a peer connection.
+      await _pairingSub?.cancel();
+      _pairingSub = null;
+      await _msgSub?.cancel();
+      _msgSub = null;
+      await _pairing?.dispose();
+      _pairing = null;
+      try {
+        _myKeyPair?.destroy();
+      } catch (_) {
+        // Best-effort cleanup: key material may already be zeroed; ignore.
+      }
+      _myKeyPair = null;
+      _state = DesktopHandoffState.idle;
+    }
     _transition(DesktopHandoffState.preparingOffer);
     try {
       _myKeyPair = await HandoffCrypto.generateEphemeralKeyPair();
-      _pairing = HandoffPairing.offerer();
-      final offerSdp = await _pairing!.createOfferAndGather();
+      final pairing = HandoffPairing.offerer();
+      final offerSdp = await pairing.createOfferAndGather();
+      _pairing = pairing;
 
       final pub = await _myKeyPair!.extractPublicKey();
       final qr1 = HandoffQrPayload(
@@ -114,7 +193,7 @@ class DesktopHandoffSession {
     final pairing = _pairing;
     final myKp = _myKeyPair;
     final qr1 = _qr1Wire;
-    if (pairing == null || myKp == null || qr1 == null) {
+    if (pairing is! HandoffPairing || myKp == null || qr1 == null) {
       throw StateError('Session not started');
     }
     try {
@@ -140,8 +219,9 @@ class DesktopHandoffSession {
       await pairing.acceptAnswer(qr2.sdp);
       await pairing.channelOpen.timeout(const Duration(seconds: 30));
 
-      // Subscribe to incoming messages.
+      // Subscribe to incoming messages and transport liveness.
       _msgSub = pairing.messages.listen(_onIncomingFrame);
+      _pairingSub = pairing.states.listen(_onTransportState);
 
       _transition(DesktopHandoffState.awaitingSasConfirm);
     } catch (e) {
@@ -151,11 +231,28 @@ class DesktopHandoffSession {
     }
   }
 
-  /// Step 3: user confirmed SAS matches. Build descriptor (SHA-256 + thumb),
-  /// send to phone.
-  Future<void> sendDescriptor() async {
+  /// Reacts to transport-level liveness changes (ICE/data-channel failure or
+  /// close) that aren't part of the signing protocol itself. If the peer
+  /// vanishes mid-flow, the session must not sit forever in `awaitingPin`/
+  /// `signing` — surface an error and tear down.
+  void _onTransportState(HandoffPairingState s) {
+    if (s != HandoffPairingState.failed && s != HandoffPairingState.closed) {
+      return;
+    }
+    if (_state == DesktopHandoffState.done ||
+        _state == DesktopHandoffState.error) {
+      return;
+    }
+    _transition(DesktopHandoffState.error, error: 'peer connection lost');
+    unawaited(_writeAudit(outcome: 'aborted', error: 'peer connection lost'));
+    unawaited(dispose());
+  }
+
+  /// Step 3: user confirmed SAS matches. Sends the document descriptor
+  /// followed by the actual document bytes, chunked, over the AEAD channel.
+  Future<void> sendDocument() async {
     if (_state != DesktopHandoffState.awaitingSasConfirm) {
-      throw StateError('sendDescriptor in wrong state $_state');
+      throw StateError('sendDocument in wrong state $_state');
     }
     final pairing = _pairing;
     final session = _session;
@@ -163,12 +260,37 @@ class DesktopHandoffSession {
       throw StateError('Session not derived');
     }
     try {
-      _descriptor = await HandoffDescriptorBuilder.fromFile(filePath);
-      final env = await sealMessage(session, _descriptor!.toMessage());
-      await pairing.send(env);
-      _transition(DesktopHandoffState.descriptorSent);
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length > HandoffLimits.maxDocumentBytes) {
+        throw StateError(
+          'document size ${bytes.length} exceeds handoff limit '
+          '(${HandoffLimits.maxDocumentBytes})',
+        );
+      }
+      _descriptor = await HandoffDescriptorBuilder.fromBytes(
+        bytes: bytes,
+        fileName: filePath,
+      );
+
+      _transition(DesktopHandoffState.sendingDocument);
+      await pairing.send(await sealMessage(session, _descriptor!.toMessage()));
+
+      final total = HandoffLimits.totalChunksFor(bytes.length);
+      for (var seq = 0; seq < total; seq++) {
+        final start = seq * HandoffLimits.chunkBytes;
+        final end = (start + HandoffLimits.chunkBytes < bytes.length)
+            ? start + HandoffLimits.chunkBytes
+            : bytes.length;
+        final chunk = DocumentChunkPayload(
+          seq: seq,
+          data: Uint8List.sublistView(bytes, start, end),
+        );
+        await pairing.send(await sealMessage(session, chunk.toMessage()));
+      }
+      _transition(DesktopHandoffState.awaitingPin);
     } catch (e) {
-      _transition(DesktopHandoffState.error, error: 'sendDescriptor: $e');
+      _transition(DesktopHandoffState.error, error: 'sendDocument: $e');
       rethrow;
     }
   }
@@ -191,6 +313,9 @@ class DesktopHandoffSession {
         );
       }
     }
+    if (_state != DesktopHandoffState.done) {
+      _transition(DesktopHandoffState.error, error: reason ?? 'aborted');
+    }
     await _writeAudit(outcome: 'aborted', error: reason);
     await dispose();
   }
@@ -206,20 +331,40 @@ class DesktopHandoffSession {
     }
     switch (msg.type) {
       case HandoffMessageType.pinOk:
+        if (_state != DesktopHandoffState.awaitingPin) {
+          _transition(
+            DesktopHandoffState.error,
+            error: 'unexpected pin_ok in state $_state',
+          );
+          await dispose();
+          return;
+        }
         _transition(DesktopHandoffState.signing);
         break;
-      case HandoffMessageType.signature:
+      case HandoffMessageType.signedStart:
+        if (_state != DesktopHandoffState.signing) {
+          _transition(
+            DesktopHandoffState.error,
+            error: 'unexpected signed_start in state $_state',
+          );
+          await dispose();
+          return;
+        }
         try {
-          final sig = SignaturePayload.fromJson(msg.data);
-          _signatureBytes = sig.cmsBytes;
-          _transition(DesktopHandoffState.done);
-          await _writeAudit(outcome: 'success', format: sig.format);
+          _signedStart = SignedStartPayload.fromJson(msg.data);
+          _signedBuilder = BytesBuilder();
+          _signedChunksReceived = 0;
+          _signedBytesReceived = 0;
         } catch (e) {
           _transition(
             DesktopHandoffState.error,
-            error: 'bad signature payload: $e',
+            error: 'bad signed_start payload: $e',
           );
+          await dispose();
         }
+        break;
+      case HandoffMessageType.signedChunk:
+        await _handleSignedChunk(msg.data);
         break;
       case HandoffMessageType.abort:
         final reason = AbortPayload.fromJson(msg.data).reason;
@@ -231,8 +376,127 @@ class DesktopHandoffSession {
         await dispose();
         break;
       case HandoffMessageType.descriptor:
-        // Should never come from the phone.
+      case HandoffMessageType.documentChunk:
+        // Desktop → phone directions only; a peer sending these is either
+        // buggy or hostile.
+        _transition(
+          DesktopHandoffState.error,
+          error: 'unexpected ${msg.type} received from phone',
+        );
+        await dispose();
         break;
+    }
+  }
+
+  Future<void> _handleSignedChunk(Map<String, dynamic> data) async {
+    final start = _signedStart;
+    final builder = _signedBuilder;
+    if (_state != DesktopHandoffState.signing ||
+        start == null ||
+        builder == null) {
+      _transition(
+        DesktopHandoffState.error,
+        error: 'unexpected signed_chunk in state $_state',
+      );
+      await dispose();
+      return;
+    }
+    try {
+      final chunk = SignedChunkPayload.fromJson(data);
+      if (chunk.seq != _signedChunksReceived) {
+        throw StateError(
+          'out-of-order signed_chunk (got ${chunk.seq}, expected $_signedChunksReceived)',
+        );
+      }
+      builder.add(chunk.data);
+      _signedChunksReceived++;
+      _signedBytesReceived += chunk.data.lengthInBytes;
+      if (_signedBytesReceived > HandoffLimits.maxDocumentBytes ||
+          _signedBytesReceived > start.byteSize) {
+        throw StateError('signed document exceeds declared/allowed size');
+      }
+      if (_signedBytesReceived < start.byteSize) {
+        return; // more chunks to come
+      }
+
+      final full = builder.toBytes();
+      final hash = await Sha256().hash(full);
+      final hex = _hex(hash.bytes);
+      if (hex != start.sha256Hex) {
+        throw StateError('signed document sha256 mismatch');
+      }
+      _transition(DesktopHandoffState.verifying);
+      await _verifyAndFinish(full, start.format);
+    } catch (e) {
+      _transition(
+        DesktopHandoffState.error,
+        error: 'signature transfer failed: $e',
+      );
+      await _writeAudit(outcome: 'failed', error: '$e');
+      await dispose();
+    }
+  }
+
+  /// Verifies the returned signature actually validates (parses as a
+  /// signed document with at least one cryptographically valid signature)
+  /// before writing anything to disk, and never clobbers an existing
+  /// output file.
+  Future<void> _verifyAndFinish(Uint8List bytes, String? format) async {
+    File? tempFile;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = p.join(
+        tempDir.path,
+        'handoff_verify_${DateTime.now().microsecondsSinceEpoch}.p7m',
+      );
+      tempFile = File(tempPath);
+      await tempFile.writeAsBytes(bytes, flush: true);
+
+      final infos = await _verify(inputPath: tempPath);
+      if (infos.isEmpty || !infos.any((i) => i.isSignatureValid)) {
+        throw StateError('no valid signature found in the returned document');
+      }
+
+      final outPath = _uniqueOutputPath(_desiredOutputPath());
+      await File(outPath).writeAsBytes(bytes, flush: true);
+
+      _signatureBytes = bytes;
+      _signatureFormat = format;
+      _signedFilePath = outPath;
+      _transition(DesktopHandoffState.done);
+      await _writeAudit(outcome: 'success', format: format);
+    } catch (e) {
+      _transition(
+        DesktopHandoffState.error,
+        error: 'signature verification failed: $e',
+      );
+      await _writeAudit(outcome: 'failed', error: '$e');
+    } finally {
+      try {
+        if (tempFile != null && await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      } catch (_) {
+        // Best-effort cleanup.
+      }
+    }
+  }
+
+  String _desiredOutputPath() =>
+      p.join(p.dirname(filePath), '${p.basename(filePath)}.p7m');
+
+  /// Never overwrites an existing file: appends " (1)", " (2)", … before the
+  /// extension until a free name is found.
+  String _uniqueOutputPath(String desired) {
+    if (!File(desired).existsSync()) return desired;
+    final dir = p.dirname(desired);
+    final ext = p.extension(desired);
+    final baseNoExt = p.basenameWithoutExtension(desired);
+    var i = 1;
+    while (true) {
+      final candidate = p.join(dir, '$baseNoExt ($i)$ext');
+      if (!File(candidate).existsSync()) return candidate;
+      i++;
     }
   }
 
@@ -249,7 +513,7 @@ class DesktopHandoffSession {
         fileName: desc.fileName,
         sha256Hex: desc.sha256Hex,
         byteSize: desc.byteSize,
-        signatureFormat: format,
+        signatureFormat: format ?? _signatureFormat,
         peerSasWords: _sasWords,
         outcome: outcome,
         errorMessage: error,
@@ -258,6 +522,8 @@ class DesktopHandoffSession {
   }
 
   Future<void> dispose() async {
+    await _pairingSub?.cancel();
+    _pairingSub = null;
     await _msgSub?.cancel();
     _msgSub = null;
     _session?.destroy();
@@ -281,5 +547,13 @@ class DesktopHandoffSession {
       ..add(const [0x1f]) // unit separator
       ..add(qr2.codeUnits);
     return builder.toBytes();
+  }
+
+  static String _hex(List<int> bytes) {
+    final sb = StringBuffer();
+    for (final b in bytes) {
+      sb.write(b.toRadixString(16).padLeft(2, '0'));
+    }
+    return sb.toString();
   }
 }

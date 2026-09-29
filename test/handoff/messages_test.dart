@@ -11,6 +11,9 @@ import 'package:opencie/services/handoff/messages.dart';
 Uint8List _rawJson(Map<String, dynamic> map) =>
     Uint8List.fromList(utf8.encode(jsonEncode(map)));
 
+/// A valid 64-char lower-case hex SHA-256, used across payload tests.
+final String _validSha = List.filled(64, 'a').join();
+
 void main() {
   // ---------------------------------------------------------------------------
   // HandoffMessage encode / decode — frame layer
@@ -24,7 +27,7 @@ void main() {
       final bytes = msg.encode();
       final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       expect(decoded['t'], equals('abort'));
-      expect(decoded['v'], equals(1));
+      expect(decoded['v'], equals(protocolVersion));
       expect(decoded['d'], isA<Map<String, dynamic>>());
       expect(
         (decoded['d'] as Map<String, dynamic>)['reason'],
@@ -35,13 +38,26 @@ void main() {
     test('decode(encode()) round-trip for descriptor type', () {
       final msg = HandoffMessage(
         type: HandoffMessageType.descriptor,
-        data: {'name': 'contract.pdf', 'size': 2048, 'sha256': 'deadbeef'},
+        data: {'name': 'contract.pdf', 'size': 2048, 'sha256': _validSha},
       );
       final decoded = HandoffMessage.decode(msg.encode());
       expect(decoded.type, equals(HandoffMessageType.descriptor));
       expect(decoded.data['name'], equals('contract.pdf'));
       expect(decoded.data['size'], equals(2048));
-      expect(decoded.data['sha256'], equals('deadbeef'));
+      expect(decoded.data['sha256'], equals(_validSha));
+    });
+
+    test('decode(encode()) round-trip for documentChunk type', () {
+      final msg = HandoffMessage(
+        type: HandoffMessageType.documentChunk,
+        data: {
+          'seq': 3,
+          'data_b64': base64Encode([1, 2, 3]),
+        },
+      );
+      final decoded = HandoffMessage.decode(msg.encode());
+      expect(decoded.type, equals(HandoffMessageType.documentChunk));
+      expect(decoded.data['seq'], equals(3));
     });
 
     test('decode(encode()) round-trip for pinOk type', () {
@@ -54,16 +70,27 @@ void main() {
       expect(decoded.data['attempts_left'], equals(2));
     });
 
-    test('decode(encode()) round-trip for signature type', () {
+    test('decode(encode()) round-trip for signedStart type', () {
       final msg = HandoffMessage(
-        type: HandoffMessageType.signature,
+        type: HandoffMessageType.signedStart,
+        data: {'size': 10, 'sha256': _validSha, 'format': 'pades-b-t'},
+      );
+      final decoded = HandoffMessage.decode(msg.encode());
+      expect(decoded.type, equals(HandoffMessageType.signedStart));
+      expect(decoded.data['format'], equals('pades-b-t'));
+    });
+
+    test('decode(encode()) round-trip for signedChunk type', () {
+      final msg = HandoffMessage(
+        type: HandoffMessageType.signedChunk,
         data: {
-          'cms_b64': base64Encode([0xDE, 0xAD, 0xBE, 0xEF]),
+          'seq': 0,
+          'data_b64': base64Encode([0xDE, 0xAD, 0xBE, 0xEF]),
         },
       );
       final decoded = HandoffMessage.decode(msg.encode());
-      expect(decoded.type, equals(HandoffMessageType.signature));
-      expect(decoded.data['cms_b64'], isA<String>());
+      expect(decoded.type, equals(HandoffMessageType.signedChunk));
+      expect(decoded.data['data_b64'], isA<String>());
     });
 
     test('decode(encode()) round-trip for abort type with no reason', () {
@@ -89,14 +116,14 @@ void main() {
     });
 
     test('decode throws FormatException when "t" field is missing', () {
-      final bad = _rawJson({'v': 1, 'd': <String, Object?>{}});
+      final bad = _rawJson({'v': protocolVersion, 'd': <String, Object?>{}});
       expect(() => HandoffMessage.decode(bad), throwsA(isA<FormatException>()));
     });
 
     test('decode throws FormatException for unknown message type', () {
       final bad = _rawJson({
         't': 'unknown_type',
-        'v': 1,
+        'v': protocolVersion,
         'd': <String, Object?>{},
       });
       expect(() => HandoffMessage.decode(bad), throwsA(isA<FormatException>()));
@@ -107,13 +134,28 @@ void main() {
       expect(() => HandoffMessage.decode(bad), throwsA(isA<FormatException>()));
     });
 
+    test(
+      'decode rejects the old v1 protocol version cleanly (single-version protocol)',
+      () {
+        final bad = _rawJson({'t': 'abort', 'v': 1, 'd': <String, Object?>{}});
+        expect(
+          () => HandoffMessage.decode(bad),
+          throwsA(isA<FormatException>()),
+        );
+      },
+    );
+
     test('decode throws FormatException when "d" is not an object', () {
-      final bad = _rawJson({'t': 'abort', 'v': 1, 'd': 'not-an-object'});
+      final bad = _rawJson({
+        't': 'abort',
+        'v': protocolVersion,
+        'd': 'not-an-object',
+      });
       expect(() => HandoffMessage.decode(bad), throwsA(isA<FormatException>()));
     });
 
     test('decode throws FormatException when "d" is missing', () {
-      final bad = _rawJson({'t': 'abort', 'v': 1});
+      final bad = _rawJson({'t': 'abort', 'v': protocolVersion});
       expect(() => HandoffMessage.decode(bad), throwsA(isA<FormatException>()));
     });
   });
@@ -126,51 +168,147 @@ void main() {
       final p = DescriptorPayload(
         fileName: 'report.pdf',
         byteSize: 512,
-        sha256Hex: 'aabbccdd',
+        sha256Hex: _validSha,
       );
       final j = p.toJson();
       final p2 = DescriptorPayload.fromJson(j);
       expect(p2.fileName, equals('report.pdf'));
       expect(p2.byteSize, equals(512));
-      expect(p2.sha256Hex, equals('aabbccdd'));
-      expect(p2.pageCount, isNull);
+      expect(p2.sha256Hex, equals(_validSha));
       expect(p2.mimeType, isNull);
-      expect(p2.thumbnailPng, isNull);
     });
 
-    test('toJson/fromJson round-trip with all optional fields', () {
-      final thumb = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47]); // PNG magic
+    test('toJson/fromJson round-trip with mime type', () {
       final p = DescriptorPayload(
         fileName: 'slides.pdf',
         byteSize: 102400,
-        sha256Hex: 'ff00ff00',
-        pageCount: 5,
+        sha256Hex: _validSha,
         mimeType: 'application/pdf',
-        thumbnailPng: thumb,
       );
       final p2 = DescriptorPayload.fromJson(p.toJson());
       expect(p2.fileName, equals('slides.pdf'));
       expect(p2.byteSize, equals(102400));
-      expect(p2.pageCount, equals(5));
       expect(p2.mimeType, equals('application/pdf'));
-      expect(p2.thumbnailPng, equals(thumb));
     });
 
     test('fromJson throws FormatException when required fields are absent', () {
       expect(
-        () => DescriptorPayload.fromJson({'size': 1, 'sha256': 'x'}),
+        () => DescriptorPayload.fromJson({'size': 1, 'sha256': _validSha}),
         throwsA(isA<FormatException>()),
       );
+    });
+
+    test('constructor throws when sha256 is not 64 lower-case hex chars', () {
+      expect(
+        () => DescriptorPayload(
+          fileName: 'a.pdf',
+          byteSize: 1,
+          sha256Hex: 'not-a-hash',
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('constructor lower-cases a mixed-case sha256', () {
+      final mixed = List.filled(32, 'A').join() + List.filled(32, 'b').join();
+      final p = DescriptorPayload(
+        fileName: 'a.pdf',
+        byteSize: 1,
+        sha256Hex: mixed,
+      );
+      expect(p.sha256Hex, equals(mixed.toLowerCase()));
+    });
+
+    test('constructor throws when byteSize is zero or negative', () {
+      expect(
+        () => DescriptorPayload(
+          fileName: 'a.pdf',
+          byteSize: 0,
+          sha256Hex: _validSha,
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('constructor throws when byteSize exceeds the handoff limit', () {
+      expect(
+        () => DescriptorPayload(
+          fileName: 'a.pdf',
+          byteSize: HandoffLimits.maxDocumentBytes + 1,
+          sha256Hex: _validSha,
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('strips control and bidi-override characters from the filename', () {
+      final p = DescriptorPayload(
+        fileName: 'evil\u202Egnp.exe',
+        byteSize: 1,
+        sha256Hex: _validSha,
+      );
+      expect(p.fileName, equals('evilgnp.exe'));
+    });
+
+    test('caps filename length at 255 characters', () {
+      final p = DescriptorPayload(
+        fileName: 'a' * 500,
+        byteSize: 1,
+        sha256Hex: _validSha,
+      );
+      expect(p.fileName.length, equals(255));
     });
 
     test('toMessage returns HandoffMessage with descriptor type', () {
       final msg = DescriptorPayload(
         fileName: 'a.pdf',
         byteSize: 1,
-        sha256Hex: 'a',
+        sha256Hex: _validSha,
       ).toMessage();
       expect(msg.type, equals(HandoffMessageType.descriptor));
       expect(msg.data['name'], equals('a.pdf'));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DocumentChunkPayload
+  // ---------------------------------------------------------------------------
+  group('DocumentChunkPayload', () {
+    test('toJson/fromJson round-trip preserves seq and bytes', () {
+      final data = Uint8List.fromList(List.generate(32, (i) => i));
+      final p = DocumentChunkPayload(seq: 7, data: data);
+      final p2 = DocumentChunkPayload.fromJson(p.toJson());
+      expect(p2.seq, equals(7));
+      expect(p2.data, equals(data));
+    });
+
+    test('constructor throws on negative seq', () {
+      expect(
+        () => DocumentChunkPayload(seq: -1, data: Uint8List(0)),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('constructor throws when chunk exceeds chunkBytes', () {
+      expect(
+        () => DocumentChunkPayload(
+          seq: 0,
+          data: Uint8List(HandoffLimits.chunkBytes + 1),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('fromJson throws FormatException when seq/data_b64 are absent', () {
+      expect(
+        () => DocumentChunkPayload.fromJson({'seq': 0}),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('toMessage returns HandoffMessage with documentChunk type', () {
+      final msg = DocumentChunkPayload(seq: 0, data: Uint8List(1)).toMessage();
+      expect(msg.type, equals(HandoffMessageType.documentChunk));
     });
   });
 
@@ -197,42 +335,79 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // SignaturePayload
+  // SignedStartPayload / SignedChunkPayload
   // ---------------------------------------------------------------------------
-  group('SignaturePayload', () {
-    test('toJson/fromJson round-trip preserves CMS bytes', () {
-      final cms = Uint8List.fromList(List.generate(32, (i) => i));
-      final p = SignaturePayload(cmsBytes: cms, format: 'pades-b-t');
-      final p2 = SignaturePayload.fromJson(p.toJson());
-      expect(p2.cmsBytes, equals(cms));
+  group('SignedStartPayload', () {
+    test('toJson/fromJson round-trip preserves size/sha/format', () {
+      final p = SignedStartPayload(
+        byteSize: 4096,
+        sha256Hex: _validSha,
+        format: 'pades-b-t',
+      );
+      final p2 = SignedStartPayload.fromJson(p.toJson());
+      expect(p2.byteSize, equals(4096));
+      expect(p2.sha256Hex, equals(_validSha));
       expect(p2.format, equals('pades-b-t'));
     });
 
     test('toJson/fromJson round-trip without optional format', () {
-      final cms = Uint8List.fromList([0xCA, 0xFE]);
-      final p = SignaturePayload(cmsBytes: cms);
-      final p2 = SignaturePayload.fromJson(p.toJson());
-      expect(p2.cmsBytes, equals(cms));
+      final p = SignedStartPayload(byteSize: 1, sha256Hex: _validSha);
+      final p2 = SignedStartPayload.fromJson(p.toJson());
       expect(p2.format, isNull);
     });
 
-    test('fromJson throws FormatException when cms_b64 is absent', () {
+    test('constructor throws when sha256 is malformed', () {
       expect(
-        () => SignaturePayload.fromJson({'format': 'cades'}),
+        () => SignedStartPayload(byteSize: 1, sha256Hex: 'nope'),
         throwsA(isA<FormatException>()),
       );
     });
 
-    test('fromJson throws on invalid base64 in cms_b64', () {
+    test('fromJson throws FormatException when required fields are absent', () {
       expect(
-        () => SignaturePayload.fromJson({'cms_b64': '!!!not-base64!!!'}),
+        () => SignedStartPayload.fromJson({'format': 'cades'}),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('toMessage returns HandoffMessage with signedStart type', () {
+      final msg = SignedStartPayload(
+        byteSize: 1,
+        sha256Hex: _validSha,
+      ).toMessage();
+      expect(msg.type, equals(HandoffMessageType.signedStart));
+    });
+  });
+
+  group('SignedChunkPayload', () {
+    test('toJson/fromJson round-trip preserves seq and bytes', () {
+      final cms = Uint8List.fromList(List.generate(32, (i) => i));
+      final p = SignedChunkPayload(seq: 2, data: cms);
+      final p2 = SignedChunkPayload.fromJson(p.toJson());
+      expect(p2.seq, equals(2));
+      expect(p2.data, equals(cms));
+    });
+
+    test('fromJson throws when data_b64 is absent', () {
+      expect(
+        () => SignedChunkPayload.fromJson({'seq': 0}),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('fromJson throws on invalid base64 in data_b64', () {
+      expect(
+        () => SignedChunkPayload.fromJson({
+          'seq': 0,
+          'data_b64': '!!!not-base64!!!',
+        }),
         throwsA(anything),
       );
     });
 
-    test('toMessage returns HandoffMessage with signature type', () {
-      final msg = SignaturePayload(cmsBytes: Uint8List(1)).toMessage();
-      expect(msg.type, equals(HandoffMessageType.signature));
+    test('toMessage returns HandoffMessage with signedChunk type', () {
+      final msg = SignedChunkPayload(seq: 0, data: Uint8List(1)).toMessage();
+      expect(msg.type, equals(HandoffMessageType.signedChunk));
     });
   });
 
@@ -255,6 +430,29 @@ void main() {
     test('toMessage returns HandoffMessage with abort type', () {
       final msg = AbortPayload(reason: 'timeout').toMessage();
       expect(msg.type, equals(HandoffMessageType.abort));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // HandoffLimits
+  // ---------------------------------------------------------------------------
+  group('HandoffLimits.totalChunksFor', () {
+    test('rounds up to a whole chunk for a size smaller than chunkBytes', () {
+      expect(HandoffLimits.totalChunksFor(1), equals(1));
+    });
+
+    test('computes an exact chunk count for an exact multiple', () {
+      expect(
+        HandoffLimits.totalChunksFor(HandoffLimits.chunkBytes * 3),
+        equals(3),
+      );
+    });
+
+    test('rounds up a non-exact multiple', () {
+      expect(
+        HandoffLimits.totalChunksFor(HandoffLimits.chunkBytes * 3 + 1),
+        equals(4),
+      );
     });
   });
 }

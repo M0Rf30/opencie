@@ -18,7 +18,6 @@ import '../../core/theme/color_schemes.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../services/handoff/messages.dart';
 import '../../services/handoff/phone_handoff_session.dart';
-import '../../services/screen_guard.dart';
 import '../../services/pin_throttle.dart';
 import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/oc_file_tile.dart';
@@ -26,6 +25,7 @@ import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_mark.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../widgets/oc_status_disc.dart';
+import '../../widgets/pin_entry_dialog.dart';
 
 /// Phone-side screen for the QR desktop-signing handoff.
 ///
@@ -49,10 +49,15 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
   /// Guard against double-firing the QR1 scanner callback.
   bool _qrScanned = false;
 
+  /// Created once in [initState], never in `build()` — a controller
+  /// created per-build leaks the camera session on every rebuild.
+  MobileScannerController? _scannerCtrl;
+
   @override
   void initState() {
     super.initState();
     _listenSession();
+    _scannerCtrl = MobileScannerController();
   }
 
   void _listenSession() {
@@ -66,6 +71,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
   void dispose() {
     _sub?.cancel();
     _session.dispose();
+    _scannerCtrl?.dispose();
     super.dispose();
   }
 
@@ -75,6 +81,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
     if (_qrScanned) return;
     if (!raw.startsWith('{')) return;
     setState(() => _qrScanned = true);
+    unawaited(_scannerCtrl?.stop());
     try {
       await _session.startFromQr1(raw);
     } catch (_) {
@@ -84,93 +91,12 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
   // ── PIN dialog ────────────────────────────────────────────────────────────
 
-  Future<String?> _showPinDialog() async {
+  /// Uses the shared [PinEntryDialog] (numeric keypad + [PinThrottle]
+  /// lockout + localized copy) instead of an ad-hoc dialog with the system
+  /// IME, so phone-side signing behaves identically to the native sign flow.
+  Future<String?> _showPinDialog() {
     final l10n = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    final controller = TextEditingController();
-
-    await ScreenGuard.protect();
-    if (!mounted) {
-      await ScreenGuard.unprotect();
-      return null;
-    }
-    try {
-      return await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) {
-          return StatefulBuilder(
-            builder: (ctx, setS) {
-              final ready = controller.text.length == 8;
-              return AlertDialog(
-                backgroundColor: cs.surfaceContainer,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    OcSectionLabel('PIN CIE'),
-                    const SizedBox(height: 8),
-                    Text(
-                      l10n.signEnterPinTitle,
-                      style: AppTheme.headlineBold(cs).copyWith(fontSize: 20),
-                    ),
-                  ],
-                ),
-                content: TextFormField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  obscureText: true,
-                  autofocus: true,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  onChanged: (_) => setS(() {}),
-                  onFieldSubmitted: (v) {
-                    if (v.length == 8) Navigator.pop(ctx, v);
-                  },
-                  decoration: InputDecoration(
-                    hintText: '••••••••',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-                actions: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text(l10n.handoffCancel),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OcGradientButton(
-                          label: l10n.handoffSasConfirmMatch,
-                          onPressed: ready
-                              ? () => Navigator.pop(ctx, controller.text)
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-      await ScreenGuard.unprotect();
-    }
+    return PinEntryDialog.show(context, title: l10n.signEnterPinTitle);
   }
 
   // ── Sign helpers ──────────────────────────────────────────────────────────
@@ -183,21 +109,28 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
     return AppConstants.formatCades;
   }
 
-  Uint8List _hexToBytes(String hex) {
-    final result = Uint8List(hex.length ~/ 2);
-    for (var i = 0; i < result.length; i++) {
-      result[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
-    }
-    return result;
+  String _inputExtensionForMime(String? mimeType) {
+    if (mimeType == null) return 'bin';
+    final m = mimeType.toLowerCase();
+    if (m.contains('pdf')) return 'pdf';
+    if (m.contains('xml')) return 'xml';
+    return 'bin';
   }
 
   Future<void> _runSign(DescriptorPayload descriptor) async {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
 
+    // Guard against a peer that vanished while the user was reading the
+    // document preview (OC-16): don't let the user PIN+sign for nobody.
+    if (_session.state != PhoneHandoffState.documentReady) return;
+    final docBytes = _session.documentBytes;
+    if (docBytes == null) return;
+
     // 1. PIN dialog
     final pin = await _showPinDialog();
     if (pin == null) return;
+    if (_session.state != PhoneHandoffState.documentReady) return;
 
     // 2. NFC dialog
     final nfcNotifier = ValueNotifier<(bool, double, String)>((true, 0.0, ''));
@@ -230,14 +163,20 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       ),
     ).whenComplete(() => dialogOpen = false);
 
+    // Unique per-run temp file names, cleaned up in `finally` — the old
+    // fixed names (`handoff_input.bin`/`handoff_signed.*`) leaked across
+    // runs and could collide with a concurrent/aborted-and-retried flow.
+    final signatureType = _signatureTypeForMime(descriptor.mimeType);
+    final tempDir = await getTemporaryDirectory();
+    final runId = DateTime.now().microsecondsSinceEpoch;
+    final inputExt = _inputExtensionForMime(descriptor.mimeType);
+    final inputPath = '${tempDir.path}/handoff_input_$runId.$inputExt';
+    final outputPath = '${tempDir.path}/handoff_signed_$runId.$signatureType';
+
     try {
-      // 3. Determine signature format and write hash bytes to temp input file
-      final signatureType = _signatureTypeForMime(descriptor.mimeType);
-      final tempDir = await getTemporaryDirectory();
-      final hashBytes = _hexToBytes(descriptor.sha256Hex);
-      final inputPath = '${tempDir.path}/handoff_input.bin';
-      final outputPath = '${tempDir.path}/handoff_signed.$signatureType';
-      await File(inputPath).writeAsBytes(hashBytes);
+      // 3. Write the ACTUAL document (already verified against the
+      // descriptor's sha256) to a temp file and sign that — not a digest.
+      await File(inputPath).writeAsBytes(docBytes);
 
       // 4. Drive the CIE card
       nfcNotifier.value = (true, 0.0, '');
@@ -263,8 +202,8 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
       if (result.isSuccess) {
         PinThrottle.reset();
-        // 5. Submit signature to desktop
-        final cmsBytes = await File(outputPath).readAsBytes();
+        // 5. Submit the signed document to the desktop.
+        final signedBytes = await File(outputPath).readAsBytes();
         await _session.markPinOk();
 
         final format = switch (signatureType) {
@@ -272,7 +211,10 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
           AppConstants.formatXades => 'xades-bes',
           _ => 'cades-bes',
         };
-        await _session.submitSignature(cmsBytes: cmsBytes, format: format);
+        await _session.submitSignature(
+          signedBytes: signedBytes,
+          format: format,
+        );
 
         if (mounted) setState(() {});
       } else if (result.isPinIncorrect) {
@@ -322,6 +264,15 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
           ),
         );
       }
+    } finally {
+      for (final path in [inputPath, outputPath]) {
+        try {
+          final f = File(path);
+          if (await f.exists()) await f.delete();
+        } catch (_) {
+          // Best-effort cleanup; not user-visible either way.
+        }
+      }
     }
   }
 
@@ -336,6 +287,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       _qrScanned = false;
     });
     _listenSession();
+    unawaited(_scannerCtrl?.start());
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -393,10 +345,13 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
   Widget _buildBody(AppLocalizations l10n, ColorScheme cs) {
     final state = _session.state;
 
-    // SAS confirmation has priority over state-based dispatch until confirmed.
+    // SAS confirmation has priority over state-based dispatch until
+    // confirmed — the document (and its preview) must never be shown
+    // before the user has verified they're paired with the right peer.
     if (!_sasConfirmed &&
         (state == PhoneHandoffState.awaitingSasConfirm ||
-            state == PhoneHandoffState.descriptorReceived)) {
+            state == PhoneHandoffState.receivingDocument ||
+            state == PhoneHandoffState.documentReady)) {
       return _buildAwaitingSas(l10n, cs);
     }
 
@@ -404,10 +359,12 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       PhoneHandoffState.idle => _buildIdle(l10n, cs),
       PhoneHandoffState.preparingAnswer => _buildPreparingAnswer(l10n, cs),
       PhoneHandoffState.showingQr => _buildShowingQr(l10n, cs),
-      // _sasConfirmed is true here; wait for descriptor frame
+      // _sasConfirmed is true here; wait for descriptor/document frames
       PhoneHandoffState.awaitingSasConfirm => _buildPreparingAnswer(l10n, cs),
-      PhoneHandoffState.descriptorReceived => _buildDescriptorPreview(l10n, cs),
-      PhoneHandoffState.signing => _buildSigningOrDone(l10n, cs, signing: true),
+      PhoneHandoffState.receivingDocument => _buildReceivingDocument(l10n, cs),
+      PhoneHandoffState.documentReady => _buildDocumentPreview(l10n, cs),
+      PhoneHandoffState.signing || PhoneHandoffState.sendingSignature =>
+        _buildSigningOrDone(l10n, cs, signing: true),
       PhoneHandoffState.done => _buildSigningOrDone(l10n, cs, signing: false),
       PhoneHandoffState.error => _buildError(l10n, cs),
     };
@@ -449,7 +406,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                 fit: StackFit.expand,
                 children: [
                   MobileScanner(
-                    controller: MobileScannerController(),
+                    controller: _scannerCtrl!,
                     onDetect: (capture) {
                       for (final barcode in capture.barcodes) {
                         final raw = barcode.rawValue;
@@ -709,8 +666,25 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
   // ── State 5: Descriptor preview ──────────────────────────────────────────
 
-  Widget _buildDescriptorPreview(AppLocalizations l10n, ColorScheme cs) {
+  Widget _buildReceivingDocument(AppLocalizations l10n, ColorScheme cs) {
+    return Column(
+      key: const ValueKey('receivingDocument'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 20),
+        Text(
+          l10n.handoffReceivingDocument,
+          style: AppTheme.headlineBold(cs),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentPreview(AppLocalizations l10n, ColorScheme cs) {
     final d = _session.descriptor!;
+    final preview = _session.preview;
     final ext = d.fileName.contains('.')
         ? d.fileName.split('.').last.toLowerCase()
         : 'bin';
@@ -719,7 +693,9 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
               '${d.sha256Hex.substring(d.sha256Hex.length - 8)}'
         : d.sha256Hex;
     final sizeKb = d.byteSize ~/ 1024;
-    final pageInfo = d.pageCount != null ? '${d.pageCount} pagine' : '— pagine';
+    final pageInfo = preview?.pageCount != null
+        ? '${preview!.pageCount} pagine'
+        : '— pagine';
 
     return SingleChildScrollView(
       key: const ValueKey('descriptor'),
@@ -740,8 +716,9 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Optional thumbnail
-                  if (d.thumbnailPng != null) ...[
+                  // Optional thumbnail — rendered by THIS device from the
+                  // bytes it verified, never peer-supplied (OC-04).
+                  if (preview?.thumbnailPng != null) ...[
                     Center(
                       child: Container(
                         decoration: BoxDecoration(
@@ -751,7 +728,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.memory(
-                            d.thumbnailPng!,
+                            preview!.thumbnailPng!,
                             fit: BoxFit.contain,
                             height: 200,
                           ),

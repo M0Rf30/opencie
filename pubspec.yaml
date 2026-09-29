@@ -81,6 +81,8 @@ dev_dependencies:
   test: ^1.25.0
   # Fake platform for SecureStore unit tests
   flutter_secure_storage_platform_interface: ^2.0.1
+  # Fake platform for handoff session-level unit tests
+  path_provider_platform_interface: ^2.1.2
 
 flutter:
   uses-material-design: true

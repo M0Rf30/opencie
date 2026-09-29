@@ -41,9 +41,6 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
   late final StreamSubscription<DesktopHandoffState> _sub;
   final TextEditingController _pasteCtrl = TextEditingController();
 
-  String? _signedFilePath;
-  bool _writingFile = false;
-
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
   @override
@@ -52,7 +49,6 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
     _session = DesktopHandoffSession(filePath: widget.filePath);
     _sub = _session.states.listen((s) {
       if (mounted) setState(() {});
-      if (s == DesktopHandoffState.done) _writeSigned();
     });
     Future.microtask(_start);
   }
@@ -75,29 +71,23 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
 
   // ── actions ───────────────────────────────────────────────────────────────
 
-  Future<void> _writeSigned() async {
-    if (_writingFile || _signedFilePath != null) return;
-    _writingFile = true;
-    try {
-      final dir = p.dirname(widget.filePath);
-      final base = p.basename(widget.filePath);
-      final out = File(p.join(dir, '$base.p7m'));
-      await out.writeAsBytes(_session.signatureBytes!, flush: true);
-      if (mounted) setState(() => _signedFilePath = out.path);
-    } catch (_) {
-      _writingFile = false;
-    }
-  }
-
   Future<void> _acceptQr2(String wire) async {
     try {
       await _session.acceptQr2(wire);
     } catch (_) {}
   }
 
-  Future<void> _sendDescriptor() async {
+  /// Regenerates QR1 in place — used when the user waited long enough that
+  /// the original offer may have gone stale before the phone scanned it.
+  Future<void> _refreshQr() async {
     try {
-      await _session.sendDescriptor();
+      await _session.start();
+    } catch (_) {}
+  }
+
+  Future<void> _sendDocument() async {
+    try {
+      await _session.sendDocument();
     } catch (_) {}
   }
 
@@ -109,8 +99,9 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
   }
 
   Future<void> _openFile() async {
-    if (_signedFilePath == null) return;
-    await launchUrl(Uri.file(_signedFilePath!));
+    final path = _session.signedFilePath;
+    if (path == null) return;
+    await launchUrl(Uri.file(path));
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────
@@ -179,8 +170,10 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
         return _buildConnecting(context, l10n, cs);
       case DesktopHandoffState.awaitingSasConfirm:
         return _buildSasConfirm(context, l10n, cs);
-      case DesktopHandoffState.descriptorSent:
+      case DesktopHandoffState.sendingDocument:
+      case DesktopHandoffState.awaitingPin:
       case DesktopHandoffState.signing:
+      case DesktopHandoffState.verifying:
         return _buildSigning(context, l10n, cs);
       case DesktopHandoffState.done:
         return _buildDone(context, l10n, cs);
@@ -288,6 +281,12 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
             OutlinedButton(
               onPressed: () => _abort('user_cancel'),
               child: Text(l10n.handoffCancel),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: _refreshQr,
+              icon: const Icon(Icons.refresh, size: 16),
+              label: Text(l10n.handoffRefreshQr),
             ),
           ],
         ),
@@ -498,7 +497,7 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
                       Expanded(
                         child: OcGradientButton(
                           label: l10n.handoffSasConfirmMatch,
-                          onPressed: _sendDescriptor,
+                          onPressed: _sendDocument,
                         ),
                       ),
                     ],
@@ -522,15 +521,20 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
     );
   }
 
-  // ── 5. descriptorSent / signing ───────────────────────────────────────────
+  // ── 5. sendingDocument / awaitingPin / signing / verifying ──────────────
 
   Widget _buildSigning(
     BuildContext context,
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    final isSigning = _session.state == DesktopHandoffState.signing;
-    final label = isSigning ? l10n.handoffSigning : l10n.handoffWaitingForPin;
+    final label = switch (_session.state) {
+      DesktopHandoffState.sendingDocument => l10n.handoffSendingDescriptor,
+      DesktopHandoffState.awaitingPin => l10n.handoffWaitingForPin,
+      DesktopHandoffState.signing => l10n.handoffSigning,
+      DesktopHandoffState.verifying => l10n.handoffVerifyingSignature,
+      _ => l10n.handoffSigning,
+    };
 
     return Column(
       key: const ValueKey('signing'),
@@ -622,7 +626,9 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
                     OcGradientButton(
                       label: l10n.signOpenButton,
                       icon: Icons.open_in_new,
-                      onPressed: _signedFilePath != null ? _openFile : null,
+                      onPressed: _session.signedFilePath != null
+                          ? _openFile
+                          : null,
                       expand: false,
                     ),
                     const SizedBox(width: 12),
@@ -833,9 +839,7 @@ class _DescriptorChip extends StatelessWidget {
         ? '${sha.substring(0, 4)}…${sha.substring(sha.length - 4)}'
         : sha;
 
-    final sizeLine = descriptor.pageCount != null
-        ? '$sizeKb KB · ${descriptor.pageCount} pagine'
-        : '$sizeKb KB';
+    final sizeLine = '$sizeKb KB';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
