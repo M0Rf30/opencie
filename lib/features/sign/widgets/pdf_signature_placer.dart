@@ -305,6 +305,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   }
 
   Widget _buildImageControl(ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
     final effective = _effectiveImageData;
     final isCustom = widget.imageData != null;
 
@@ -316,8 +317,8 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
             onTap: _pickImage,
             child: Tooltip(
               message: isCustom
-                  ? 'Immagine personalizzata — tocca per cambiare'
-                  : 'Timbro predefinito — tocca per cambiare',
+                  ? l10n.signPlacerCustomImageTooltip
+                  : l10n.signPlacerDefaultImageTooltip,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: Image.memory(
@@ -333,7 +334,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           ),
         const SizedBox(width: 4),
         PopupMenuButton<_ImageAction>(
-          tooltip: 'Immagine firma',
+          tooltip: l10n.signPlacerImageMenuTooltip,
           icon: Icon(
             isCustom ? Icons.image_rounded : Icons.auto_awesome_rounded,
             size: 16,
@@ -341,24 +342,24 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           ),
           padding: EdgeInsets.zero,
           itemBuilder: (_) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: _ImageAction.pick,
               child: Row(
                 children: [
-                  Icon(Icons.upload_file, size: 16),
-                  SizedBox(width: 8),
-                  Text('Immagine personalizzata…'),
+                  const Icon(Icons.upload_file, size: 16),
+                  const SizedBox(width: 8),
+                  Text(l10n.signPlacerPickImageMenuItem),
                 ],
               ),
             ),
             if (isCustom)
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _ImageAction.reset,
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome_rounded, size: 16),
-                    SizedBox(width: 8),
-                    Text('Ripristina predefinito'),
+                    const Icon(Icons.auto_awesome_rounded, size: 16),
+                    const SizedBox(width: 8),
+                    Text(l10n.signPlacerResetDefaultMenuItem),
                   ],
                 ),
               ),
@@ -375,6 +376,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -408,7 +410,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Posiziona la firma',
+                        l10n.signPlacerTitle,
                         style: TextStyle(
                           fontFamily: 'Inter',
                           color: cs.onSurface,
@@ -418,7 +420,10 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       ),
                       if (_pageCount > 0)
                         Text(
-                          'Pagina ${_pageIndex + 1} / $_pageCount',
+                          l10n.signPlacerPageCounter(
+                            _pageIndex + 1,
+                            _pageCount,
+                          ),
                           style: AppTheme.monoCaption(cs),
                         ),
                     ],
@@ -429,7 +434,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                 if (_pageCount > 1) ...[
                   IconButton(
                     icon: const Icon(Icons.chevron_left_rounded),
-                    tooltip: 'Pagina precedente',
+                    tooltip: l10n.signPlacerPreviousPage,
                     onPressed: _pageIndex > 0
                         ? () => _notifyPage(_pageIndex - 1)
                         : null,
@@ -442,7 +447,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right_rounded),
-                    tooltip: 'Pagina successiva',
+                    tooltip: l10n.signPlacerNextPage,
                     onPressed: _pageIndex < _pageCount - 1
                         ? () => _notifyPage(_pageIndex + 1)
                         : null,
@@ -474,7 +479,10 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       border: Border.all(color: cs.outlineVariant),
                       color: cs.surfaceContainerHigh,
                     ),
-                    child: Text('Reset', style: AppTheme.monoCaption(cs)),
+                    child: Text(
+                      l10n.signPlacerReset,
+                      style: AppTheme.monoCaption(cs),
+                    ),
                   ),
                 ),
               ],
@@ -510,7 +518,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
               padding: const EdgeInsets.only(bottom: 6),
               child: OcRadioCard(
                 title: field.name,
-                subtitle: 'Pagina ${field.pageIndex + 1}',
+                subtitle: l10n.signPlacerFieldPage(field.pageIndex + 1),
                 selected: widget.alignedFieldName == field.name,
                 onTap: () => _selectField(field),
               ),
@@ -551,6 +559,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   }
 
   Widget _buildPreview(ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
     if (_loading) {
       return const SizedBox(
         height: 300,
@@ -562,7 +571,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
         height: 120,
         child: Center(
           child: Text(
-            'Impossibile visualizzare il PDF: $_error',
+            l10n.signPlacerPdfError(_error.toString()),
             style: TextStyle(color: cs.error),
           ),
         ),
@@ -570,9 +579,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
     }
     final pageSize = _pdfPageSize;
     if (pageSize == null) {
-      return const SizedBox(
+      return SizedBox(
         height: 120,
-        child: Center(child: Text('Nessuna pagina disponibile')),
+        child: Center(child: Text(l10n.signPlacerNoPage)),
       );
     }
 
@@ -641,8 +650,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       height: currentScreenRect.height,
                       child: IgnorePointer(
                         child: Semantics(
-                          label:
-                              'Area di destinazione della firma sulla pagina',
+                          label: l10n.signPlacerAreaSemanticsLabel,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: _kSignatureHighlightFill,
@@ -773,7 +781,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                       child: IgnorePointer(
                         child: Center(
                           child: Text(
-                            'FIRMA QUI',
+                            l10n.signPlacerSignHere,
                             style: TextStyle(
                               fontFamily: 'JetBrainsMono',
                               color: cs.primary,

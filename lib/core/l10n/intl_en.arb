@@ -563,5 +563,24 @@
   "signAlignToFieldLabel": "Align to form field",
   "@signAlignToFieldLabel": { "description": "Label for the control that snaps the signature placement to an existing AcroForm field's rectangle" },
   "signAlignToFieldHint": "{count, plural, one{1 field found} other{{count} fields found}}",
-  "@signAlignToFieldHint": { "placeholders": { "count": { "type": "int" } } }
+  "@signAlignToFieldHint": { "placeholders": { "count": { "type": "int" } } },
+
+  "signPlacerCustomImageTooltip": "Custom image — tap to change",
+  "signPlacerDefaultImageTooltip": "Default stamp — tap to change",
+  "signPlacerImageMenuTooltip": "Signature image",
+  "signPlacerPickImageMenuItem": "Custom image…",
+  "signPlacerResetDefaultMenuItem": "Reset to default",
+  "signPlacerTitle": "Place signature",
+  "signPlacerPageCounter": "Page {current} / {total}",
+  "@signPlacerPageCounter": { "placeholders": { "current": { "type": "int" }, "total": { "type": "int" } } },
+  "signPlacerPreviousPage": "Previous page",
+  "signPlacerNextPage": "Next page",
+  "signPlacerReset": "Reset",
+  "signPlacerFieldPage": "Page {page}",
+  "@signPlacerFieldPage": { "placeholders": { "page": { "type": "int" } } },
+  "signPlacerPdfError": "Could not display PDF: {error}",
+  "@signPlacerPdfError": { "placeholders": { "error": { "type": "String" } } },
+  "signPlacerNoPage": "No page available",
+  "signPlacerAreaSemanticsLabel": "Signature target area on the page",
+  "signPlacerSignHere": "SIGN HERE"
 }
