@@ -310,7 +310,9 @@ class _SignPageState extends ConsumerState<SignPage> {
         ref.read(recentSignedFilesProvider.notifier).add(file);
         ref
             .read(settingsProvider.notifier)
-            .update((s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)));
+            .update(
+              (s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)),
+            );
         successPath = outputPath;
 
         if (Platform.isAndroid) {
