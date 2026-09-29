@@ -60,6 +60,21 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.0" date="2026-09-29">
+      <description>
+        <p>Signing, verification and Android fixes, with native library opencie-pkcs11 1.1.3.</p>
+        <ul>
+          <li>Android NFC can reach the card again, and signing sends the full 8-digit PIN correctly.</li>
+          <li>Verifying a signed document no longer crashes, and OCSP/CRL revocation checks work for CIE signatures.</li>
+          <li>Desktop-to-phone signing now signs the actual document instead of its digest.</li>
+          <li>Enrolled cards show their certificate dates, serial and last use; re-enrolling updates the card instead of duplicating it.</li>
+          <li>Clearer card errors, an in-dialog shortcut when NFC is off, and live PIN feedback.</li>
+          <li>Long-term validation fixes: OCSP parsing, timestamp checks, already-signed PDFs and archive timestamps.</li>
+          <li>Works without a running keyring; TSA and proxy passwords moved to secure storage.</li>
+          <li>Android releases are release-signed, per-architecture APKs.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.3" date="2026-08-17">
       <description>
         <p>Windows packaging fix.</p>
