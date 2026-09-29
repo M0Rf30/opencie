@@ -102,12 +102,9 @@ class _SignPageState extends ConsumerState<SignPage> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.pickFiles(
-      allowMultiple: false,
-      type: FileType.any,
-    );
-    if (result != null && result.paths.isNotEmpty) {
-      final path = result.paths.first;
+    final file = await FilePicker.pickFile(type: FileType.any);
+    {
+      final path = file?.path;
       if (path != null) {
         setState(() {
           _selectedFile = path;

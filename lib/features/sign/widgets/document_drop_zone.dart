@@ -34,13 +34,14 @@ class _DocumentDropZoneState extends State<DocumentDropZone> {
   bool _isDragging = false;
 
   Future<void> _pickFiles() async {
-    final result = await FilePicker.pickFiles(
-      allowMultiple: true,
+    final files = await FilePicker.pickFiles(
       type: widget.acceptedExtensions != null ? FileType.custom : FileType.any,
       allowedExtensions: widget.acceptedExtensions,
     );
-    if (result != null) {
-      widget.onFilesSelected(result.paths.whereType<String>().toList());
+    if (files.isNotEmpty) {
+      widget.onFilesSelected(
+        files.map((f) => f.path).whereType<String>().toList(),
+      );
     }
   }
 
