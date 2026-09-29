@@ -182,12 +182,62 @@ void main() {
       // Act
       final resp = parseTspResponse(respSeq.encode());
 
-      // Assert
+      // Assert: TSTInfo is fully parsed (OC-06 — parse errors must fail
+      // closed, so a successful "granted" status here is only meaningful
+      // if these fields are actually populated).
       expect(resp.status, TspStatus.granted);
       expect(resp.isSuccess, true);
       expect(resp.timeStampToken, isNotNull);
-      // Note: TSTInfo parsing is complex and requires proper CMS structure
-      // For now, just verify the response is parsed as granted
+      expect(resp.genTime, genTime);
+      expect(resp.messageImprintHashOid, Oid.sha256);
+      expect(resp.messageImprintHash, hash);
+    });
+
+    test('parse granted response with unparseable TSTInfo fails closed', () {
+      // Arrange: token whose eContent is not a valid TSTInfo SEQUENCE.
+      final encapContentInfo = ASN1Sequence();
+      encapContentInfo.add(
+        ASN1ObjectIdentifier.fromIdentifierString(Oid.timeStampToken),
+      );
+      final garbage = ASN1OctetString(
+        octets: Uint8List.fromList([0xFF, 0x00, 0x01]),
+      );
+      final eContentCtxBytes = _buildContextSpecificTagBytes(
+        0,
+        garbage.encode(),
+      );
+      encapContentInfo.add(ASN1Parser(eContentCtxBytes).nextObject());
+
+      final signedData = ASN1Sequence();
+      signedData.add(ASN1Integer(BigInt.from(3)));
+      signedData.add(ASN1Set());
+      signedData.add(encapContentInfo);
+      signedData.add(ASN1Set());
+
+      final contentInfo = ASN1Sequence();
+      contentInfo.add(
+        ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData),
+      );
+      final signedDataCtxBytes = _buildContextSpecificTagBytes(
+        0,
+        signedData.encode(),
+      );
+      contentInfo.add(ASN1Parser(signedDataCtxBytes).nextObject());
+
+      final statusSeq = ASN1Sequence();
+      statusSeq.add(ASN1Integer(BigInt.zero)); // granted
+      final respSeq = ASN1Sequence();
+      respSeq.add(statusSeq);
+      respSeq.add(ASN1Parser(contentInfo.encode()).nextObject());
+
+      // Act
+      final resp = parseTspResponse(respSeq.encode());
+
+      // Assert: a token whose TSTInfo cannot be parsed must never be
+      // reported as granted/successful (OC-06 — no fail-open).
+      expect(resp.isSuccess, false);
+      expect(resp.status, TspStatus.rejection);
+      expect(resp.statusStrings.join(), contains('TSTInfo parse error'));
     });
 
     test('parse malformed response returns rejection', () {
@@ -226,7 +276,7 @@ Uint8List _buildTstToken({
   tstInfo.add(msgImprint);
 
   tstInfo.add(ASN1Integer(BigInt.one)); // serialNumber
-  tstInfo.add(ASN1GeneralizedTime(genTime)); // genTime
+  tstInfo.add(_properGeneralizedTime(genTime)); // genTime
 
   if (nonce != null) {
     // Encode nonce as INTEGER
@@ -304,4 +354,28 @@ Uint8List _buildContextSpecificTagBytes(int tagNumber, Uint8List content) {
 
   result.add(content);
   return result.toBytes();
+}
+
+/// Builds a DER-correct (zero-padded) GeneralizedTime ASN1 object.
+///
+/// pointycastle 4.0.0's `ASN1GeneralizedTime.encode()` formats
+/// year/month/day/hour/minute/second via bare `int.toString()`, which
+/// drops leading zeros (e.g. May 4th becomes "54" instead of "0504").
+/// That violates X.690 §11.7 and its own `fromBytes` parser cannot
+/// re-parse it (fixed-width substring offsets), which is exactly the kind
+/// of "encoding surprise" OC-06 requires us to fail closed on rather than
+/// silently ignore. Build the bytes by hand so codec tests exercise real
+/// DER instead of tripping over the dependency's own encoder bug.
+ASN1Object _properGeneralizedTime(DateTime dt) {
+  final utc = dt.toUtc();
+  String pad(int v, int w) => v.toString().padLeft(w, '0');
+  final s =
+      '${pad(utc.year, 4)}${pad(utc.month, 2)}${pad(utc.day, 2)}'
+      '${pad(utc.hour, 2)}${pad(utc.minute, 2)}${pad(utc.second, 2)}Z';
+  final content = Uint8List.fromList(s.codeUnits);
+  final builder = BytesBuilder();
+  builder.addByte(0x18); // GeneralizedTime tag
+  builder.addByte(content.length);
+  builder.add(content);
+  return ASN1Parser(builder.toBytes()).nextObject();
 }

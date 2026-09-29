@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'dart:io' show zlib;
 import 'dart:typed_data';
 import 'pdf_models.dart';
 
@@ -41,6 +42,28 @@ class PdfTrailerInfo {
   final PdfRef rootRef; // /Root
   final Uint8List? id; // /ID (raw bytes of the array, or null)
   final List<PdfXrefEntry> xrefEntries; // all entries from the existing xref
+}
+
+/// One xref subsection's parsed contents: raw entries plus whatever that
+/// section's trailer (classic xref table) or stream dict (cross-reference
+/// stream) declared for /Size, /Root, /ID, /Prev and (classic-only)
+/// /XRefStm. Used internally by [PdfReader.readTrailer] to walk the
+/// /Prev chain; not part of the public API.
+class _XrefSection {
+  _XrefSection({
+    required this.entries,
+    this.size,
+    this.rootRef,
+    this.id,
+    this.prevOffset,
+    this.xrefStmOffset,
+  });
+  final List<PdfXrefEntry> entries;
+  final int? size;
+  final PdfRef? rootRef;
+  final Uint8List? id;
+  final int? prevOffset;
+  final int? xrefStmOffset;
 }
 
 /// A signature field (`/FT /Sig`) discovered in the document's AcroForm,
@@ -114,13 +137,20 @@ class _PdfPageInfo {
 }
 
 /// Minimal PDF reader to extract what we need for incremental update.
-/// Supports classic xref tables only (not xref streams).
+/// Supports classic xref tables, cross-reference streams (PDF 1.5+), and
+/// hybrid files (classic table + `/XRefStm`). `/Prev` chains are followed
+/// across revisions so objects introduced in earlier incremental updates
+/// are still found (OC-07) — this reader still cannot resolve objects
+/// compressed into an object stream (xref type 2 entries): those are
+/// skipped rather than mis-resolved.
 class PdfReader {
   PdfReader(this.bytes);
   final Uint8List bytes;
 
-  /// Parses the trailer and the most recent xref table.
-  /// Throws [PadesException] on malformed input.
+  /// Parses the trailer and merges the xref table across the whole
+  /// `/Prev` chain (newest revision's entries win for any given object
+  /// number). Throws [PadesException] on malformed input or a `/Prev`
+  /// cycle.
   PdfTrailerInfo readTrailer() {
     // Find %%EOF and startxref
     final eofPos = _findEof();
@@ -141,32 +171,77 @@ class PdfReader {
       throw PadesException('Invalid startxref offset: $xrefOffsetStr');
     }
 
-    // Check if this is an xref stream (PDF 1.5+) or malformed xref
-    // A classic xref table starts with the literal ASCII bytes "xref" followed by whitespace.
-    // If that keyword is NOT present, it's likely an xref stream or malformed.
-    if (!_matchKeyword(xrefOffset, 'xref')) {
-      throw PadesException(
-        'xref stream not supported (or malformed xref) at offset $xrefOffset',
-      );
+    // Walk the /Prev chain, newest revision first, merging entries so an
+    // object number already resolved by a newer revision is never
+    // overwritten by an older one (ISO 32000-2 §7.5.4, §7.5.8.4: later
+    // increments supersede earlier ones for the same object). Without
+    // this, any PDF that has already been through one incremental update
+    // — which includes every PAdES-LT/-LTA upgrade this app performs —
+    // loses objects introduced in the first revision when only the
+    // latest revision's own xref section is read in isolation (OC-07).
+    const maxRevisions = 64; // loop protection against a malicious /Prev cycle
+    final visitedOffsets = <int>{};
+    final merged = <int, PdfXrefEntry>{};
+    int? size;
+    PdfRef? rootRef;
+    Uint8List? id;
+    int? nextOffset = xrefOffset;
+    int revisions = 0;
+
+    while (nextOffset != null) {
+      if (revisions >= maxRevisions) {
+        throw PadesException('too many /Prev revisions (possible cycle)');
+      }
+      if (nextOffset < 0 || nextOffset >= bytes.length) {
+        throw PadesException('xref offset out of bounds: $nextOffset');
+      }
+      if (!visitedOffsets.add(nextOffset)) {
+        throw PadesException('/Prev cycle detected at offset $nextOffset');
+      }
+      revisions++;
+
+      final section = _matchKeyword(nextOffset, 'xref')
+          ? _parseClassicXrefSection(nextOffset)
+          : _parseXrefStreamSection(nextOffset);
+
+      for (final entry in section.entries) {
+        merged.putIfAbsent(entry.objNum, () => entry);
+      }
+
+      // Hybrid file (classic table + /XRefStm supplying compressed-object
+      // entries for the same revision): merge those too, but this
+      // revision's own classic entries (added above) still win.
+      final xrefStmOffset = section.xrefStmOffset;
+      if (xrefStmOffset != null && !visitedOffsets.contains(xrefStmOffset)) {
+        try {
+          final hybrid = _parseXrefStreamSection(xrefStmOffset);
+          for (final entry in hybrid.entries) {
+            merged.putIfAbsent(entry.objNum, () => entry);
+          }
+        } catch (_) {
+          // /XRefStm is a supplement to the classic table; ignore if it
+          // can't be parsed rather than failing the whole read.
+        }
+      }
+
+      // First (newest) revision's trailer values win.
+      size ??= section.size;
+      rootRef ??= section.rootRef;
+      id ??= section.id;
+
+      nextOffset = section.prevOffset;
     }
 
-    // Parse the xref table
-    final xrefEntries = _parseXref(xrefOffset);
-
-    // Parse the trailer dict
-    final trailerStart = _findTrailerKeyword(xrefOffset);
-    if (trailerStart < 0) {
-      throw PadesException('trailer keyword not found');
+    if (rootRef == null) {
+      throw PadesException('trailer /Root not found');
     }
-
-    final trailerDict = _parseTrailerDict(trailerStart);
 
     return PdfTrailerInfo(
       prevXrefOffset: xrefOffset,
-      size: trailerDict['size'] as int,
-      rootRef: trailerDict['rootRef'] as PdfRef,
-      id: trailerDict['id'] as Uint8List?,
-      xrefEntries: xrefEntries,
+      size: size ?? 0,
+      rootRef: rootRef,
+      id: id,
+      xrefEntries: merged.values.toList(),
     );
   }
 
@@ -260,6 +335,53 @@ class PdfReader {
     }
   }
 
+  /// Finds the object reference of the first leaf page, walking
+  /// /Root -> /Pages -> /Kids. Used by [PadesLtaUpgrader] to attach the
+  /// DocTimeStamp widget annotation to a page — ETSI EN 319 142-1 §5.4
+  /// requires a document timestamp to be a proper signature field, which
+  /// in turn requires a widget annotation on some page. Returns null if
+  /// the page tree can't be walked.
+  PdfRef? findFirstPageRef() {
+    try {
+      final trailer = readTrailer();
+      final objOffsets = <int, int>{};
+      for (final entry in trailer.xrefEntries) {
+        if (entry.inUse) objOffsets[entry.objNum] = entry.offset;
+      }
+      final root = _resolve(trailer.rootRef, objOffsets);
+      if (root is! Map<String, Object?>) return null;
+      return _findFirstPageRefWalk(root['Pages'], objOffsets, 0);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  PdfRef? _findFirstPageRefWalk(
+    Object? nodeRefOrValue,
+    Map<int, int> objOffsets,
+    int depth,
+  ) {
+    if (depth > 64) return null;
+    PdfRef? selfRef;
+    Object? node = nodeRefOrValue;
+    if (node is PdfRef) {
+      selfRef = node;
+      node = _resolve(node, objOffsets);
+    }
+    if (node is! Map<String, Object?>) return null;
+    final kids = _resolve(node['Kids'], objOffsets);
+    if (kids is List<Object?> && kids.isNotEmpty) {
+      for (final kid in kids) {
+        final found = _findFirstPageRefWalk(kid, objOffsets, depth + 1);
+        if (found != null) return found;
+      }
+      return null;
+    }
+    // Leaf page (no /Kids): must be a reference so callers get an objNum
+    // to attach the widget/Annots update to.
+    return selfRef;
+  }
+
   /// Find the position of %%EOF
   int _findEof() {
     const eofMarker = '%%EOF';
@@ -317,6 +439,275 @@ class PdfReader {
       pos++;
     }
     return String.fromCharCodes(bytes.sublist(numStart, pos));
+  }
+
+  /// Parses one classic xref table + its trailer dict at [offset].
+  _XrefSection _parseClassicXrefSection(int offset) {
+    final entries = _parseXref(offset);
+    final trailerStart = _findTrailerKeyword(offset);
+    if (trailerStart < 0) {
+      throw PadesException('trailer keyword not found');
+    }
+    final trailerDict = _parseTrailerDict(trailerStart);
+    return _XrefSection(
+      entries: entries,
+      size: trailerDict['size'] as int?,
+      rootRef: trailerDict['rootRef'] as PdfRef?,
+      id: trailerDict['id'] as Uint8List?,
+      prevOffset: trailerDict['prev'] as int?,
+      xrefStmOffset: trailerDict['xrefStm'] as int?,
+    );
+  }
+
+  /// Parses a cross-reference stream object (PDF 1.5+, ISO 32000-2
+  /// §7.5.8) at [offset]: `N G obj << ...XRef dict... >> stream ... endstream endobj`.
+  _XrefSection _parseXrefStreamSection(int offset) {
+    final objNumTok = _tryParseUnsignedInt(offset);
+    if (objNumTok == null) {
+      throw PadesException('xref stream: object header not found at $offset');
+    }
+    int pos = _skipWs(objNumTok.pos);
+    final genTok = _tryParseUnsignedInt(pos);
+    if (genTok == null) {
+      throw PadesException('xref stream: object header not found at $offset');
+    }
+    pos = _skipWs(genTok.pos);
+    if (!_matchKeyword(pos, 'obj')) {
+      throw PadesException('xref stream: "obj" keyword not found at $offset');
+    }
+    pos += 3;
+    pos = _skipWs(pos);
+    if (pos + 1 >= bytes.length ||
+        bytes[pos] != 0x3C ||
+        bytes[pos + 1] != 0x3C) {
+      throw PadesException('xref stream: dict not found at $offset');
+    }
+
+    final dictResult = _parseDict(pos);
+    final dict = dictResult.value as Map<String, Object?>;
+    pos = _skipWs(dictResult.pos);
+    if (!_matchKeyword(pos, 'stream')) {
+      throw PadesException(
+        'xref stream: "stream" keyword not found at $offset',
+      );
+    }
+    pos += 6;
+    // Exactly CRLF or LF must follow the keyword (ISO 32000-2 §7.3.8.1);
+    // tolerate a lone CR too since some writers get this wrong.
+    if (pos < bytes.length && bytes[pos] == 0x0D) pos++;
+    if (pos < bytes.length && bytes[pos] == 0x0A) pos++;
+    final streamStart = pos;
+
+    int streamEnd;
+    final lengthValue = dict['Length'];
+    if (lengthValue is int && streamStart + lengthValue <= bytes.length) {
+      streamEnd = streamStart + lengthValue;
+    } else {
+      // /Length missing or an indirect reference (rare for xref streams,
+      // but be defensive): fall back to scanning for "endstream" and
+      // strip the single EOL the spec requires immediately before it.
+      int p = streamStart;
+      while (p < bytes.length - 9 && !_matchKeyword(p, 'endstream')) {
+        p++;
+      }
+      streamEnd = p;
+      if (streamEnd > streamStart && bytes[streamEnd - 1] == 0x0A) {
+        streamEnd--;
+      }
+      if (streamEnd > streamStart && bytes[streamEnd - 1] == 0x0D) {
+        streamEnd--;
+      }
+    }
+    if (streamEnd < streamStart || streamEnd > bytes.length) {
+      throw PadesException('xref stream: invalid stream length at $offset');
+    }
+
+    final decoded = _decodeXrefStreamData(
+      bytes.sublist(streamStart, streamEnd),
+      dict,
+    );
+
+    final wValue = dict['W'];
+    if (wValue is! List<Object?> || wValue.length != 3) {
+      throw PadesException('xref stream: missing/invalid /W at $offset');
+    }
+    final w = wValue.map((e) => (e as num).toInt()).toList();
+
+    final sizeValue = dict['Size'];
+    final size = sizeValue is num ? sizeValue.toInt() : null;
+
+    final index = <List<int>>[];
+    final indexValue = dict['Index'];
+    if (indexValue is List<Object?> && indexValue.isNotEmpty) {
+      for (int i = 0; i + 1 < indexValue.length; i += 2) {
+        index.add([
+          (indexValue[i] as num).toInt(),
+          (indexValue[i + 1] as num).toInt(),
+        ]);
+      }
+    } else {
+      index.add([0, size ?? 0]);
+    }
+
+    final entries = <PdfXrefEntry>[];
+    final rowWidth = w[0] + w[1] + w[2];
+    int bytePos = 0;
+    for (final range in index) {
+      final start = range[0];
+      final count = range[1];
+      for (int i = 0; i < count; i++) {
+        if (bytePos + rowWidth > decoded.length) break;
+        final type = w[0] == 0 ? 1 : _readBigEndian(decoded, bytePos, w[0]);
+        final field2 = _readBigEndian(decoded, bytePos + w[0], w[1]);
+        final field3 = w[2] == 0
+            ? 0
+            : _readBigEndian(decoded, bytePos + w[0] + w[1], w[2]);
+        bytePos += rowWidth;
+        final objNum = start + i;
+        if (type == 1) {
+          entries.add(
+            PdfXrefEntry(
+              objNum: objNum,
+              offset: field2,
+              gen: field3,
+              inUse: true,
+            ),
+          );
+        } else if (type == 0) {
+          entries.add(
+            PdfXrefEntry(objNum: objNum, offset: -1, gen: field3, inUse: false),
+          );
+        }
+        // type == 2 (object compressed into an /ObjStm): this minimal
+        // reader only resolves objects by direct byte offset and cannot
+        // look these up. Skip rather than record a bogus offset, so an
+        // older revision's direct-offset copy of the same object (if
+        // any) can still be found by the /Prev chain.
+      }
+    }
+
+    final rootValue = dict['Root'];
+    final rootRef = rootValue is PdfRef ? rootValue : null;
+
+    final prevValue = dict['Prev'];
+    final prevOffset = prevValue is num ? prevValue.toInt() : null;
+
+    return _XrefSection(
+      entries: entries,
+      size: size,
+      rootRef: rootRef,
+      // /ID here would need raw (undecoded) bytes to match what
+      // pdf_writer.dart re-emits verbatim; the generic dict parser
+      // decodes hex strings to text instead, so leave it null (matches
+      // this reader's existing behaviour whenever /ID is simply absent).
+      id: null,
+      prevOffset: prevOffset,
+      xrefStmOffset: null, // xref streams don't nest a hybrid /XRefStm
+    );
+  }
+
+  /// Decodes a cross-reference stream's raw bytes: applies /Filter
+  /// (FlateDecode only — the only filter real-world xref streams use)
+  /// then undoes a PNG predictor (/DecodeParms /Predictor >= 10) if
+  /// present.
+  Uint8List _decodeXrefStreamData(Uint8List raw, Map<String, Object?> dict) {
+    final filterValue = dict['Filter'];
+    String? filterName;
+    if (filterValue is _PdfName) {
+      filterName = filterValue.value;
+    } else if (filterValue is List<Object?> &&
+        filterValue.isNotEmpty &&
+        filterValue.first is _PdfName) {
+      filterName = (filterValue.first as _PdfName).value;
+    }
+
+    Uint8List data = raw;
+    if (filterName == 'FlateDecode') {
+      try {
+        data = Uint8List.fromList(zlib.decode(raw));
+      } catch (e) {
+        throw PadesException('xref stream: FlateDecode failed: $e');
+      }
+    } else if (filterName != null) {
+      throw PadesException('xref stream: unsupported filter $filterName');
+    }
+
+    final parmsValue = dict['DecodeParms'] ?? dict['DP'];
+    Map<String, Object?>? parms;
+    if (parmsValue is Map<String, Object?>) {
+      parms = parmsValue;
+    } else if (parmsValue is List<Object?> &&
+        parmsValue.isNotEmpty &&
+        parmsValue.first is Map<String, Object?>) {
+      parms = parmsValue.first as Map<String, Object?>;
+    }
+
+    final predictorValue = parms?['Predictor'];
+    final predictor = predictorValue is num ? predictorValue.toInt() : 1;
+    if (predictor <= 1) return data;
+    if (predictor != 12 && predictor < 10) {
+      throw PadesException('xref stream: unsupported /Predictor $predictor');
+    }
+
+    final colorsValue = parms?['Colors'];
+    final colors = colorsValue is num ? colorsValue.toInt() : 1;
+    final bpcValue = parms?['BitsPerComponent'];
+    final bpc = bpcValue is num ? bpcValue.toInt() : 8;
+    final columnsValue = parms?['Columns'];
+    final columns = columnsValue is num ? columnsValue.toInt() : 1;
+
+    final bitsPerPixel = colors * bpc;
+    final bytesPerPixel = (bitsPerPixel + 7) ~/ 8;
+    final rowBytes = (bitsPerPixel * columns + 7) ~/ 8;
+
+    return _unfilterPng(data, rowBytes, bytesPerPixel);
+  }
+
+  /// Reverses the PNG predictor (RFC 2083 §6) applied to each row.
+  Uint8List _unfilterPng(Uint8List data, int rowBytes, int bpp) {
+    final out = BytesBuilder();
+    var prevRow = Uint8List(rowBytes);
+    int pos = 0;
+    while (pos + 1 + rowBytes <= data.length) {
+      final filterType = data[pos];
+      final row = Uint8List.fromList(data.sublist(pos + 1, pos + 1 + rowBytes));
+      pos += 1 + rowBytes;
+      for (int i = 0; i < rowBytes; i++) {
+        final a = i >= bpp ? row[i - bpp] : 0;
+        final b = prevRow[i];
+        final c = i >= bpp ? prevRow[i - bpp] : 0;
+        final pred = switch (filterType) {
+          0 => 0,
+          1 => a,
+          2 => b,
+          3 => (a + b) ~/ 2,
+          4 => _paeth(a, b, c),
+          _ => 0,
+        };
+        row[i] = (row[i] + pred) & 0xFF;
+      }
+      out.add(row);
+      prevRow = row;
+    }
+    return out.toBytes();
+  }
+
+  int _paeth(int a, int b, int c) {
+    final p = a + b - c;
+    final pa = (p - a).abs();
+    final pb = (p - b).abs();
+    final pc = (p - c).abs();
+    if (pa <= pb && pa <= pc) return a;
+    if (pb <= pc) return b;
+    return c;
+  }
+
+  int _readBigEndian(Uint8List data, int start, int width) {
+    int value = 0;
+    for (int i = 0; i < width; i++) {
+      value = (value << 8) | data[start + i];
+    }
+    return value;
   }
 
   /// Parse xref table at given offset
@@ -410,7 +801,13 @@ class PdfReader {
     return -1;
   }
 
-  /// Parse trailer dict and extract /Size, /Root, /ID
+  /// Parse trailer dict and extract /Size, /Root, /ID, /Prev, /XRefStm.
+  ///
+  /// /Root is only required somewhere across the whole /Prev chain (a
+  /// PDF's file trailer must declare it, but per ISO 32000-2 §7.5.5 an
+  /// incremental update's own trailer MAY omit /Root when unchanged from
+  /// an earlier revision), so this does not throw when it's absent here
+  /// — [PdfReader.readTrailer] enforces it after walking the full chain.
   Map<String, dynamic> _parseTrailerDict(int trailerPos) {
     int pos = trailerPos + 7; // skip "trailer"
     pos = _skipWhitespaceFrom(pos);
@@ -426,6 +823,8 @@ class PdfReader {
     int size = 0;
     PdfRef? rootRef;
     Uint8List? id;
+    int? prev;
+    int? xrefStm;
 
     // Parse dict entries
     while (pos < bytes.length) {
@@ -489,6 +888,14 @@ class PdfReader {
           }
           id = bytes.sublist(idStart, pos);
         }
+      } else if (key == 'Prev') {
+        final numStr = _extractNumberAt(pos);
+        prev = int.tryParse(numStr);
+        pos += numStr.length;
+      } else if (key == 'XRefStm') {
+        final numStr = _extractNumberAt(pos);
+        xrefStm = int.tryParse(numStr);
+        pos += numStr.length;
       } else {
         // Skip unknown entry
         _skipDictValue(pos);
@@ -496,11 +903,13 @@ class PdfReader {
       }
     }
 
-    if (rootRef == null) {
-      throw PadesException('trailer /Root not found');
-    }
-
-    return {'size': size, 'rootRef': rootRef, 'id': id};
+    return {
+      'size': size,
+      'rootRef': rootRef,
+      'id': id,
+      'prev': prev,
+      'xrefStm': xrefStm,
+    };
   }
 
   /// Extract object body (dict or stream) starting at offset

@@ -26,10 +26,16 @@ class OcspClient {
   OcspClient({
     http.Client? httpClient,
     this.timeout = const Duration(seconds: 15),
+    this.maxBytes = 1024 * 1024, // 1 MB cap — real OCSP responses are KB-sized
   }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
   final Duration timeout;
+
+  /// Rejects responses larger than this before parsing, so a malicious or
+  /// misbehaving responder can't force unbounded buffering of an
+  /// untrusted body (mirrors CrlClient's `maxBytes` cap).
+  final int maxBytes;
 
   /// Sends an OCSPRequest to [responderUrl]. Throws OcspException on transport errors.
   /// Returns OcspResponse with status != successful on protocol failures.
@@ -60,6 +66,12 @@ class OcspClient {
       if (!contentType.contains('application/ocsp-response') &&
           !contentType.contains('application/octet-stream')) {
         throw OcspException('Unexpected Content-Type: $contentType');
+      }
+
+      if (response.bodyBytes.length > maxBytes) {
+        throw OcspException(
+          'OCSP response from $responderUrl exceeds max size ($maxBytes bytes)',
+        );
       }
 
       return parseOcspResponse(response.bodyBytes);

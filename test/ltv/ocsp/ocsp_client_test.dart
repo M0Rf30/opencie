@@ -123,6 +123,44 @@ void main() {
       );
     });
 
+    // Medium/low LTV finding (REPORT.md §4, "LTV" section): OCSP HTTP
+    // client had no pre-parse size cap, unlike CrlClient's existing
+    // 8 MB post-download check — a misbehaving/malicious responder could
+    // force unbounded buffering of an untrusted body.
+    test('sendRequest throws when response exceeds maxBytes', () async {
+      Future<shelf.Response> handler(shelf.Request request) async {
+        return shelf.Response.ok(
+          Uint8List(2048),
+          headers: {'content-type': 'application/ocsp-response'},
+        );
+      }
+
+      final server = await shelf_io.serve(handler, 'localhost', 0);
+      addTearDown(server.close);
+
+      final client = OcspClient(maxBytes: 1024);
+      final certId = OcspCertId(
+        hashAlgorithmOid: Oid.sha1,
+        issuerNameHash: Uint8List(20),
+        issuerKeyHash: Uint8List(20),
+        serialNumber: BigInt.from(12345),
+      );
+
+      final requestDer = encodeOcspRequest(certIds: [certId]);
+      final responderUrl = Uri.parse('http://localhost:${server.port}/ocsp');
+
+      expect(
+        () => client.sendRequest(responderUrl, requestDer),
+        throwsA(
+          isA<OcspException>().having(
+            (e) => e.message,
+            'message',
+            contains('exceeds max size'),
+          ),
+        ),
+      );
+    });
+
     test('checkCertificate returns internalError if no AIA OCSP URL', () async {
       final client = OcspClient();
 

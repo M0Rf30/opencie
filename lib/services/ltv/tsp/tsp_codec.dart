@@ -111,7 +111,16 @@ TspResponse parseTspResponse(Uint8List der) {
           messageImprintHash = tstInfo.hash;
           respNonce = tstInfo.nonce;
         } catch (e) {
-          // Silently ignore TSTInfo parsing errors; token is still valid
+          // TSTInfo is the substantive, signed content of the token (RFC
+          // 3161 §2.4.2): genTime/messageImprint/nonce all live inside it.
+          // A parse failure here means we cannot trust *any* of the
+          // anti-replay/imprint/algorithm checks that key off these fields,
+          // so fail closed instead of returning "granted" with null fields
+          // that silently no-op every downstream check.
+          return TspResponse(
+            status: TspStatus.rejection,
+            statusStrings: ['TSTInfo parse error: $e'],
+          );
         }
       }
     }

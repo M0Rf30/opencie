@@ -190,39 +190,49 @@ OcspResponse parseOcspResponse(Uint8List der) {
     List<OcspSingleResponse> singleResponses = [];
     Uint8List? respNonce;
 
-    // Parse ResponseData fields
-    // ResponseData ::= SEQUENCE {
-    //   version [0] EXPLICIT Version DEFAULT v1,
-    //   responderID ResponderID,
-    //   producedAt GeneralizedTime,
-    //   responses SEQUENCE OF SingleResponse,
-    //   responseExtensions [1] EXPLICIT Extensions OPTIONAL
-    // }
-    int idx = 0;
-    for (final elem in responseData.elements!) {
-      if (elem.tag == 0xA0) {
-        // [0] EXPLICIT version (skip, default v1)
-        idx++;
-      } else if (idx == 1 &&
-          (elem is ASN1Sequence || elem.tag == 0xA1 || elem.tag == 0xA2)) {
-        // responderID (ResponderID is a CHOICE, either [1] or [2], or a Name SEQUENCE)
-        // For now, skip responderID parsing
-        idx++;
-      } else if (idx == 2 && elem is ASN1GeneralizedTime) {
-        // producedAt
-        producedAt = elem.dateTimeValue;
-        idx++;
-      } else if (idx == 3 && elem is ASN1Sequence) {
-        // responses SEQUENCE OF SingleResponse
-        singleResponses = _parseSingleResponses(elem);
-        idx++;
-      } else if (elem.tag == 0xA1) {
-        // [1] EXPLICIT responseExtensions
-        respNonce = _extractNonceFromExtensions(
-          elem.valueBytes ?? Uint8List(0),
-        );
-        idx++;
-      }
+    // Parse ResponseData fields positionally per RFC 6960 §4.2.1 (module
+    // uses `DEFINITIONS EXPLICIT TAGS`, so responderID's byName [1] and
+    // responseExtensions [1] share the same outer tag 0xA1 — they can only
+    // be told apart by field position, never by tag alone).
+    final elements = responseData.elements!;
+    int pos = 0;
+
+    // Optional [0] EXPLICIT version DEFAULT v1 (omitted by virtually every
+    // real responder).
+    if (pos < elements.length && elements[pos].tag == 0xA0) {
+      pos++;
+    }
+
+    // Mandatory responderID: ResponderID ::= CHOICE { byName [1] Name, byKey [2] KeyHash }
+    if (pos >= elements.length) {
+      return OcspResponse(status: OcspResponseStatus.internalError);
+    }
+    final responderIdElem = elements[pos];
+    if (responderIdElem.tag != 0xA1 && responderIdElem.tag != 0xA2) {
+      return OcspResponse(status: OcspResponseStatus.internalError);
+    }
+    pos++;
+
+    // Mandatory producedAt GeneralizedTime.
+    if (pos >= elements.length || elements[pos] is! ASN1GeneralizedTime) {
+      return OcspResponse(status: OcspResponseStatus.internalError);
+    }
+    producedAt = (elements[pos] as ASN1GeneralizedTime).dateTimeValue;
+    pos++;
+
+    // Mandatory responses SEQUENCE OF SingleResponse.
+    if (pos >= elements.length || elements[pos] is! ASN1Sequence) {
+      return OcspResponse(status: OcspResponseStatus.internalError);
+    }
+    singleResponses = _parseSingleResponses(elements[pos] as ASN1Sequence);
+    pos++;
+
+    // Optional [1] EXPLICIT responseExtensions.
+    if (pos < elements.length && elements[pos].tag == 0xA1) {
+      respNonce = _extractNonceFromExtensions(
+        elements[pos].valueBytes ?? Uint8List(0),
+      );
+      pos++;
     }
 
     // Parse embedded certs from [0] EXPLICIT SEQUENCE OF Certificate

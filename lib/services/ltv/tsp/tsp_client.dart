@@ -15,10 +15,16 @@ class TspClient {
   TspClient({
     http.Client? httpClient,
     this.timeout = const Duration(seconds: 30),
+    this.maxBytes = 1024 * 1024, // 1 MB cap — real TST tokens are KB-sized
   }) : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
   final Duration timeout;
+
+  /// Rejects responses larger than this before parsing, so a malicious or
+  /// misbehaving TSA can't force unbounded buffering of an untrusted body
+  /// (mirrors CrlClient's `maxBytes` cap).
+  final int maxBytes;
 
   /// Sends a TimeStampReq to [url] and returns the parsed response.
   /// Throws TspException on transport errors. Returns a TspResponse with
@@ -46,6 +52,12 @@ class TspClient {
           !ct.contains('application/timestamp-reply') &&
           !ct.contains('application/octet-stream')) {
         throw TspException('Unexpected content-type: $ct');
+      }
+
+      if (resp.bodyBytes.length > maxBytes) {
+        throw TspException(
+          'TSA response from $url exceeds max size ($maxBytes bytes)',
+        );
       }
 
       return parseTspResponse(resp.bodyBytes);
@@ -87,29 +99,36 @@ class TspClient {
       return resp;
     }
 
-    // 6. Verify nonce (if present in response)
-    if (resp.respNonce != null && !bytesEqual(resp.respNonce!, nonce)) {
+    // 6. Verify nonce — mandatory since timestampData always sends one
+    // (RFC 3161 §2.4.2: a TSA that received a nonce and omits/mismatches it
+    // must not be trusted; treating a missing nonce as "no check needed"
+    // defeats the whole anti-replay purpose of sending one).
+    if (resp.respNonce == null || !bytesEqual(resp.respNonce!, nonce)) {
       return TspResponse(
         status: TspStatus.rejection,
         statusStrings: [
-          'nonce mismatch: sent ${nonce.length} bytes, got ${resp.respNonce!.length} bytes',
+          resp.respNonce == null
+              ? 'nonce missing from TSA response (nonce was sent in request)'
+              : 'nonce mismatch: sent ${nonce.length} bytes, got ${resp.respNonce!.length} bytes',
         ],
       );
     }
 
-    // 7. Verify messageImprint hash
-    if (resp.messageImprintHash != null &&
+    // 7. Verify messageImprint hash — mandatory.
+    if (resp.messageImprintHash == null ||
         !bytesEqual(resp.messageImprintHash!, hash)) {
       return TspResponse(
         status: TspStatus.rejection,
         statusStrings: [
-          'hash mismatch: sent ${hash.length} bytes, got ${resp.messageImprintHash!.length} bytes',
+          resp.messageImprintHash == null
+              ? 'messageImprint hash missing from TSTInfo'
+              : 'hash mismatch: sent ${hash.length} bytes, got ${resp.messageImprintHash!.length} bytes',
         ],
       );
     }
 
-    // 8. Verify messageImprint hash algorithm OID
-    if (resp.messageImprintHashOid != null &&
+    // 8. Verify messageImprint hash algorithm OID — mandatory.
+    if (resp.messageImprintHashOid == null ||
         resp.messageImprintHashOid != hashAlgorithmOid) {
       return TspResponse(
         status: TspStatus.rejection,
