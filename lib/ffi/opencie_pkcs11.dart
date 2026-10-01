@@ -268,10 +268,20 @@ class OpenCiePkcs11 {
     }
   }
 
+  /// Test seam: when set, [watchReaders] yields this stream instead of
+  /// touching the native library (used by the offscreen screenshot renderer).
+  @visibleForTesting
+  static Stream<String?> Function()? debugWatchReaders;
+
   /// Stream that emits the first reader name (or null) whenever it changes.
   /// Desktop-only; on Android emits nothing.
   Stream<String?> watchReaders() async* {
     if (Platform.isAndroid) return;
+    final override = debugWatchReaders;
+    if (override != null) {
+      yield* override();
+      return;
+    }
 
     final receiver = ReceivePort();
     yield readerName();

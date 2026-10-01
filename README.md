@@ -172,6 +172,8 @@ flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
 flutter run -d <device-id>       # use `flutter devices` to list
 ```
 
+Regenerate the README/Flathub screenshots (offscreen render, fake data only): `OPENCIE_SCREENSHOTS=1 flutter test --tags screenshots test/screenshots`.
+
 ### Android release signing
 
 <details>

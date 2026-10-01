@@ -1,6 +1,11 @@
 # Test suite configuration. Declares custom tags so `flutter test` does not
 # warn about unknown tags. Network-tagged tests hit live endpoints
 # (OCSP/TSA/SPID/OIDC) and are excluded in CI via --exclude-tags network.
+#
+# Screenshot-tagged tests regenerate docs/screenshots/*.png and are skipped
+# by default; run with `flutter test --tags screenshots test/screenshots`.
 tags:
   network:
     description: Tests that require live network access.
+  screenshots:
+    description: Regenerates docs/screenshots (offscreen render, writes files).
