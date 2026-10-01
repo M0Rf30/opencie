@@ -85,13 +85,12 @@ sudo systemctl enable --now pcscd.socket
 
 ### Android
 
-Install and auto-update via [Obtainium](https://github.com/ImranR98/Obtainium) — add the app with:
+Install and auto-update via [Obtainium](https://github.com/ImranR98/Obtainium):
 
-```
-obtainium://add/https://github.com/M0Rf30/opencie
-```
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/M0Rf30/opencie"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="54"></a>
 
-(or add it manually in Obtainium using the source URL `https://github.com/M0Rf30/opencie`).
+or add it manually in Obtainium using the source URL `https://github.com/M0Rf30/opencie`
+(`obtainium://add/https://github.com/M0Rf30/opencie`).
 
 Obtainium tracks the per-ABI APK named `opencie-<version>-android-arm64-v8a.apk` on the
 [releases page](https://github.com/M0Rf30/opencie/releases); an `x86_64` build is published
