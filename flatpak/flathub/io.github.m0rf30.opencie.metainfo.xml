@@ -60,6 +60,17 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.2" date="2026-10-01">
+      <description>
+        <p>Broader card support, with native library opencie-pkcs11 1.2.0.</p>
+        <ul>
+          <li>Newer CIE chips (Actalis B946) are recognised, and future Actalis/Bit4id revisions are handled automatically.</li>
+          <li>Unsupported chips get a clear message explaining how to report them, instead of "not a CIE".</li>
+          <li>Readers with several slots show the slot holding the card or the contactless one.</li>
+          <li>Flatpak: logs and card cache now persist across restarts.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-09-29">
       <description>
         <p>Reliable card reading, with native library opencie-pkcs11 1.1.4.</p>
