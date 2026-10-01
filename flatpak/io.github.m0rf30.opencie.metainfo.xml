@@ -68,6 +68,7 @@
         <p>Linux on ARM and a refreshed look, with native library opencie-pkcs11 1.2.1.</p>
         <ul>
           <li>New Linux arm64 builds: tarball and Flatpak.</li>
+          <li>Optional update check: a once-a-day notice when a new release is out (can be turned off in Settings).</li>
           <li>Refreshed app icon.</li>
           <li>Updated PoDoFo, pcsc-lite and other bundled dependencies.</li>
         </ul>
