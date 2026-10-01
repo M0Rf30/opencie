@@ -20,7 +20,12 @@ class OcSectionLabel extends StatelessWidget {
     final style = dense
         ? AppTheme.monoCaption(cs, color: color)
         : AppTheme.monoSection(cs, color: color);
-    return Text(text.toUpperCase(), style: style);
+    return Text(
+      text.toUpperCase(),
+      style: style,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }
 

@@ -18,14 +18,15 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/l10n/app_localizations_ext.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/color_schemes.dart';
 import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
+import '../../widgets/oc_page.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../models/signature_options.dart';
+import '../../models/tsa_config.dart';
 import '../../models/enrolled_card_utils.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../providers/sign_backend_provider.dart';
@@ -38,9 +39,11 @@ import '../../services/pin_throttle.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/oc_help_sheet.dart';
 import 'batch_sign_page.dart';
+import 'sign_requirements.dart';
 import 'utils/signature_image_generator.dart';
 import 'widgets/pdf_signature_placer.dart';
 import 'widgets/sign_pin_dialog.dart';
+import 'widgets/signer_box.dart';
 import 'widgets/signed_result_dialog.dart';
 
 const _nfcChannel = MethodChannel('io.github.m0rf30.opencie/nfc');
@@ -331,7 +334,7 @@ class _SignPageState extends ConsumerState<SignPage> {
             outputPath: outputPath,
             format: options.format,
             pin: pin,
-            pan: '',
+            pan: ref.read(settingsProvider).signPan,
             page: options.graphicSignature ? options.page : 0,
             x: options.graphicSignature ? options.x : 0,
             y: options.graphicSignature ? options.y : 0,
@@ -355,7 +358,12 @@ class _SignPageState extends ConsumerState<SignPage> {
         ref
             .read(settingsProvider.notifier)
             .update(
-              (s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)),
+              (s) => s.copyWith(
+                enrolledCards: markSelectedCardUsed(
+                  s.enrolledCards,
+                  s.selectedCard?.pan,
+                ),
+              ),
             );
         successPath = outputPath;
 
@@ -514,6 +522,9 @@ class _SignPageState extends ConsumerState<SignPage> {
         options: _options,
         onOpenFile: _openFile,
         onVerifyFile: _verifyFile,
+        tsaLabel: tsaDisplayName(
+          ref.read(settingsProvider).tsaConfig.serverUrl,
+        ),
       ),
     );
   }
@@ -558,11 +569,65 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   // ── Mobile layout ───────────────────────────────────────────────────────────
 
-  Widget _buildMobileContent(BuildContext context) {
+  OcPageHeader _buildHeader(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    return OcPageHeader(
+      title: l10n.signTitle,
+      subtitle: l10n.signSubtitleFull,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.layers_outlined),
+          tooltip: l10n.batchSignTitle,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const BatchSignPage()),
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.info_outline_rounded),
+          tooltip: l10n.helpButtonTooltip,
+          onPressed: () => OcHelpSheet.show(
+            context,
+            OcHelpSheet(
+              title: l10n.helpSignTitle,
+              icon: Icons.draw_rounded,
+              iconColor: cs.primary,
+              steps: [
+                OcHelpStep(
+                  title: l10n.helpSignStep1Title,
+                  body: l10n.helpSignStep1Body,
+                  icon: Icons.folder_open_rounded,
+                ),
+                OcHelpStep(
+                  title: l10n.helpSignStep2Title,
+                  body: l10n.helpSignStep2Body,
+                  icon: Icons.tune_rounded,
+                ),
+                OcHelpStep(
+                  title: l10n.helpSignStep3Title,
+                  body: l10n.helpSignStep3Body,
+                  icon: Icons.nfc_rounded,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileContent(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final recent = ref.watch(recentSignedFilesProvider);
-    final hasCard = ref.watch(settingsProvider).enrolledCards.isNotEmpty;
+    final enrolledCount = ref.watch(settingsProvider).enrolledCards.length;
+    final hasCard = enrolledCount > 0;
+    final hasMultipleCards = enrolledCount > 1;
+
+    Widget body(Widget child) =>
+        OcPageBody.sliver(child: SliverToBoxAdapter(child: child));
 
     return SafeArea(
       child: Column(
@@ -570,104 +635,40 @@ class _SignPageState extends ConsumerState<SignPage> {
           Expanded(
             child: CustomScrollView(
               slivers: [
-                // ── Page heading ──────────────────────────────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.signTitle,
-                                style: AppTheme.displayBold(cs),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                l10n.signSubtitleFull,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.layers),
-                          tooltip: l10n.batchSignTitle,
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => const BatchSignPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.info_outline_rounded),
-                          tooltip: l10n.helpButtonTooltip,
-                          onPressed: () => OcHelpSheet.show(
-                            context,
-                            OcHelpSheet(
-                              title: l10n.helpSignTitle,
-                              icon: Icons.draw_rounded,
-                              iconColor: cs.primary,
-                              steps: [
-                                OcHelpStep(
-                                  title: l10n.helpSignStep1Title,
-                                  body: l10n.helpSignStep1Body,
-                                  icon: Icons.folder_open_rounded,
-                                ),
-                                OcHelpStep(
-                                  title: l10n.helpSignStep2Title,
-                                  body: l10n.helpSignStep2Body,
-                                  icon: Icons.tune_rounded,
-                                ),
-                                OcHelpStep(
-                                  title: l10n.helpSignStep3Title,
-                                  body: l10n.helpSignStep3Body,
-                                  icon: Icons.nfc_rounded,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                body(_buildHeader(context)),
 
                 // Enrollment warning
-                if (!hasCard)
-                  SliverToBoxAdapter(child: _buildEnrollmentBanner(context)),
+                if (!hasCard) body(_buildEnrollmentBanner(context)),
+
+                // Signer picker (only needed when several cards are enrolled)
+                if (hasMultipleCards)
+                  body(
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: SignerBox(),
+                    ),
+                  ),
 
                 // Document hero
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                body(
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
                     child: _buildDocumentHero(context),
                   ),
                 ),
 
                 // Filename + size caption (when file selected)
                 if (_selectedFile != null)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                  body(
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
                       child: Column(
                         children: [
                           Text(
-                            _selectedFile!.split('/').last,
+                            p.basename(_selectedFile!),
                             style: TextStyle(
                               fontFamily: 'Inter',
-                              color: Theme.of(context).colorScheme.onSurface,
+                              color: cs.onSurface,
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
                             ),
@@ -678,9 +679,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                           const SizedBox(height: 4),
                           OcMonoText(
                             _fileSizeCaption(_selectedFile!),
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                            color: cs.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ],
@@ -693,9 +692,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                     _options.format == SignatureFormat.pades &&
                     _selectedFile != null &&
                     _selectedFile!.toLowerCase().endsWith('.pdf'))
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  body(
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
                       child: PdfSignaturePlacer(
                         pdfPath: _selectedFile!,
                         page: _options.page,
@@ -735,9 +734,9 @@ class _SignPageState extends ConsumerState<SignPage> {
 
                 // Recently signed
                 if (recent.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  body(
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20),
                       child: _buildRecentSection(context, recent),
                     ),
                   ),
@@ -756,7 +755,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: const EdgeInsets.only(top: 8),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -926,8 +925,9 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   Widget _buildFauxFileCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final path = _selectedFile!;
-    final ext = path.split('.').last.toUpperCase();
+    final ext = p.extension(path).replaceFirst('.', '').toUpperCase();
     final extColor = OcFileTile.colorFor(ext);
 
     return Column(
@@ -946,7 +946,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                     BoxShadow(
                       blurRadius: 60,
                       offset: const Offset(0, 30),
-                      color: Colors.black.withValues(alpha: 0.60),
+                      color: Colors.black.withValues(
+                        alpha: cs.brightness == Brightness.dark ? 0.60 : 0.18,
+                      ),
                     ),
                   ],
                 ),
@@ -1013,19 +1015,21 @@ class _SignPageState extends ConsumerState<SignPage> {
                           options: const RoundedRectDottedBorderOptions(
                             radius: Radius.circular(4),
                             dashPattern: [4, 3],
-                            color: ColorSchemes.primary,
+                            color: ColorSchemes.primaryLight,
                             strokeWidth: 1.5,
                           ),
                           child: Container(
                             width: 92,
                             height: 36,
-                            color: ColorSchemes.primary.withValues(alpha: 0.06),
+                            color: ColorSchemes.primaryLight.withValues(
+                              alpha: 0.06,
+                            ),
                             child: Center(
                               child: Text(
-                                'SIGN HERE',
+                                l10n.signPlacerSignHere,
                                 style: TextStyle(
                                   fontFamily: 'JetBrainsMono',
-                                  color: ColorSchemes.primary,
+                                  color: ColorSchemes.primaryLight,
                                   fontSize: 8,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.6,
@@ -1062,27 +1066,21 @@ class _SignPageState extends ConsumerState<SignPage> {
                         ),
                       ),
 
-                      // Clear button — top-left
+                      // Clear button — top-left (40 px hit area)
                       Positioned(
-                        top: 4,
-                        left: 4,
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedFile = null),
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: cs.surfaceContainerHighest.withValues(
-                                alpha: 0.85,
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close_rounded,
-                              size: 14,
-                              color: cs.onSurface,
-                            ),
+                        top: 0,
+                        left: 0,
+                        child: IconButton(
+                          tooltip: l10n.batchSignRemove,
+                          onPressed: () => setState(() => _selectedFile = null),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(40, 40),
+                            backgroundColor: cs.surfaceContainerHighest
+                                .withValues(alpha: 0.85),
+                            foregroundColor: cs.onSurface,
+                            padding: EdgeInsets.zero,
                           ),
+                          icon: const Icon(Icons.close_rounded, size: 16),
                         ),
                       ),
                     ],
@@ -1152,67 +1150,80 @@ class _SignPageState extends ConsumerState<SignPage> {
           ),
           const SizedBox(height: 14),
 
-          // Sign CTA
-          OcGradientButton(
-            label: l10n.signButton,
-            icon: Icons.contactless_rounded,
-            onPressed: _selectedFile != null && !_isSigning && !_waitingCard
-                ? _startSigning
-                : null,
-          ),
+          // Reader status (desktop windows that use the narrow layout)
+          if (!Platform.isAndroid) ...[
+            _buildReaderCallout(context, cs),
+            const SizedBox(height: 14),
+          ],
+
+          // Sign CTA + reason it may be disabled
+          _buildSignAction(context),
         ],
       ),
     );
   }
 
-  Widget _buildFormatTabs(BuildContext context, ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
-        children: SignatureFormat.values.map((format) {
-          final isSelected = _options.format == format;
-          final isDisabled =
-              (format == SignatureFormat.pades && !_isPdfFile) ||
-              (format == SignatureFormat.xades && !_isXmlFile);
-          return Expanded(
-            child: GestureDetector(
-              onTap: isDisabled ? null : () => _onFormatChanged(format),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? cs.surfaceContainerHigh
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Center(
-                  child: Text(
-                    // "PAdES (PDF)" → "PAdES"
-                    format.displayName.split(' ').first,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      color: isDisabled
-                          ? cs.onSurfaceVariant.withValues(alpha: 0.35)
-                          : isSelected
-                          ? cs.onSurface
-                          : cs.onSurfaceVariant,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w400,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ),
+  /// The first unmet signing requirement, null when signing can start.
+  SignBlocker? get _signBlocker => firstSignBlocker(
+    hasDocument: _selectedFile != null,
+    readerReady: _readerReady,
+    card: ref.watch(settingsProvider).selectedCard,
+  );
+
+  /// Sign button with a one-line reason (and tooltip) when it is disabled.
+  Widget _buildSignAction(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final blocker = _signBlocker;
+    final reason = blocker == null ? null : signBlockerLabel(l10n, blocker);
+    final enabled = blocker == null && !_isSigning && !_waitingCard;
+    final button = OcGradientButton(
+      label: l10n.signButton,
+      icon: Icons.contactless_rounded,
+      onPressed: enabled ? _startSigning : null,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        reason == null ? button : Tooltip(message: reason, child: button),
+        if (reason != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            reason,
+            key: const ValueKey('signDisabledReason'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Inter',
+              color: cs.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
-          );
-        }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFormatTabs(BuildContext context, ColorScheme cs) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<SignatureFormat>(
+        key: const ValueKey('signFormatTabs'),
+        showSelectedIcon: false,
+        segments: [
+          for (final format in SignatureFormat.values)
+            ButtonSegment<SignatureFormat>(
+              value: format,
+              enabled:
+                  !((format == SignatureFormat.pades && !_isPdfFile) ||
+                      (format == SignatureFormat.xades && !_isXmlFile)),
+              // "PAdES (PDF)" → "PAdES"
+              label: Text(format.displayName.split(' ').first),
+            ),
+        ],
+        selected: {_options.format},
+        onSelectionChanged: (s) => _onFormatChanged(s.first),
       ),
     );
   }
@@ -1225,26 +1236,22 @@ class _SignPageState extends ConsumerState<SignPage> {
     required bool value,
     required ValueChanged<bool> onToggled,
   }) {
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.38,
-      child: GestureDetector(
-        onTap: enabled ? () => onToggled(!value) : null,
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            _SignMiniToggle(value: value),
-          ],
+    return Material(
+      type: MaterialType.transparency,
+      child: SwitchListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            color: enabled ? cs.onSurface : cs.onSurface.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
         ),
+        value: value,
+        onChanged: enabled ? onToggled : null,
       ),
     );
   }
@@ -1255,465 +1262,315 @@ class _SignPageState extends ConsumerState<SignPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final settings = ref.watch(settingsProvider);
-    final enrolledCard = settings.enrolledCards.isNotEmpty
-        ? settings.enrolledCards.first
-        : null;
+    final enrolledCard = settings.selectedCard;
     final hasCard = enrolledCard != null;
     final recent = ref.watch(recentSignedFilesProvider);
 
     return SafeArea(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Left: Document queue ──────────────────────────────────
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Page heading ──────────────────────────────────────
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              l10n.signTitle,
-                              style: AppTheme.displayBold(cs),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              l10n.signSubtitleFull,
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.layers),
-                        tooltip: l10n.batchSignTitle,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) => const BatchSignPage(),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.info_outline_rounded),
-                        tooltip: l10n.helpButtonTooltip,
-                        onPressed: () => OcHelpSheet.show(
-                          context,
-                          OcHelpSheet(
-                            title: l10n.helpSignTitle,
-                            icon: Icons.draw_rounded,
-                            iconColor: cs.primary,
-                            steps: [
-                              OcHelpStep(
-                                title: l10n.helpSignStep1Title,
-                                body: l10n.helpSignStep1Body,
-                                icon: Icons.folder_open_rounded,
-                              ),
-                              OcHelpStep(
-                                title: l10n.helpSignStep2Title,
-                                body: l10n.helpSignStep2Body,
-                                icon: Icons.tune_rounded,
-                              ),
-                              OcHelpStep(
-                                title: l10n.helpSignStep3Title,
-                                body: l10n.helpSignStep3Body,
-                                icon: Icons.nfc_rounded,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+      child: OcPageBody(
+        maxWidth: 1440,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Left: Document queue ──────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Page heading ──────────────────────────────────────
+                    _buildHeader(context),
+                    const SizedBox(height: 20),
+
+                    // Enrollment warning
+                    if (!hasCard) ...[
+                      _buildEnrollmentBanner(context),
+                      const SizedBox(height: 20),
                     ],
-                  ),
-                  const SizedBox(height: 20),
 
-                  // Enrollment warning
-                  if (!hasCard) ...[
-                    _buildEnrollmentBanner(context),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Section label
-                  OcSectionLabel('DOCUMENTO'),
-                  const SizedBox(height: 12),
-
-                  // Document area
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainer,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cs.outlineVariant),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        // Header row
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          color: cs.surfaceContainerHigh,
-                          child: Row(
-                            children: [
-                              Expanded(child: OcSectionLabel('DOCUMENTO')),
-                              SizedBox(
-                                width: 100,
-                                child: OcSectionLabel('FORMATO'),
-                              ),
-                              SizedBox(
-                                width: 90,
-                                child: OcSectionLabel('DIMENSIONE'),
-                              ),
-                              SizedBox(
-                                width: 80,
-                                child: OcSectionLabel('STATO'),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // File row (if selected)
-                        if (_selectedFile != null) ...[
-                          _buildDesktopFileRow(context, cs, l10n),
-                          Divider(height: 1, color: cs.outlineVariant),
-                        ],
-
-                        // Drop hint row
-                        GestureDetector(
-                          onTap: _pickFile,
-                          child: DropTarget(
-                            onDragEntered: (_) =>
-                                setState(() => _isDragging = true),
-                            onDragExited: (_) =>
-                                setState(() => _isDragging = false),
-                            onDragDone: (details) {
-                              setState(() => _isDragging = false);
-                              if (details.files.isNotEmpty) {
-                                final path = details.files.first.path;
-                                setState(() {
-                                  _selectedFile = path;
-                                  if (!path.toLowerCase().endsWith('.pdf') &&
-                                      _options.format ==
-                                          SignatureFormat.pades) {
-                                    _options = _options.copyWith(
-                                      format: SignatureFormat.cades,
-                                      graphicSignature: false,
-                                    );
-                                  }
-                                });
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 16,
-                              ),
-                              color: _isDragging
-                                  ? cs.primary.withValues(alpha: 0.06)
-                                  : Colors.transparent,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_circle_outline,
-                                    size: 16,
-                                    color: cs.onSurfaceVariant,
+                    // Document area
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainer,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cs.outlineVariant),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          // Header row
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            color: cs.surfaceContainerHigh,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OcSectionLabel(
+                                    l10n.signColumnDocument,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    l10n.signDragAndDropHint,
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: cs.onSurfaceVariant,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                                SizedBox(
+                                  width: _col(context, _kColFormat),
+                                  child: OcSectionLabel(l10n.signFormat),
+                                ),
+                                SizedBox(
+                                  width: _col(context, _kColSize),
+                                  child: OcSectionLabel(l10n.signColumnSize),
+                                ),
+                                SizedBox(
+                                  width: _col(context, _kColStatus),
+                                  child: OcSectionLabel(l10n.signColumnStatus),
+                                ),
+                                const SizedBox(width: 40),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
 
-                  // PDF placer (graphic sig)
-                  if (_options.graphicSignature &&
-                      _options.format == SignatureFormat.pades &&
-                      _selectedFile != null &&
-                      _selectedFile!.toLowerCase().endsWith('.pdf')) ...[
-                    const SizedBox(height: 20),
-                    PdfSignaturePlacer(
-                      pdfPath: _selectedFile!,
-                      page: _options.page,
-                      sigX: _options.x,
-                      sigY: _options.y,
-                      sigW: _options.width,
-                      sigH: _options.height,
-                      imageData: _options.imageData,
-                      alignedFieldName: _options.alignedFieldName,
-                      onChanged:
-                          ({
-                            required int page,
-                            required double x,
-                            required double y,
-                            required double w,
-                            required double h,
-                            Uint8List? imageData,
-                            required String? alignedFieldName,
-                          }) {
-                            setState(() {
-                              _options = _options.copyWith(
-                                page: page,
-                                x: x,
-                                y: y,
-                                width: w,
-                                height: h,
-                                imageData: imageData,
-                                alignedFieldName: alignedFieldName,
-                                clearAlignedFieldName: alignedFieldName == null,
-                              );
-                            });
-                          },
-                    ),
-                  ],
+                          // File row (if selected)
+                          if (_selectedFile != null) ...[
+                            _buildDesktopFileRow(context, cs, l10n),
+                            Divider(height: 1, color: cs.outlineVariant),
+                          ],
 
-                  // Recent files
-                  if (recent.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _buildRecentSection(context, recent),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // ── Right: Signer + Options ───────────────────────────────
-          SizedBox(
-            width: 320,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Signer card
-                  OcSectionLabel('FIRMATARIO'),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainer,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cs.outlineVariant),
-                    ),
-                    child: hasCard
-                        ? Row(
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: ColorSchemes.chipGradient,
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
+                          // Drop hint row
+                          GestureDetector(
+                            onTap: _pickFile,
+                            child: DropTarget(
+                              onDragEntered: (_) =>
+                                  setState(() => _isDragging = true),
+                              onDragExited: (_) =>
+                                  setState(() => _isDragging = false),
+                              onDragDone: (details) {
+                                setState(() => _isDragging = false);
+                                if (details.files.isNotEmpty) {
+                                  final path = details.files.first.path;
+                                  setState(() {
+                                    _selectedFile = path;
+                                    if (!path.toLowerCase().endsWith('.pdf') &&
+                                        _options.format ==
+                                            SignatureFormat.pades) {
+                                      _options = _options.copyWith(
+                                        format: SignatureFormat.cades,
+                                        graphicSignature: false,
+                                      );
+                                    }
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 16,
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    (enrolledCard.displayName.isNotEmpty
-                                        ? enrolledCard.displayName[0]
-                                        : 'C'),
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                color: _isDragging
+                                    ? cs.primary.withValues(alpha: 0.06)
+                                    : Colors.transparent,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
+                                    Icon(
+                                      Icons.add_circle_outline,
+                                      size: 16,
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      enrolledCard.displayName,
+                                      l10n.signDragAndDropHint,
                                       style: TextStyle(
                                         fontFamily: 'Inter',
-                                        color: cs.onSurface,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    if (enrolledCard.serial.isNotEmpty)
-                                      OcMonoText(
-                                        enrolledCard.serial,
                                         color: cs.onSurfaceVariant,
-                                        fontSize: 11,
+                                        fontSize: 13,
                                       ),
+                                    ),
                                   ],
                                 ),
                               ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Icon(
-                                Icons.credit_card_off_rounded,
-                                color: cs.error,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                l10n.signNoCardEnrolled,
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  color: cs.error,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Options card
-                  OcSectionLabel('OPZIONI'),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainer,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: cs.outlineVariant),
-                    ),
-                    child: Column(
-                      children: [
-                        _OptionsRow(
-                          icon: Icons.description_outlined,
-                          label: l10n.signFormat,
-                          value: _options.format.displayName.split(' ').first,
-                        ),
-                        Divider(height: 1, color: cs.outlineVariant),
-                        _OptionsRow(
-                          icon: Icons.schedule_rounded,
-                          label: l10n.signAddTimestamp,
-                          value: _options.addTimestamp ? 'FreeTSA' : '—',
-                        ),
-                        Divider(height: 1, color: cs.outlineVariant),
-                        _OptionsRow(
-                          icon: Icons.folder_outlined,
-                          label: 'Salva in',
-                          value:
-                              ref.read(settingsProvider).destinationFolder !=
-                                  null
-                              ? ref
-                                    .read(settingsProvider)
-                                    .destinationFolder!
-                                    .split('/')
-                                    .last
-                              : '/OpenCIE',
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Format tabs (desktop)
-                  _buildFormatTabs(context, cs),
-                  const SizedBox(height: 10),
-
-                  // Option toggles
-                  if (_isPdfFile)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _buildQuickToggle(
-                        context,
-                        cs,
-                        label: l10n.signGraphicSignature,
-                        enabled: _options.format == SignatureFormat.pades,
-                        value:
-                            _options.graphicSignature &&
-                            _options.format == SignatureFormat.pades,
-                        onToggled: _onGraphicToggled,
+                        ],
                       ),
                     ),
-                  _buildQuickToggle(
-                    context,
-                    cs,
-                    label: l10n.signAddTimestamp,
-                    enabled: true,
-                    value: _options.addTimestamp,
-                    onToggled: _onTimestampToggled,
-                  ),
 
-                  const SizedBox(height: 14),
-
-                  // Reader status callout
-                  _buildReaderCallout(context, cs),
-
-                  const SizedBox(height: 14),
-
-                  // Sign CTA
-                  OcGradientButton(
-                    label: l10n.signButton,
-                    icon: Icons.contactless_rounded,
-                    onPressed:
+                    // PDF placer (graphic sig)
+                    if (_options.graphicSignature &&
+                        _options.format == SignatureFormat.pades &&
                         _selectedFile != null &&
-                            !_isSigning &&
-                            !_waitingCard &&
-                            _readerReady
-                        ? _startSigning
-                        : null,
-                  ),
-                  if (!Platform.isAndroid &&
-                      !_readerReady &&
-                      _selectedFile != null &&
-                      !_isSigning) ...[
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              DesktopHandoffPage(filePath: _selectedFile!),
-                        ),
+                        _selectedFile!.toLowerCase().endsWith('.pdf')) ...[
+                      const SizedBox(height: 20),
+                      PdfSignaturePlacer(
+                        pdfPath: _selectedFile!,
+                        page: _options.page,
+                        sigX: _options.x,
+                        sigY: _options.y,
+                        sigW: _options.width,
+                        sigH: _options.height,
+                        imageData: _options.imageData,
+                        alignedFieldName: _options.alignedFieldName,
+                        onChanged:
+                            ({
+                              required int page,
+                              required double x,
+                              required double y,
+                              required double w,
+                              required double h,
+                              Uint8List? imageData,
+                              required String? alignedFieldName,
+                            }) {
+                              setState(() {
+                                _options = _options.copyWith(
+                                  page: page,
+                                  x: x,
+                                  y: y,
+                                  width: w,
+                                  height: h,
+                                  imageData: imageData,
+                                  alignedFieldName: alignedFieldName,
+                                  clearAlignedFieldName:
+                                      alignedFieldName == null,
+                                );
+                              });
+                            },
                       ),
-                      icon: const Icon(Icons.smartphone_rounded, size: 18),
-                      label: Text(l10n.handoffEntryDesktopButton),
-                    ),
+                    ],
+
+                    // Recent files
+                    if (recent.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildRecentSection(context, recent),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(width: 24),
+
+            // ── Right: Signer + Options ───────────────────────────────
+            SizedBox(
+              width: 320,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Signer card (picker when several cards are enrolled)
+                    const SignerBox(),
+
+                    const SizedBox(height: 16),
+
+                    // Options card
+                    OcSectionLabel(l10n.signOptionsTitle),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainer,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: cs.outlineVariant),
+                      ),
+                      child: Column(
+                        children: [
+                          _OptionsRow(
+                            icon: Icons.description_outlined,
+                            label: l10n.signFormat,
+                            value: _options.format.displayName.split(' ').first,
+                          ),
+                          Divider(height: 1, color: cs.outlineVariant),
+                          _OptionsRow(
+                            icon: Icons.schedule_rounded,
+                            label: l10n.signAddTimestamp,
+                            value: _options.addTimestamp
+                                ? tsaDisplayName(settings.tsaConfig.serverUrl)
+                                : l10n.signTimestampOff,
+                          ),
+                          Divider(height: 1, color: cs.outlineVariant),
+                          _OptionsRow(
+                            icon: Icons.folder_outlined,
+                            label: l10n.signSaveTo,
+                            value: settings.destinationFolder != null
+                                ? p.basename(settings.destinationFolder!)
+                                : l10n.signSaveToSameFolder,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Format tabs (desktop)
+                    _buildFormatTabs(context, cs),
+                    const SizedBox(height: 10),
+
+                    // Option toggles
+                    if (_isPdfFile)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildQuickToggle(
+                          context,
+                          cs,
+                          label: l10n.signGraphicSignature,
+                          enabled: _options.format == SignatureFormat.pades,
+                          value:
+                              _options.graphicSignature &&
+                              _options.format == SignatureFormat.pades,
+                          onToggled: _onGraphicToggled,
+                        ),
+                      ),
+                    _buildQuickToggle(
+                      context,
+                      cs,
+                      label: l10n.signAddTimestamp,
+                      enabled: true,
+                      value: _options.addTimestamp,
+                      onToggled: _onTimestampToggled,
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Reader status callout
+                    _buildReaderCallout(context, cs),
+
+                    const SizedBox(height: 14),
+
+                    // Sign CTA + reason it may be disabled
+                    _buildSignAction(context),
+                    if (!Platform.isAndroid &&
+                        !_readerReady &&
+                        _selectedFile != null &&
+                        !_isSigning) ...[
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                DesktopHandoffPage(filePath: _selectedFile!),
+                          ),
+                        ),
+                        icon: const Icon(Icons.smartphone_rounded, size: 18),
+                        label: Text(l10n.handoffEntryDesktopButton),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  static const double _kColFormat = 100;
+  static const double _kColSize = 100;
+  static const double _kColStatus = 100;
+
+  /// Table column width, grown with the text scale so headers don't break.
+  double _col(BuildContext context, double base) =>
+      base * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6);
 
   Widget _buildDesktopFileRow(
     BuildContext context,
@@ -1721,12 +1578,12 @@ class _SignPageState extends ConsumerState<SignPage> {
     AppLocalizations l10n,
   ) {
     final path = _selectedFile!;
-    final name = path.split('/').last;
-    final ext = name.split('.').last.toUpperCase();
+    final name = p.basename(path);
+    final ext = p.extension(name).replaceFirst('.', '').toUpperCase();
 
     return Container(
       color: cs.primary.withValues(alpha: 0.06),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.only(left: 14, top: 6, bottom: 6),
       child: Row(
         children: [
           OcFileTile(extension: ext, width: 28, height: 34),
@@ -1745,50 +1602,52 @@ class _SignPageState extends ConsumerState<SignPage> {
             ),
           ),
           SizedBox(
-            width: 100,
+            width: _col(context, _kColFormat),
             child: OcMonoText(
               _options.format.displayName.split(' ').first,
               fontSize: 11,
             ),
           ),
           SizedBox(
-            width: 90,
+            width: _col(context, _kColSize),
             child: OcMonoText(_fileSizeCaption(path), fontSize: 11),
           ),
           SizedBox(
-            width: 80,
+            width: _col(context, _kColStatus),
             child: Row(
               children: [
                 Container(
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: _readerReady
-                        ? ColorSchemes.valid
-                        : cs.onSurfaceVariant,
+                    color: _readerReady ? cs.valid : cs.onSurfaceVariant,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  _readerReady ? 'Pronto' : 'In attesa',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    color: _readerReady
-                        ? ColorSchemes.valid
-                        : cs.onSurfaceVariant,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    _readerReady
+                        ? l10n.signStatusReady
+                        : l10n.signStatusWaiting,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      color: _readerReady ? cs.valid : cs.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, size: 16),
+            icon: const Icon(Icons.close_rounded, size: 18),
+            tooltip: l10n.batchSignRemove,
             onPressed: () => setState(() => _selectedFile = null),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
         ],
       ),
@@ -1796,11 +1655,12 @@ class _SignPageState extends ConsumerState<SignPage> {
   }
 
   Widget _buildReaderCallout(BuildContext context, ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
     if (_readerReady) {
       // Reader present: show primary-tinted callout with green dot
       final readerLabel = Platform.isAndroid
-          ? 'NFC pronto'
-          : 'Lettore: ${_readerName!}';
+          ? l10n.signNfcReady
+          : l10n.signReaderName(_readerName!);
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -1814,7 +1674,7 @@ class _SignPageState extends ConsumerState<SignPage> {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: ColorSchemes.valid,
+                color: cs.valid,
                 shape: BoxShape.circle,
               ),
             ),
@@ -1855,7 +1715,7 @@ class _SignPageState extends ConsumerState<SignPage> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Nessun lettore rilevato',
+                l10n.signNoReaderDetected,
                 style: TextStyle(
                   fontFamily: 'Inter',
                   color: cs.onSurfaceVariant,
@@ -1893,7 +1753,7 @@ class _SignPageState extends ConsumerState<SignPage> {
               onPressed: () =>
                   ref.read(recentSignedFilesProvider.notifier).clear(),
               icon: const Icon(Icons.delete_sweep, size: 18),
-              label: Text(l10n.commonClear),
+              label: Text(l10n.commonClearList),
               style: TextButton.styleFrom(
                 foregroundColor: theme.colorScheme.error,
               ),
@@ -1991,41 +1851,6 @@ class _SignPageState extends ConsumerState<SignPage> {
 
 // ── Private helper widgets ──────────────────────────────────────────────────
 
-/// 28×16 mini toggle pill used in the bottom options panel.
-class _SignMiniToggle extends StatelessWidget {
-  const _SignMiniToggle({required this.value});
-  final bool value;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 28,
-      height: 16,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: value ? cs.primary : cs.surfaceContainerHigh,
-        border: value ? null : Border.all(color: cs.outlineVariant),
-      ),
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 12,
-          height: 12,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Desktop options row: icon + label + mono value.
 class _OptionsRow extends StatelessWidget {
   const _OptionsRow({
@@ -2046,9 +1871,12 @@ class _OptionsRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: cs.primary),
           const SizedBox(width: 10),
-          Expanded(
+          Flexible(
+            flex: 5,
             child: Text(
               label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Inter',
                 color: cs.onSurface,
@@ -2057,7 +1885,20 @@ class _OptionsRow extends StatelessWidget {
               ),
             ),
           ),
-          OcMonoText(value, fontSize: 11, color: cs.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 6,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: OcMonoText(
+                value,
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         ],
       ),
     );

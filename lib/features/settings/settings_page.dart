@@ -9,18 +9,20 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/color_schemes.dart';
+import '../app_lock/app_lock_settings_section.dart';
 import '../../models/proxy_config.dart';
 import '../../models/signature_options.dart';
+import '../../models/tsa_config.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/storage_service.dart';
 import '../../services/update_checker.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_help_sheet.dart';
 import '../../widgets/oc_mark.dart'; // used in About section
+import '../../widgets/oc_page.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../widgets/update_notice.dart';
 
@@ -114,6 +116,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  /// Settings is a form: keep rows readable on wide windows.
+  static const double _maxWidth = 760;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -121,42 +126,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final l10n = AppLocalizations.of(context);
 
     // TSA providers: FreeTSA + qualified Italian TSPs
-    final tsaEntries = <MapEntry<String, String>>[
-      const MapEntry('FreeTSA', AppConstants.defaultTsaUrl),
-      ...AppConstants.qualifiedTsaProviders.entries,
-    ];
+    final tsaEntries = tsaProviderEntries();
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           // ── Page heading ─────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.settingsTitle,
-                          style: AppTheme.displayBold(cs),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.settingsSubtitle,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          OcPageBody.sliver(
+            maxWidth: _maxWidth,
+            child: SliverToBoxAdapter(
+              child: OcPageHeader(
+                title: l10n.settingsTitle,
+                subtitle: l10n.settingsSubtitle,
+                actions: [
                   IconButton(
                     icon: const Icon(Icons.info_outline_rounded),
                     tooltip: l10n.helpButtonTooltip,
@@ -190,41 +172,45 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
           if (settings.secureStorageUnavailable)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: Card(
-                  color: cs.tertiaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          color: cs.onTertiaryContainer,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            l10n.secureStorageUnavailableWarning,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: cs.onTertiaryContainer),
+            OcPageBody.sliver(
+              maxWidth: _maxWidth,
+              child: SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Card(
+                    color: cs.tertiaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: cs.onTertiaryContainer,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              l10n.secureStorageUnavailableWarning,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: cs.onTertiaryContainer),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverList(
+          OcPageBody.sliver(
+            maxWidth: _maxWidth,
+            child: SliverList(
               delegate: SliverChildListDelegate([
                 // ── 0. INTERFACCIA ────────────────────────────────────────
                 OcSectionLabel(l10n.settingsInterfaceTitle),
@@ -250,6 +236,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
                 const SizedBox(height: 20),
 
+                // ── Security (app lock) ──────────────────────────────────
+                const AppLockSettingsSection(),
+
                 // ── 1. AUTORITÀ DI MARCATURA (TSA) ────────────────────────
                 OcSectionLabel(l10n.settingsTsa),
                 const SizedBox(height: 8),
@@ -259,6 +248,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         settings.tsaConfig.serverUrl == entry.value;
                     return OcActionRow(
                       leading: _RadioDot(selected: isSelected, cs: cs),
+                      selected: isSelected,
                       title: entry.key,
                       subtitle: entry.value,
                       subtitleMono: true,
@@ -332,7 +322,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: l10n.settingsOpenAfterSign,
                       trailing: Switch.adaptive(
                         value: settings.openFolderAfterSign,
-                        activeTrackColor: ColorSchemes.primary,
                         onChanged: (v) => ref
                             .read(settingsProvider.notifier)
                             .update((s) => s.copyWith(openFolderAfterSign: v)),
@@ -359,8 +348,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           final isSelected = settings.defaultPdfFormat == f;
                           return OcActionRow(
                             leading: _RadioDot(selected: isSelected, cs: cs),
+                            selected: isSelected,
                             title: f.displayName,
-                            subtitle: l10n.settingsDefaultPdfFormat,
+                            subtitle: f == SignatureFormat.pades
+                                ? l10n.settingsFormatPadesSubtitle
+                                : l10n.settingsFormatCadesSubtitle,
                             onTap: () => ref
                                 .read(settingsProvider.notifier)
                                 .update((s) => s.copyWith(defaultPdfFormat: f)),
@@ -370,7 +362,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: l10n.settingsGraphicPades,
                       trailing: Switch.adaptive(
                         value: settings.graphicPades,
-                        activeTrackColor: ColorSchemes.primary,
                         onChanged: (v) => ref
                             .read(settingsProvider.notifier)
                             .update((s) => s.copyWith(graphicPades: v)),
@@ -381,7 +372,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         title: l10n.settingsEnableDate,
                         trailing: Switch.adaptive(
                           value: settings.includeDate,
-                          activeTrackColor: ColorSchemes.primary,
                           onChanged: (v) => ref
                               .read(settingsProvider.notifier)
                               .update((s) => s.copyWith(includeDate: v)),
@@ -391,7 +381,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         title: l10n.settingsEnableLocation,
                         trailing: Switch.adaptive(
                           value: settings.includeLocation,
-                          activeTrackColor: ColorSchemes.primary,
                           onChanged: (v) => ref
                               .read(settingsProvider.notifier)
                               .update((s) => s.copyWith(includeLocation: v)),
@@ -401,7 +390,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         title: l10n.settingsEnableReason,
                         trailing: Switch.adaptive(
                           value: settings.includeReason,
-                          activeTrackColor: ColorSchemes.primary,
                           onChanged: (v) => ref
                               .read(settingsProvider.notifier)
                               .update((s) => s.copyWith(includeReason: v)),
@@ -412,7 +400,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: l10n.settingsPreservePdfA,
                       trailing: Switch.adaptive(
                         value: settings.preservePdfA,
-                        activeTrackColor: ColorSchemes.primary,
                         onChanged: (v) => ref
                             .read(settingsProvider.notifier)
                             .update((s) => s.copyWith(preservePdfA: v)),
@@ -434,6 +421,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             settings.validationType == ValidationType.ocspOnly,
                         cs: cs,
                       ),
+                      selected:
+                          settings.validationType == ValidationType.ocspOnly,
                       title: l10n.settingsOcspOnly,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
@@ -449,6 +438,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             settings.validationType == ValidationType.ocspFirst,
                         cs: cs,
                       ),
+                      selected:
+                          settings.validationType == ValidationType.ocspFirst,
                       title: l10n.settingsOcspFirst,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
@@ -464,6 +455,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             settings.validationType == ValidationType.crlOnly,
                         cs: cs,
                       ),
+                      selected:
+                          settings.validationType == ValidationType.crlOnly,
                       title: l10n.settingsCrlOnly,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
@@ -479,6 +472,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             settings.validationType == ValidationType.crlFirst,
                         cs: cs,
                       ),
+                      selected:
+                          settings.validationType == ValidationType.crlFirst,
                       title: l10n.settingsCrlFirst,
                       onTap: () => ref
                           .read(settingsProvider.notifier)
@@ -535,8 +530,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
                 const SizedBox(height: 20),
 
-                // ── 7. APP (log level + about) ────────────────────────────
-                OcSectionLabel(l10n.settingsAbout),
+                // ── 7. LOG LEVEL ──────────────────────────────────────────
+                OcSectionLabel(l10n.settingsLogLevel),
                 const SizedBox(height: 8),
                 OcGroupCard(
                   children: [
@@ -544,6 +539,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       final isSelected = settings.logLevel == level;
                       return OcActionRow(
                         leading: _RadioDot(selected: isSelected, cs: cs),
+                        selected: isSelected,
                         title: _logLevelLabel(level, l10n),
                         onTap: () => ref
                             .read(settingsProvider.notifier)
@@ -553,7 +549,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+
+                // ── 8. ABOUT ──────────────────────────────────────────────
+                OcSectionLabel(l10n.settingsAbout),
+                const SizedBox(height: 8),
 
                 // About card
                 OcGroupCard(
@@ -618,7 +618,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       subtitle: l10n.settingsCheckForUpdatesSubtitle,
                       trailing: Switch.adaptive(
                         value: settings.checkForUpdates,
-                        activeTrackColor: ColorSchemes.primary,
                         onChanged: (v) => ref
                             .read(settingsProvider.notifier)
                             .update(
@@ -701,11 +700,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _logLevelLabel(LogLevel level, AppLocalizations l10n) {
     switch (level) {
       case LogLevel.off:
-        return 'Off';
+        return l10n.settingsLogOff;
       case LogLevel.standard:
-        return 'Standard';
+        return l10n.settingsLogStandard;
       case LogLevel.debug:
-        return 'Debug';
+        return l10n.settingsLogDebug;
     }
   }
 
@@ -876,7 +875,7 @@ class _RadioDot extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: selected ? cs.primary : cs.outlineVariant,
+            color: selected ? cs.primary : cs.outline,
             width: 2,
           ),
         ),
@@ -908,9 +907,8 @@ class _ProxyStatusDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = mode == ProxyMode.none
-        ? ColorSchemes.valid
-        : ColorSchemes.accent;
+    final cs = Theme.of(context).colorScheme;
+    final color = mode == ProxyMode.none ? cs.valid : cs.tertiary;
     return Container(
       width: 8,
       height: 8,

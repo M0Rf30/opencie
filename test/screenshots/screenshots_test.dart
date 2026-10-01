@@ -49,8 +49,6 @@ Future<ByteData> _file(String path) async =>
 /// skips this file unless OPENCIE_SCREENSHOTS is set.
 final bool _enabled = Platform.environment['OPENCIE_SCREENSHOTS'] == '1';
 
-
-
 Future<void> _loadFonts() async {
   // Bundled app fonts.
   await _loadFont('Inter', [
@@ -67,8 +65,7 @@ Future<void> _loadFonts() async {
   final mf = '$root/bin/cache/artifacts/material_fonts';
   await _loadFont('MaterialIcons', [_file('$mf/MaterialIcons-Regular.otf')]);
   await _loadFont('Roboto', [
-    for (final w in ['Regular', 'Medium', 'Bold'])
-      _file('$mf/Roboto-$w.ttf'),
+    for (final w in ['Regular', 'Medium', 'Bold']) _file('$mf/Roboto-$w.ttf'),
   ]);
 }
 
@@ -102,7 +99,8 @@ Map<String, Object> _fakePrefs() {
     ],
   };
   String recent(List<(String, DateTime)> files) => jsonEncode([
-    for (final f in files) {'path': '/tmp/${f.$1}', 'addedAt': f.$2.toIso8601String()},
+    for (final f in files)
+      {'path': '/tmp/${f.$1}', 'addedAt': f.$2.toIso8601String()},
   ]);
   return {
     'opencie_settings': jsonEncode(settings),
@@ -242,9 +240,9 @@ void main() {
       await tester.runAsync(() async {
         final ui.Image img = await boundary.toImage();
         final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
-        File('$_outDir/$name.png').writeAsBytesSync(
-          bytes!.buffer.asUint8List(),
-        );
+        File(
+          '$_outDir/$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
       });
     }
 

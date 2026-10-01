@@ -21,10 +21,12 @@ import '../../services/ltv/asn1/x509_cert.dart';
 import '../../services/nfc_service.dart';
 import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/pin_entry_dialog.dart';
+import '../../widgets/oc_card_avatar.dart';
 import '../../widgets/oc_pulse_rings.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_help_sheet.dart';
+import '../../widgets/oc_page.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../services/cie_error.dart';
 import '../../services/pin_throttle.dart';
@@ -527,7 +529,9 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     );
     ref
         .read(settingsProvider.notifier)
-        .update((s) => s.copyWith(enrolledCards: cards));
+        .update(
+          (s) => s.copyWith(enrolledCards: cards, selectedCardPan: card.pan),
+        );
     _showSuccessSnackBar(l10n.cieEnrolledSuccess(card.displayName));
   }
 
@@ -679,62 +683,8 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     return CustomScrollView(
       key: key,
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.cieTitle, style: AppTheme.displayBold(cs)),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.cieSubtitle,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.info_outline_rounded),
-                  tooltip: l10n.helpButtonTooltip,
-                  onPressed: () => OcHelpSheet.show(
-                    context,
-                    OcHelpSheet(
-                      title: l10n.helpCieTitle,
-                      icon: Icons.credit_card_rounded,
-                      iconColor: cs.primary,
-                      steps: [
-                        OcHelpStep(
-                          title: l10n.helpCieStep1Title,
-                          body: l10n.helpCieStep1Body,
-                          icon: Icons.nfc_rounded,
-                        ),
-                        OcHelpStep(
-                          title: l10n.helpCieStep2Title,
-                          body: l10n.helpCieStep2Body,
-                          icon: Icons.pin_rounded,
-                        ),
-                        OcHelpStep(
-                          title: l10n.helpCieStep3Title,
-                          body: l10n.helpCieStep3Body,
-                          icon: Icons.lock_open_rounded,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        OcPageBody.sliver(
+          child: SliverToBoxAdapter(child: _buildPageHeader(0)),
         ),
         SliverFillRemaining(
           hasScrollBody: false,
@@ -751,13 +701,13 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Nessuna carta registrata',
+                    l10n.cieNoCardsEnrolled,
                     style: AppTheme.displayBold(cs),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Registra la tua CIE per iniziare a firmare documenti',
+                    l10n.cieEmptyBody,
                     style: TextStyle(
                       fontFamily: 'Inter',
                       color: cs.onSurfaceVariant,
@@ -789,91 +739,76 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       key: key,
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= AppConstants.mediumBreakpoint;
-        if (isDesktop && cards.length == 1) {
-          return _buildDesktopSingleCard(cards.first);
-        } else if (isDesktop) {
-          return _buildMobileScroll(cards, maxWidth: 720);
+        final selected =
+            ref.watch(settingsProvider).selectedCard ?? cards.first;
+        if (cards.length > 1) {
+          return isDesktop
+              ? _buildMasterDetail(cards, selected)
+              : _buildCardList(cards);
         }
+        if (isDesktop) return _buildDesktopSingleCard(cards.first);
         return _buildMobileScroll(cards);
       },
     );
   }
 
-  Widget _buildMobileScroll(List<EnrolledCard> cards, {double? maxWidth}) {
+  /// Title, subtitle (with the card count folded in) and help button shared
+  /// by every layout. Callers place it inside an [OcPageBody].
+  Widget _buildPageHeader(int cardCount) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    final cardCount = cards.length;
-    final cardLabel = cardCount == 1
-        ? l10n.cieCardsEnrolled(1)
-        : l10n.cieCardsEnrolledPlural(cardCount);
-    final scrollView = CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(l10n.cieTitle, style: AppTheme.displayBold(cs)),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.cieSubtitle,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+    return OcPageHeader(
+      title: l10n.cieTitle,
+      subtitle: cardCount > 0
+          ? l10n.cieSubtitleWithCount(l10n.cieSubtitle, cardCount)
+          : l10n.cieSubtitle,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.info_outline_rounded),
+          tooltip: l10n.helpButtonTooltip,
+          onPressed: () => OcHelpSheet.show(
+            context,
+            OcHelpSheet(
+              title: l10n.helpCieTitle,
+              icon: Icons.credit_card_rounded,
+              iconColor: cs.primary,
+              steps: [
+                OcHelpStep(
+                  title: l10n.helpCieStep1Title,
+                  body: l10n.helpCieStep1Body,
+                  icon: Icons.nfc_rounded,
                 ),
-                if (cardCount > 0)
-                  Text(
-                    cardLabel,
-                    style: AppTheme.monoCaption(cs, color: cs.onSurfaceVariant),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.info_outline_rounded),
-                  tooltip: l10n.helpButtonTooltip,
-                  onPressed: () => OcHelpSheet.show(
-                    context,
-                    OcHelpSheet(
-                      title: l10n.helpCieTitle,
-                      icon: Icons.credit_card_rounded,
-                      iconColor: cs.primary,
-                      steps: [
-                        OcHelpStep(
-                          title: l10n.helpCieStep1Title,
-                          body: l10n.helpCieStep1Body,
-                          icon: Icons.nfc_rounded,
-                        ),
-                        OcHelpStep(
-                          title: l10n.helpCieStep2Title,
-                          body: l10n.helpCieStep2Body,
-                          icon: Icons.pin_rounded,
-                        ),
-                        OcHelpStep(
-                          title: l10n.helpCieStep3Title,
-                          body: l10n.helpCieStep3Body,
-                          icon: Icons.lock_open_rounded,
-                        ),
-                      ],
-                    ),
-                  ),
+                OcHelpStep(
+                  title: l10n.helpCieStep2Title,
+                  body: l10n.helpCieStep2Body,
+                  icon: Icons.pin_rounded,
+                ),
+                OcHelpStep(
+                  title: l10n.helpCieStep3Title,
+                  body: l10n.helpCieStep3Body,
+                  icon: Icons.lock_open_rounded,
                 ),
               ],
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildMobileScroll(List<EnrolledCard> cards) {
+    final l10n = AppLocalizations.of(context);
+    Widget body(Widget child) => OcPageBody.sliver(
+      maxWidth: 760,
+      child: SliverToBoxAdapter(child: child),
+    );
+    return CustomScrollView(
+      slivers: [
+        body(_buildPageHeader(cards.length)),
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverList(
+        OcPageBody.sliver(
+          maxWidth: 760,
+          child: SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, i) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -891,9 +826,9 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        body(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
             child: OutlinedButton.icon(
               onPressed: _isProcessing ? null : _showEnrollDialog,
               icon: const Icon(Icons.add_card_rounded),
@@ -904,9 +839,9 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        body(
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 32),
             child: _NfcPromptCard(
               nfcAvailable: Platform.isAndroid ? _nfcAvailable : null,
               readerName: Platform.isAndroid ? null : _readerName,
@@ -916,165 +851,300 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         ),
       ],
     );
-    if (maxWidth != null) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: scrollView,
-        ),
-      );
-    }
-    return scrollView;
   }
 
   Widget _buildDesktopSingleCard(EnrolledCard card) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.cieTitle, style: AppTheme.displayBold(cs)),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.cieSubtitle,
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: cs.onSurfaceVariant,
+    return OcPageBody(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildPageHeader(1),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 24, 0, 24),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _CieHero(card: card),
+                              const SizedBox(height: 16),
+                              _CieStats(card: card),
+                              const SizedBox(height: 16),
+                              _NfcPromptCard(
+                                nfcAvailable: Platform.isAndroid
+                                    ? _nfcAvailable
+                                    : null,
+                                readerName: Platform.isAndroid
+                                    ? null
+                                    : _readerName,
+                                readerChecked:
+                                    !Platform.isAndroid && _readerChecked,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                l10n.cieCardsEnrolled(1),
-                style: AppTheme.monoCaption(cs, color: cs.onSurfaceVariant),
-              ),
-              IconButton(
-                icon: const Icon(Icons.info_outline_rounded),
-                tooltip: l10n.helpButtonTooltip,
-                onPressed: () => OcHelpSheet.show(
-                  context,
-                  OcHelpSheet(
-                    title: l10n.helpCieTitle,
-                    icon: Icons.credit_card_rounded,
-                    iconColor: cs.primary,
-                    steps: [
-                      OcHelpStep(
-                        title: l10n.helpCieStep1Title,
-                        body: l10n.helpCieStep1Body,
-                        icon: Icons.nfc_rounded,
-                      ),
-                      OcHelpStep(
-                        title: l10n.helpCieStep2Title,
-                        body: l10n.helpCieStep2Body,
-                        icon: Icons.pin_rounded,
-                      ),
-                      OcHelpStep(
-                        title: l10n.helpCieStep3Title,
-                        body: l10n.helpCieStep3Body,
-                        icon: Icons.lock_open_rounded,
+                      const SizedBox(width: 32),
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                child: _CieActions(
+                                  card: card,
+                                  onChangePin: _showChangePinDialog,
+                                  onUnblockPin: _showUnblockPinDialog,
+                                  onInspectCertificate: () =>
+                                      _showCertificateDialog(context, card),
+                                  onRemove: () => _confirmRemove(context, card),
+                                  onReadChip: () => _readChipForCard(card),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed: _isProcessing
+                                  ? null
+                                  : _showEnrollDialog,
+                              icon: const Icon(Icons.add_card_rounded),
+                              label: Text(l10n.cieAddCard),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-        Expanded(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _CieHero(card: card),
-                            const SizedBox(height: 16),
-                            _CieStats(card: card),
-                            const SizedBox(height: 16),
-                            _NfcPromptCard(
-                              nfcAvailable: Platform.isAndroid
-                                  ? _nfcAvailable
-                                  : null,
-                              readerName: Platform.isAndroid
-                                  ? null
-                                  : _readerName,
-                              readerChecked:
-                                  !Platform.isAndroid && _readerChecked,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      flex: 6,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(l10n.cieTitle, style: AppTheme.displayBold(cs)),
-                          const SizedBox(height: 6),
-                          Text(
-                            l10n.cieSubtitle,
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w400,
-                              color: cs.onSurfaceVariant,
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multi-card layouts (2+ cards)
+  // ---------------------------------------------------------------------------
+
+  /// Selects [card] as the active one (shared with the sign page's signer).
+  void _selectCard(EnrolledCard card) {
+    ref.read(settingsProvider.notifier).selectCard(card.pan);
+  }
+
+  Widget _buildAddCardButton() {
+    final l10n = AppLocalizations.of(context);
+    return OutlinedButton.icon(
+      key: const ValueKey('addCardButton'),
+      onPressed: _isProcessing ? null : _showEnrollDialog,
+      icon: const Icon(Icons.add_card_rounded),
+      label: Text(l10n.cieAddCard),
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+    );
+  }
+
+  /// Full detail for one card: visual, status tiles, actions and reader
+  /// prompt. Two columns when [wide], one stacked column otherwise.
+  Widget _buildCardDetail(EnrolledCard card, {required bool wide}) {
+    final nfcPrompt = _NfcPromptCard(
+      nfcAvailable: Platform.isAndroid ? _nfcAvailable : null,
+      readerName: Platform.isAndroid ? null : _readerName,
+      readerChecked: !Platform.isAndroid && _readerChecked,
+    );
+    final actions = _CieActions(
+      card: card,
+      onChangePin: _showChangePinDialog,
+      onUnblockPin: _showUnblockPinDialog,
+      onInspectCertificate: () => _showCertificateDialog(context, card),
+      onRemove: () => _confirmRemove(context, card),
+      onReadChip: () => _readChipForCard(card),
+    );
+    final expired = cardValidity(card) == CardValidity.expired;
+    final warning = expired
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _ExpiredCardBanner(),
+          )
+        : const SizedBox.shrink();
+    if (wide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                warning,
+                _CieHero(card: card),
+                const SizedBox(height: 16),
+                _CieStats(card: card),
+                const SizedBox(height: 16),
+                nfcPrompt,
+              ],
+            ),
+          ),
+          const SizedBox(width: 28),
+          Expanded(flex: 6, child: actions),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        warning,
+        _CieHero(card: card),
+        const SizedBox(height: 16),
+        _CieStats(card: card),
+        const SizedBox(height: 16),
+        actions,
+        const SizedBox(height: 16),
+        nfcPrompt,
+      ],
+    );
+  }
+
+  /// Desktop master/detail: compact card list on the left, the selected
+  /// card's detail on the right.
+  Widget _buildMasterDetail(List<EnrolledCard> cards, EnrolledCard selected) {
+    final cs = Theme.of(context).colorScheme;
+    return OcPageBody(
+      maxWidth: 1440,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildPageHeader(cards.length),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 20, 0, 20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 340,
+                    child: ListView(
+                      key: const ValueKey('cardList'),
+                      padding: const EdgeInsets.only(right: 4),
+                      children: [
+                        for (final c in cards)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _CardListRow(
+                              card: c,
+                              selected: c.pan == selected.pan,
+                              onTap: () => _selectCard(c),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Expanded(
-                            child: SingleChildScrollView(
-                              child: _CieActions(
-                                card: card,
-                                onChangePin: _showChangePinDialog,
-                                onUnblockPin: _showUnblockPinDialog,
-                                onInspectCertificate: () =>
-                                    _showCertificateDialog(context, card),
-                                onRemove: () => _confirmRemove(context, card),
-                                onReadChip: () => _readChipForCard(card),
+                        const SizedBox(height: 6),
+                        _buildAddCardButton(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  VerticalDivider(width: 1, color: cs.outlineVariant),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 720;
+                        return SingleChildScrollView(
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1000),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                child: KeyedSubtree(
+                                  key: ValueKey('detail_${selected.pan}'),
+                                  child: _buildCardDetail(selected, wide: wide),
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          OutlinedButton.icon(
-                            onPressed: _isProcessing ? null : _showEnrollDialog,
-                            icon: const Icon(Icons.add_card_rounded),
-                            label: Text(l10n.cieAddCard),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact/medium layout for 2+ cards: a list of compact rows; tapping a
+  /// row selects the card and opens its detail on a pushed page.
+  Widget _buildCardList(List<EnrolledCard> cards) {
+    final selectedPan = ref.watch(settingsProvider).selectedCard?.pan;
+    Widget body(Widget child) => OcPageBody.sliver(
+      maxWidth: 760,
+      child: SliverToBoxAdapter(child: child),
+    );
+    return CustomScrollView(
+      slivers: [
+        body(_buildPageHeader(cards.length)),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        OcPageBody.sliver(
+          maxWidth: 760,
+          child: SliverList.separated(
+            itemCount: cards.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (context, i) => _CardListRow(
+              card: cards[i],
+              selected: cards[i].pan == selectedPan,
+              showChevron: true,
+              onTap: () => _openCardDetail(cards[i]),
+            ),
+          ),
+        ),
+        body(
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: _buildAddCardButton(),
+          ),
+        ),
+        body(
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 32),
+            child: _NfcPromptCard(
+              nfcAvailable: Platform.isAndroid ? _nfcAvailable : null,
+              readerName: Platform.isAndroid ? null : _readerName,
+              readerChecked: !Platform.isAndroid && _readerChecked,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  void _openCardDetail(EnrolledCard card) {
+    _selectCard(card);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _CardDetailPage(
+          pan: card.pan,
+          bodyBuilder: (context, current) => ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [_buildCardDetail(current, wide: false)],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1154,32 +1224,38 @@ class _CieHero extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'REPUBBLICA ITALIANA',
-                            style: TextStyle(
-                              fontFamily: 'JetBrainsMono',
-                              color: Colors.white.withValues(alpha: 0.7),
-                              fontSize: 9,
-                              letterSpacing: 1.6,
-                              fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'REPUBBLICA ITALIANA',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'JetBrainsMono',
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 9,
+                                letterSpacing: 1.6,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Carta d\'Identità Elettronica',
-                            style: TextStyle(
-                              fontFamily: 'Inter',
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                            const SizedBox(height: 3),
+                            Text(
+                              'Carta d\'Identità Elettronica',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       if (card.photoBytes != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
@@ -1285,29 +1361,34 @@ class _CieStats extends StatelessWidget {
   Color? _expiryColor(BuildContext context) {
     final d = card.mrzExpiry ?? card.notAfter;
     if (d == null) return null;
-    final now = DateTime.now();
-    if (d.isBefore(now)) return ColorSchemes.invalid;
-    if (d.isBefore(now.add(const Duration(days: 90)))) {
-      return Theme.of(context).colorScheme.error;
-    }
-    return null;
+    final cs = Theme.of(context).colorScheme;
+    return switch (cardValidity(card)) {
+      CardValidity.expired => cs.invalid,
+      CardValidity.expiring => cs.tertiary,
+      CardValidity.active => null,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 2.4,
+    final validity = cardValidity(card);
+    return GridView(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: 72,
+      ),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
         _StatCard(
           label: l10n.cieStatLabelStatus,
-          value: l10n.cieStatValueActive,
-          valueColor: ColorSchemes.valid,
+          value: validity == CardValidity.active
+              ? l10n.cieStatValueActive
+              : _validityLabel(l10n, validity).toUpperCase(),
+          valueColor: _validityColor(Theme.of(context).colorScheme, validity),
         ),
         _StatCard(
           label: l10n.cieStatLabelSerial,
@@ -1353,26 +1434,27 @@ class _CieActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return OcGroupCard(
       children: [
         OcActionRow(
           leadingIcon: Icons.lock_outline,
-          title: 'Cambia PIN',
-          subtitle: 'Modifica il PIN della CIE',
+          title: l10n.cieChangePinButton,
+          subtitle: l10n.cieChangePinSubtitle,
           onTap: onChangePin,
         ),
         OcActionRow(
           leadingIcon: Icons.fingerprint_outlined,
-          title: 'Sblocca con PUK',
-          subtitle: 'Ripristina il PIN bloccato',
+          title: l10n.cieActionUnblock,
+          subtitle: l10n.cieUnblockPinSubtitle,
           onTap: onUnblockPin,
         ),
         OcActionRow(
           leadingIcon: Icons.shield_outlined,
-          title: 'Ispeziona certificato',
+          title: l10n.cieViewCertificate,
           subtitle: _shortSerial.isNotEmpty
               ? 'X.509 leaf · ${_shortSerial.toUpperCase()}'
-              : 'Visualizza il certificato X.509',
+              : l10n.cieViewCertificateSubtitle,
           subtitleMono: _shortSerial.isNotEmpty,
           onTap: onInspectCertificate,
         ),
@@ -1386,7 +1468,7 @@ class _CieActions extends StatelessWidget {
           ),
         OcActionRow(
           leadingIcon: Icons.remove_circle_outline,
-          title: 'Rimuovi carta',
+          title: l10n.cieActionRemove,
           tone: Theme.of(context).colorScheme.error,
           onTap: onRemove,
         ),
@@ -1434,6 +1516,240 @@ class _CieHeroCard extends StatelessWidget {
           onReadChip: onReadChip,
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-card list row, validity chip and pushed detail page
+// ---------------------------------------------------------------------------
+
+String _validityLabel(AppLocalizations l10n, CardValidity v) => switch (v) {
+  CardValidity.active => l10n.cieCardStatusActive,
+  CardValidity.expiring => l10n.cieCardStatusExpiring,
+  CardValidity.expired => l10n.cieCardStatusExpired,
+};
+
+Color _validityColor(ColorScheme cs, CardValidity v) => switch (v) {
+  CardValidity.active => cs.valid,
+  CardValidity.expiring => cs.tertiary,
+  CardValidity.expired => cs.invalid,
+};
+
+String _formatCardDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/'
+    '${d.month.toString().padLeft(2, '0')}/'
+    '${d.year}';
+
+/// Small pill with a colour dot and the card's validity label.
+class _ValidityChip extends StatelessWidget {
+  const _ValidityChip({required this.validity});
+
+  final CardValidity validity;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final color = _validityColor(Theme.of(context).colorScheme, validity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            _validityLabel(l10n, validity),
+            style: TextStyle(
+              fontFamily: 'Inter',
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One compact row of the multi-card list: avatar, name, fiscal code,
+/// expiry and a validity chip. The selected row is outlined and tinted.
+class _CardListRow extends StatelessWidget {
+  const _CardListRow({
+    required this.card,
+    required this.selected,
+    required this.onTap,
+    this.showChevron = false,
+  });
+
+  final EnrolledCard card;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool showChevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
+    final id = cardFiscalCode(card) ?? card.serial;
+    final expiry = cardExpiry(card);
+    final radius = BorderRadius.circular(14);
+    return Semantics(
+      button: true,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      child: Material(
+        color: selected
+            ? cs.primary.withValues(alpha: 0.10)
+            : cs.surfaceContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(
+            color: selected ? cs.primary : cs.outline.withValues(alpha: 0.5),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          key: ValueKey('cardRow_${card.pan}'),
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                OcCardAvatar(card: card, size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        card.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (id.isNotEmpty)
+                        OcMonoText(
+                          id,
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      if (expiry != null)
+                        OcMonoText(
+                          l10n.cieCardExpiresOn(_formatCardDate(expiry)),
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _ValidityChip(validity: cardValidity(card)),
+                if (showChevron) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Warning shown in the card detail when the card has expired.
+class _ExpiredCardBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('expiredCardBanner'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: cs.onErrorContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context).cieErrorCardExpired,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                color: cs.onErrorContainer,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pushed detail page for one card (compact/medium multi-card layout).
+/// Follows the live settings: if the card is removed (from here) the page
+/// closes itself.
+class _CardDetailPage extends ConsumerWidget {
+  const _CardDetailPage({required this.pan, required this.bodyBuilder});
+
+  final String pan;
+  final Widget Function(BuildContext context, EnrolledCard card) bodyBuilder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cards = ref.watch(settingsProvider).enrolledCards;
+    final idx = cards.indexWhere((c) => c.pan == pan);
+    if (idx < 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const Scaffold();
+    }
+    final card = cards[idx];
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          card.displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: bodyBuilder(context, card),
+          ),
+        ),
+      ),
     );
   }
 }

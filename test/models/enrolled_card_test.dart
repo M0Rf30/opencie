@@ -217,4 +217,75 @@ void main() {
       expect(identical(result, cards), isTrue);
     });
   });
+
+  group('markSelectedCardUsed', () {
+    final at = DateTime.utc(2026, 5, 1);
+    const a = EnrolledCard(pan: 'AAAA');
+    const b = EnrolledCard(pan: 'BBBB');
+
+    test('stamps only the selected card among several', () {
+      final result = markSelectedCardUsed([a, b], 'BBBB', at);
+      expect(result[0].lastUsed, isNull);
+      expect(result[1].lastUsed, at);
+    });
+
+    test('falls back to markCardUsed when the PAN is null or unknown', () {
+      expect(markSelectedCardUsed([a], null, at).single.lastUsed, at);
+      expect(markSelectedCardUsed([a], 'ZZZZ', at).single.lastUsed, at);
+      final two = [a, b];
+      expect(identical(markSelectedCardUsed(two, 'ZZZZ', at), two), isTrue);
+    });
+  });
+
+  group('card display helpers', () {
+    test('cardFiscalCode reads the subject, then the serial', () {
+      expect(
+        cardFiscalCode(
+          const EnrolledCard(
+            pan: 'A',
+            subject: 'CN=RSSMRA80A01H501Z/MARIO ROSSI',
+          ),
+        ),
+        'RSSMRA80A01H501Z',
+      );
+      expect(
+        cardFiscalCode(
+          const EnrolledCard(pan: 'A', serial: 'bncgli85m41f205x'),
+        ),
+        'BNCGLI85M41F205X',
+      );
+      expect(
+        cardFiscalCode(const EnrolledCard(pan: 'A', serial: 'AA00000AA')),
+        isNull,
+      );
+    });
+
+    test('cardValidity buckets by expiry', () {
+      final now = DateTime.utc(2026, 1, 1);
+      EnrolledCard withExpiry(DateTime? d) =>
+          EnrolledCard(pan: 'A', notAfter: d);
+
+      expect(cardValidity(withExpiry(null), now), CardValidity.active);
+      expect(
+        cardValidity(withExpiry(DateTime.utc(2030, 1, 1)), now),
+        CardValidity.active,
+      );
+      expect(
+        cardValidity(withExpiry(DateTime.utc(2026, 2, 1)), now),
+        CardValidity.expiring,
+      );
+      expect(
+        cardValidity(withExpiry(DateTime.utc(2025, 12, 31)), now),
+        CardValidity.expired,
+      );
+    });
+
+    test('cardInitials uses the first letters of up to two words', () {
+      expect(
+        cardInitials(const EnrolledCard(pan: 'A', name: 'mario rossi')),
+        'MR',
+      );
+      expect(cardInitials(const EnrolledCard(pan: 'A', name: 'Giulia')), 'G');
+    });
+  });
 }

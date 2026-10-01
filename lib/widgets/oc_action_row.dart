@@ -19,6 +19,7 @@ class OcActionRow extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.tone,
+    this.selected,
   });
 
   final IconData? leadingIcon;
@@ -30,73 +31,90 @@ class OcActionRow extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? tone;
 
+  /// Non-null marks a single-choice (radio) row: announced as selected /
+  /// not selected within a mutually exclusive group, and shown without the
+  /// navigation chevron.
+  final bool? selected;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final iconColor = tone ?? cs.primary;
     const padV = 14.0;
 
-    return InkWell(
+    final row = InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 14, vertical: padV),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (leading != null)
-              leading!
-            else if (leadingIcon != null) ...[
-              Icon(leadingIcon, size: 22, color: iconColor),
-            ],
-            if (leading != null || leadingIcon != null)
-              const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: padV),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (leading != null)
+                leading!
+              else if (leadingIcon != null) ...[
+                Icon(leadingIcon, size: 22, color: iconColor),
+              ],
+              if (leading != null || leadingIcon != null)
+                const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      subtitle!,
-                      style: subtitleMono
-                          ? AppTheme.monoBody(
-                              cs,
-                              color: cs.onSurfaceVariant,
-                            ).copyWith(fontSize: 11)
-                          : TextStyle(
-                              fontFamily: 'Inter',
-                              color: cs.onSurfaceVariant,
-                              fontSize: 12,
-                            ),
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: subtitleMono
+                            ? AppTheme.monoBody(
+                                cs,
+                                color: cs.onSurfaceVariant,
+                              ).copyWith(fontSize: 11)
+                            : TextStyle(
+                                fontFamily: 'Inter',
+                                color: cs.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 12),
-              trailing!,
-            ] else if (onTap != null) ...[
-              const SizedBox(width: 12),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: cs.onSurfaceVariant,
-                size: 22,
-              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 12),
+                trailing!,
+              ] else if (onTap != null && selected == null) ...[
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: cs.onSurfaceVariant,
+                  size: 22,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
+    );
+    if (selected == null) return row;
+    return Semantics(
+      button: true,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      child: row,
     );
   }
 }

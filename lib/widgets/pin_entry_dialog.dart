@@ -154,7 +154,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
           vertical: 40,
         ),
         child: Semantics(
-          label: 'PIN entry dialog',
+          label: l10n.pinEntryDialogSemantics,
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: isDesktop ? 360 : double.infinity,
@@ -210,7 +210,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
 
                   // PIN tiles
                   Semantics(
-                    label: '$pinLength of ${widget.maxLength} digits entered',
+                    label: l10n.nfcUxPinDigitCount(pinLength, widget.maxLength),
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Row(
@@ -306,7 +306,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                             final digit = (i + 1).toString();
                             return _NumpadButton(
                               label: digit,
-                              semanticLabel: 'digit $digit',
+                              semanticLabel: l10n.pinKeyDigit(digit),
                               onPressed: () {
                                 _appendDigit(digit);
                                 _keyboardFocus.requestFocus();
@@ -315,7 +315,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                           }),
                           _NumpadButton(
                             label: '⌫',
-                            semanticLabel: 'backspace',
+                            semanticLabel: l10n.pinKeyBackspace,
                             onPressed: () {
                               _backspace();
                               _keyboardFocus.requestFocus();
@@ -323,7 +323,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                           ),
                           _NumpadButton(
                             label: '0',
-                            semanticLabel: 'digit 0',
+                            semanticLabel: l10n.pinKeyDigit('0'),
                             onPressed: () {
                               _appendDigit('0');
                               _keyboardFocus.requestFocus();
@@ -331,7 +331,7 @@ class _PinEntryDialogState extends State<PinEntryDialog> {
                           ),
                           _NumpadButton(
                             label: '✓',
-                            semanticLabel: 'confirm',
+                            semanticLabel: l10n.pinKeyConfirm,
                             onPressed: _submitIfReady,
                             isSubmit: true,
                           ),

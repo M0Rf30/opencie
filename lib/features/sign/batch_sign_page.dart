@@ -15,6 +15,7 @@ import '../../providers/batch_sign_provider.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../services/batch_sign/batch_sign_models.dart';
 import '../../widgets/oc_gradient_button.dart';
+import '../../widgets/oc_page.dart';
 import '../../widgets/pin_entry_dialog.dart';
 
 /// Batch signing page.
@@ -35,24 +36,41 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     final state = ref.watch(batchSignProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.batchSignTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+      body: SafeArea(
+        child: Column(
+          children: [
+            OcPageBody(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: OcPageMetrics.paddingFor(
+                        MediaQuery.sizeOf(context).width,
+                      ),
+                      right: 8,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: l10n.commonBack,
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  Expanded(child: OcPageHeader(title: l10n.batchSignTitle)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // File list area
+            Expanded(
+              child: state.items.isEmpty
+                  ? _buildEmptyState(context, l10n)
+                  : _buildFileList(context, l10n, state),
+            ),
+            // Bottom action bar
+            _buildActionBar(context, l10n, state),
+          ],
         ),
-      ),
-      body: Column(
-        children: [
-          // File list area
-          Expanded(
-            child: state.items.isEmpty
-                ? _buildEmptyState(context, l10n)
-                : _buildFileList(context, l10n, state),
-          ),
-          // Bottom action bar
-          _buildActionBar(context, l10n, state),
-        ],
       ),
     );
   }
@@ -121,13 +139,21 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
       },
       child: Container(
         color: _isDragging ? cs.surfaceContainerHigh : Colors.transparent,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: state.items.length,
-          itemBuilder: (context, index) {
-            final item = state.items[index];
-            return _buildFileCard(context, l10n, item, index, state.isRunning);
-          },
+        child: OcPageBody(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: state.items.length,
+            itemBuilder: (context, index) {
+              final item = state.items[index];
+              return _buildFileCard(
+                context,
+                l10n,
+                item,
+                index,
+                state.isRunning,
+              );
+            },
+          ),
         ),
       ),
     );
@@ -179,6 +205,7 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
                 if (!isRunning)
                   IconButton(
                     icon: const Icon(Icons.close),
+                    tooltip: l10n.batchSignRemove,
                     onPressed: () {
                       ref.read(batchSignProvider.notifier).removeAt(index);
                     },
@@ -406,8 +433,11 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     final pin = await PinEntryDialog.show(context);
     if (pin == null || !mounted) return;
 
-    // Start signing with empty PAN (can be extended if needed)
-    await ref.read(batchSignProvider.notifier).start(pin: pin, pan: '');
+    // Several enrolled cards: sign with the selected one (empty PAN keeps
+    // the single-card behaviour).
+    await ref
+        .read(batchSignProvider.notifier)
+        .start(pin: pin, pan: ref.read(settingsProvider).signPan);
 
     // Add signed files to recent files
     final state = ref.read(batchSignProvider);
@@ -422,7 +452,12 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
       ref
           .read(settingsProvider.notifier)
           .update(
-            (s) => s.copyWith(enrolledCards: markCardUsed(s.enrolledCards)),
+            (s) => s.copyWith(
+              enrolledCards: markSelectedCardUsed(
+                s.enrolledCards,
+                s.selectedCard?.pan,
+              ),
+            ),
           );
     }
   }

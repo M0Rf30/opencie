@@ -63,6 +63,7 @@ class AppTheme {
       brightness: cs.brightness,
       colorScheme: cs,
       scaffoldBackgroundColor: cs.surface,
+      focusColor: cs.primary.withValues(alpha: 0.24),
       canvasColor: cs.surface,
       textTheme: _textTheme(cs),
       appBarTheme: _appBarTheme(cs),
@@ -76,6 +77,7 @@ class AppTheme {
       textButtonTheme: _textButtonTheme(cs),
       chipTheme: _chipTheme(cs),
       switchTheme: _switchTheme(cs),
+      segmentedButtonTheme: _segmentedTheme(cs),
       dividerTheme: DividerThemeData(
         color: cs.outlineVariant,
         thickness: 1,
@@ -280,7 +282,7 @@ class AppTheme {
             color: selected ? cs.onSurface : cs.onSurfaceVariant,
             fontSize: 11,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          );
+          ).copyWith(overflow: TextOverflow.ellipsis);
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
@@ -297,11 +299,11 @@ class AppTheme {
         fillColor: cs.surfaceContainer,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: cs.outlineVariant),
+          borderSide: BorderSide(color: cs.outline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: cs.outlineVariant),
+          borderSide: BorderSide(color: cs.outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -337,38 +339,53 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: cs.primary,
           foregroundColor: cs.onPrimary,
+          disabledBackgroundColor: cs.onSurface.withValues(alpha: 0.12),
+          disabledForegroundColor: cs.onSurface.withValues(alpha: 0.38),
+          minimumSize: const Size(64, 44),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           textStyle: _inter(fontWeight: FontWeight.w700, fontSize: 14),
-        ),
+        ).copyWith(side: _focusRing(cs, null)),
       );
 
   static OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme cs) =>
       OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: cs.onSurface,
+          minimumSize: const Size(64, 44),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-          side: BorderSide(color: cs.outlineVariant),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           textStyle: _inter(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
+        ).copyWith(side: _focusRing(cs, BorderSide(color: cs.outline))),
       );
 
   static TextButtonThemeData _textButtonTheme(ColorScheme cs) =>
       TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: cs.primary,
+          minimumSize: const Size(48, 44),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
           textStyle: _inter(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
+        ).copyWith(side: _focusRing(cs, null)),
       );
+
+  /// 2 px outline shown while a button has keyboard focus.
+  static WidgetStateProperty<BorderSide?> _focusRing(
+    ColorScheme cs,
+    BorderSide? base,
+  ) => WidgetStateProperty.resolveWith((states) {
+    if (states.contains(WidgetState.focused)) {
+      return BorderSide(color: cs.onSurface, width: 2);
+    }
+    return base;
+  });
 
   static ChipThemeData _chipTheme(ColorScheme cs) => ChipThemeData(
     backgroundColor: cs.surfaceContainerHigh,
@@ -378,23 +395,52 @@ class AppTheme {
       fontWeight: FontWeight.w600,
       fontSize: 12,
     ),
-    side: BorderSide(color: cs.outlineVariant),
+    side: BorderSide(color: cs.outline),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
   );
 
+  static SegmentedButtonThemeData _segmentedTheme(ColorScheme cs) =>
+      SegmentedButtonThemeData(
+        style: ButtonStyle(
+          side: WidgetStatePropertyAll(BorderSide(color: cs.outline)),
+          minimumSize: const WidgetStatePropertyAll(Size(48, 44)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          textStyle: WidgetStatePropertyAll(
+            _inter(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return cs.primary.withValues(alpha: 0.16);
+            }
+            return Colors.transparent;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            final selected = states.contains(WidgetState.selected);
+            if (states.contains(WidgetState.disabled)) {
+              return selected
+                  ? cs.onSurface.withValues(alpha: 0.7)
+                  : cs.onSurface.withValues(alpha: 0.45);
+            }
+            return selected ? cs.primary : cs.onSurface;
+          }),
+        ),
+      );
+
   static SwitchThemeData _switchTheme(ColorScheme cs) => SwitchThemeData(
     trackOutlineColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return Colors.transparent;
-      return cs.outlineVariant;
+      return cs.outline;
     }),
     thumbColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return Colors.white;
+      if (states.contains(WidgetState.selected)) return cs.onPrimary;
       return cs.onSurfaceVariant;
     }),
     trackColor: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) return cs.primary;
-      return cs.surfaceContainerHigh;
+      return cs.surfaceContainerHighest;
     }),
   );
 }
