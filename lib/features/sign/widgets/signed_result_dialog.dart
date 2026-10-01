@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../core/l10n/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -24,6 +25,7 @@ class SignedResultDialog extends StatelessWidget {
     required this.options,
     required this.onOpenFile,
     required this.onVerifyFile,
+    this.tsaLabel,
   });
 
   final String outputPath;
@@ -31,14 +33,14 @@ class SignedResultDialog extends StatelessWidget {
   final Future<void> Function(String path) onOpenFile;
   final void Function(String path) onVerifyFile;
 
+  /// Display name of the TSA that stamped the document, when timestamped.
+  final String? tsaLabel;
+
   @override
   Widget build(BuildContext context) {
-    final fileName = outputPath.split('/').last;
+    final fileName = p.basename(outputPath);
     final ext = fileName.split('.').last.toLowerCase();
-    final folderPath = outputPath.contains('/')
-        ? outputPath.substring(0, outputPath.lastIndexOf('/'))
-        : '/OpenCIE';
-    final folderLabel = folderPath.split('/').last;
+    final folderLabel = p.basename(p.dirname(outputPath));
     final now = DateTime.now();
     final dateLabel =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
@@ -121,7 +123,7 @@ class SignedResultDialog extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         OcMonoText(
-                          'Salvato in /$folderLabel',
+                          l10n.signedResultSavedIn(folderLabel),
                           color: cs.onSurfaceVariant,
                           fontSize: 11,
                         ),
@@ -145,14 +147,14 @@ class SignedResultDialog extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _DiagRow(label: 'firmato il', value: dateLabel),
+                  _DiagRow(label: l10n.signedResultSignedOn, value: dateLabel),
                   _DiagRow(
-                    label: 'formato',
+                    label: l10n.signedResultFormat,
                     value: options.format.displayName.split(' ').first,
                   ),
                   _DiagRow(
-                    label: 'tsa',
-                    value: options.addTimestamp ? 'FreeTSA · RFC 3161' : '—',
+                    label: l10n.signedResultTsa,
+                    value: options.addTimestamp ? (tsaLabel ?? '—') : '—',
                   ),
                 ],
               ),

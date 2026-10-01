@@ -9,6 +9,7 @@ import '../core/constants/app_constants.dart';
 import '../core/l10n/app_localizations.dart';
 import '../core/theme/app_theme.dart';
 import '../providers/settings_provider.dart';
+import '../services/app_lock/app_lock_controller.dart';
 import '../services/update_checker.dart';
 import '../widgets/oc_mark.dart';
 import '../widgets/update_notice.dart';
@@ -39,6 +40,8 @@ class _ShellPageState extends ConsumerState<ShellPage> {
     if (_updateCheckStarted || !mounted) return;
     final settings = ref.read(settingsProvider);
     if (!settings.isLoaded) return;
+    final lock = ref.read(appLockProvider);
+    if (!lock.loaded || lock.locked) return;
     _updateCheckStarted = true;
     var enabled = settings.checkForUpdates;
     if (!settings.updateCheckConsentAsked) {
@@ -127,6 +130,11 @@ class _ShellPageState extends ConsumerState<ShellPage> {
     ref.listen(settingsProvider, (_, next) {
       if (next.isLoaded) _maybeCheckUpdates();
     });
+    // Dialogs (update consent) must not appear above the lock screen.
+    ref.listen(appLockProvider, (_, next) {
+      if (next.loaded && !next.locked) _maybeCheckUpdates();
+    });
+    final lockEnabled = ref.watch(appLockProvider.select((s) => s.enabled));
     final width = MediaQuery.sizeOf(context).width;
     final isExpanded = width >= AppConstants.expandedBreakpoint;
     final isMedium = width >= AppConstants.mediumBreakpoint;
@@ -165,6 +173,7 @@ class _ShellPageState extends ConsumerState<ShellPage> {
         children: [
           NavigationRail(
             extended: isExpanded,
+            labelType: isExpanded ? null : NavigationRailLabelType.all,
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _onDestinationSelected,
             minWidth: 80,
@@ -192,6 +201,23 @@ class _ShellPageState extends ConsumerState<ShellPage> {
                     )
                   : const OcMark(size: 30),
             ),
+            trailing: lockEnabled
+                ? Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: IconButton(
+                          key: const ValueKey('shell-lock-now'),
+                          tooltip: l10n.appLockLockNow,
+                          icon: const Icon(Icons.lock_outline),
+                          onPressed: () =>
+                              ref.read(appLockProvider.notifier).lock(),
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
             destinations: destinations.map((d) {
               return NavigationRailDestination(
                 icon: Icon(d.icon),

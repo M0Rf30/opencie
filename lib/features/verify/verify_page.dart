@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
@@ -20,6 +21,7 @@ import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_help_sheet.dart';
+import '../../widgets/oc_page.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../widgets/oc_status_disc.dart';
 
@@ -242,116 +244,92 @@ class _BLandingPage extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final recent = ref.watch(recentFilesProvider);
-    final fileName = selectedFile?.split('/').last;
+    final fileName = selectedFile == null ? null : p.basename(selectedFile!);
+    Widget body(Widget child) =>
+        OcPageBody.sliver(child: SliverToBoxAdapter(child: child));
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           // ── Page heading ──────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.verifyTitle, style: AppTheme.displayBold(cs)),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.verifySubtitleFull,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                            color: cs.onSurfaceVariant,
-                          ),
+          body(
+            OcPageHeader(
+              title: l10n.verifyTitle,
+              subtitle: l10n.verifySubtitleFull,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.info_outline_rounded),
+                  tooltip: l10n.helpButtonTooltip,
+                  onPressed: () => OcHelpSheet.show(
+                    context,
+                    OcHelpSheet(
+                      title: l10n.helpVerifyTitle,
+                      icon: Icons.verified_rounded,
+                      iconColor: cs.secondary,
+                      steps: [
+                        OcHelpStep(
+                          title: l10n.helpVerifyStep1Title,
+                          body: l10n.helpVerifyStep1Body,
+                          icon: Icons.upload_file_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpVerifyStep2Title,
+                          body: l10n.helpVerifyStep2Body,
+                          icon: Icons.fact_check_rounded,
+                        ),
+                        OcHelpStep(
+                          title: l10n.helpVerifyStep3Title,
+                          body: l10n.helpVerifyStep3Body,
+                          icon: Icons.unarchive_rounded,
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.info_outline_rounded),
-                    tooltip: l10n.helpButtonTooltip,
-                    onPressed: () => OcHelpSheet.show(
-                      context,
-                      OcHelpSheet(
-                        title: l10n.helpVerifyTitle,
-                        icon: Icons.verified_rounded,
-                        iconColor: cs.secondary,
-                        steps: [
-                          OcHelpStep(
-                            title: l10n.helpVerifyStep1Title,
-                            body: l10n.helpVerifyStep1Body,
-                            icon: Icons.upload_file_rounded,
-                          ),
-                          OcHelpStep(
-                            title: l10n.helpVerifyStep2Title,
-                            body: l10n.helpVerifyStep2Body,
-                            icon: Icons.fact_check_rounded,
-                          ),
-                          OcHelpStep(
-                            title: l10n.helpVerifyStep3Title,
-                            body: l10n.helpVerifyStep3Body,
-                            icon: Icons.unarchive_rounded,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
           // ── Drop zone ─────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _DropZone(
-                fileName: fileName,
-                isDragging: isDragging,
-                isVerifying: isVerifying,
-                onPickFile: onPickFile,
-                onDragEntered: onDragEntered,
-                onDragExited: onDragExited,
-                onDragDone: onDragDone,
-                onClearFile: onClearFile,
-                l10n: l10n,
-              ),
+          body(
+            _DropZone(
+              fileName: fileName,
+              isDragging: isDragging,
+              isVerifying: isVerifying,
+              onPickFile: onPickFile,
+              onDragEntered: onDragEntered,
+              onDragExited: onDragExited,
+              onDragDone: onDragDone,
+              onClearFile: onClearFile,
+              l10n: l10n,
             ),
           ),
 
           // ── Action buttons ────────────────────────────────────────────────
           if (selectedFile != null) ...[
             const SliverToBoxAdapter(child: SizedBox(height: 14)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    OcGradientButton(
-                      label: isVerifying ? '…' : l10n.verifyVerifyButton,
-                      icon: isVerifying ? null : Icons.verified_user_rounded,
-                      onPressed: isVerifying ? null : onVerify,
-                    ),
-                    if (onExtractP7m != null) ...[
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: onExtractP7m,
-                          icon: const Icon(Icons.unarchive_rounded, size: 18),
-                          label: Text(l10n.verifyExtractP7mButton),
-                        ),
+            body(
+              Column(
+                children: [
+                  OcGradientButton(
+                    label: isVerifying ? '…' : l10n.verifyVerifyButton,
+                    icon: isVerifying ? null : Icons.verified_user_rounded,
+                    onPressed: isVerifying ? null : onVerify,
+                  ),
+                  if (onExtractP7m != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: onExtractP7m,
+                        icon: const Icon(Icons.unarchive_rounded, size: 18),
+                        label: Text(l10n.verifyExtractP7mButton),
                       ),
-                    ],
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
           ],
@@ -359,50 +337,37 @@ class _BLandingPage extends ConsumerWidget {
           // ── Recent files ──────────────────────────────────────────────────
           if (recent.isNotEmpty) ...[
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    OcSectionLabel(l10n.verifyRecentlyVerified),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () =>
-                          ref.read(recentFilesProvider.notifier).clear(),
-                      child: Text(
-                        l10n.commonClear,
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          color: cs.error,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+            body(
+              Row(
+                children: [
+                  Expanded(child: OcSectionLabel(l10n.verifyRecentlyVerified)),
+                  TextButton(
+                    key: const ValueKey('verifyClearRecent'),
+                    onPressed: () =>
+                        ref.read(recentFilesProvider.notifier).clear(),
+                    style: TextButton.styleFrom(foregroundColor: cs.error),
+                    child: Text(l10n.commonClearList),
+                  ),
+                ],
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 10)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: OcGroupCard(
-                  children: [
-                    for (final file in recent)
-                      OcActionRow(
-                        leading: OcFileTile(
-                          extension: file.extension,
-                          width: 32,
-                          height: 38,
-                        ),
-                        title: file.fileName,
-                        subtitle: _formatRelative(file.addedAt, l10n),
-                        subtitleMono: true,
-                        onTap: () => onVerifyPath(file.path),
+            const SliverToBoxAdapter(child: SizedBox(height: 4)),
+            body(
+              OcGroupCard(
+                children: [
+                  for (final file in recent)
+                    OcActionRow(
+                      leading: OcFileTile(
+                        extension: file.extension,
+                        width: 32,
+                        height: 38,
                       ),
-                  ],
-                ),
+                      title: file.fileName,
+                      subtitle: _formatRelative(file.addedAt, l10n),
+                      subtitleMono: true,
+                      onTap: () => onVerifyPath(file.path),
+                    ),
+                ],
               ),
             ),
           ],
@@ -600,11 +565,13 @@ class _ResultScaffold extends StatelessWidget {
                         _IconBtn(
                           icon: Icons.chevron_left_rounded,
                           onTap: onBack,
+                          tooltip: l10n.commonBack,
                         ),
                         const Spacer(),
                         OcSectionLabel(l10n.verifyReportLabel),
                         const Spacer(),
                         PopupMenuButton<String>(
+                          tooltip: l10n.commonMore,
                           icon: Icon(
                             Icons.more_vert_rounded,
                             size: 22,
@@ -620,7 +587,7 @@ class _ResultScaffold extends StatelessWidget {
                               ),
                             ),
                             fixedSize: const WidgetStatePropertyAll(
-                              Size(36, 36),
+                              Size(44, 44),
                             ),
                             padding: const WidgetStatePropertyAll(
                               EdgeInsets.zero,
@@ -719,7 +686,7 @@ class _ResultScaffold extends StatelessWidget {
       result.commonName,
       '${l10n.verifySignedLabel}: ${result.signingTimeFormatted}',
       '${l10n.verifyIssuedByLabel}: ${result.caDisplayName}',
-      '${l10n.verifyValidLabel}: ${result.isFullyValid ? l10n.verifyValidLabel : l10n.verifyInvalidLabel}',
+      '${l10n.verifyReportStatusLabel}: ${result.isFullyValid ? l10n.verifyValidLabel : l10n.verifyInvalidLabel}',
     ];
     return lines.join('\n');
   }
@@ -743,7 +710,7 @@ class _ValidDetailPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fileName = filePath.split('/').last;
+    final fileName = p.basename(filePath);
     final ext = fileName.contains('.')
         ? fileName.split('.').last.toLowerCase()
         : 'pdf';
@@ -807,7 +774,7 @@ class _InvalidDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    const invalidColor = ColorSchemes.invalid;
+    final invalidColor = Theme.of(context).colorScheme.invalid;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -878,7 +845,7 @@ class _InvalidDetailPanel extends StatelessWidget {
                         ? l10n.verifyValidLabel
                         : l10n.verifyInvalidLabel,
                     result.isCertificateValid
-                        ? ColorSchemes.valid
+                        ? Theme.of(context).colorScheme.valid
                         : invalidColor,
                     cs,
                   ),
@@ -886,7 +853,7 @@ class _InvalidDetailPanel extends StatelessWidget {
                     l10n.verifyRevocationLabel,
                     result.revocationStatusLabel,
                     result.certRevocationStatus == 0
-                        ? ColorSchemes.valid
+                        ? Theme.of(context).colorScheme.valid
                         : invalidColor,
                     cs,
                   ),
@@ -936,7 +903,7 @@ class _SignerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    const validColor = ColorSchemes.valid;
+    final validColor = Theme.of(context).colorScheme.valid;
     final initials = _initials(result);
 
     return Container(
@@ -1098,7 +1065,7 @@ class _TrustStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    const validColor = ColorSchemes.valid;
+    final validColor = Theme.of(context).colorScheme.valid;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -1108,7 +1075,7 @@ class _TrustStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined, color: validColor, size: 18),
+          Icon(Icons.shield_outlined, color: validColor, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1180,7 +1147,7 @@ class _DropZone extends StatelessWidget {
           options: RoundedRectDottedBorderOptions(
             radius: const Radius.circular(18),
             dashPattern: const [8, 5],
-            color: isDragging ? cs.primary : cs.outlineVariant,
+            color: isDragging ? cs.primary : cs.outline,
             strokeWidth: isDragging ? 2 : 1.5,
           ),
           child: Container(
@@ -1211,6 +1178,7 @@ class _DropZone extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: cs.onSurface,
                           ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1220,7 +1188,10 @@ class _DropZone extends StatelessWidget {
                         onPressed: onClearFile,
                         tooltip: l10n.commonClear,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
                         color: cs.onSurfaceVariant,
                       ),
                     ],
@@ -1264,25 +1235,29 @@ class _DropZone extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _IconBtn extends StatelessWidget {
-  const _IconBtn({required this.icon, required this.onTap});
+  const _IconBtn({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh.withValues(alpha: 0.70),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 22, color: cs.onSurface),
+    return IconButton(
+      onPressed: onTap,
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        backgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.70),
+        foregroundColor: cs.onSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+      icon: Icon(icon, size: 22),
     );
   }
 }

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:opencie/models/enrolled_card.dart';
 import 'package:opencie/providers/settings_provider.dart';
+import 'package:opencie/services/secure_store.dart';
 
 /// Platform stub that always throws [PlatformException] for every
 /// operation, simulating a locked keyring or a missing Secret Service.
@@ -300,6 +301,120 @@ void main() {
 
       final raw = await _rawSettings();
       expect(raw['uiScale'], 1.30);
+    });
+  });
+
+  group('SettingsNotifier selected card', () {
+    const a = EnrolledCard(pan: 'AAAA', name: 'ALFA');
+    const b = EnrolledCard(pan: 'BBBB', name: 'BRAVO');
+    const c = EnrolledCard(pan: 'CCCC', name: 'CHARLIE');
+
+    Future<(ProviderContainer, SettingsNotifier)> boot() async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsProvider.notifier);
+      await notifier.load();
+      return (container, notifier);
+    }
+
+    test(
+      'defaults to the first enrolled card, and to none when empty',
+      () async {
+        final (container, notifier) = await boot();
+        expect(container.read(settingsProvider).selectedCard, isNull);
+
+        await notifier.update((s) => s.copyWith(enrolledCards: [a, b, c]));
+
+        final state = container.read(settingsProvider);
+        expect(state.selectedCardPan, isNull);
+        expect(state.selectedCard?.pan, 'AAAA');
+      },
+    );
+
+    test(
+      'selectCard switches the active card and ignores unknown PANs',
+      () async {
+        final (container, notifier) = await boot();
+        await notifier.update((s) => s.copyWith(enrolledCards: [a, b, c]));
+
+        await notifier.selectCard('BBBB');
+        expect(container.read(settingsProvider).selectedCard?.pan, 'BBBB');
+
+        await notifier.selectCard('ZZZZ');
+        expect(container.read(settingsProvider).selectedCard?.pan, 'BBBB');
+      },
+    );
+
+    test('the selection survives a reload', () async {
+      final (_, notifier) = await boot();
+      await notifier.update((s) => s.copyWith(enrolledCards: [a, b, c]));
+      await notifier.selectCard('CCCC');
+
+      final (container2, _) = await boot();
+      final state = container2.read(settingsProvider);
+      expect(state.selectedCardPan, 'CCCC');
+      expect(state.selectedCard?.pan, 'CCCC');
+    });
+
+    test(
+      'removing the selected card falls back to the first remaining one',
+      () async {
+        final (container, notifier) = await boot();
+        await notifier.update((s) => s.copyWith(enrolledCards: [a, b, c]));
+        await notifier.selectCard('BBBB');
+
+        await notifier.update((s) => s.copyWith(enrolledCards: [a, c]));
+
+        final state = container.read(settingsProvider);
+        expect(state.selectedCardPan, 'AAAA');
+        expect(state.selectedCard?.pan, 'AAAA');
+
+        // The corrected selection is what got persisted.
+        final (container2, _) = await boot();
+        expect(container2.read(settingsProvider).selectedCard?.pan, 'AAAA');
+      },
+    );
+
+    test('removing every card clears the selection', () async {
+      final (container, notifier) = await boot();
+      await notifier.update((s) => s.copyWith(enrolledCards: [a, b]));
+      await notifier.selectCard('BBBB');
+
+      await notifier.update((s) => s.copyWith(enrolledCards: const []));
+
+      final state = container.read(settingsProvider);
+      expect(state.selectedCardPan, isNull);
+      expect(state.selectedCard, isNull);
+    });
+
+    test(
+      'a stale persisted PAN falls back to the first card on load',
+      () async {
+        final (_, notifier) = await boot();
+        await notifier.update((s) => s.copyWith(enrolledCards: [a, b]));
+        await notifier.selectCard('BBBB');
+        // Cards changed behind the selection's back (e.g. restored backup).
+        await SecureStore.write(
+          'opencie_enrolled_cards',
+          jsonEncode([a.toJson()]),
+        );
+
+        final (container2, _) = await boot();
+        expect(container2.read(settingsProvider).selectedCard?.pan, 'AAAA');
+      },
+    );
+
+    test('signPan stays empty whatever is enrolled or selected (the native '
+        'library matches a different key; the presented card signs)', () async {
+      final (container, notifier) = await boot();
+      await notifier.update((s) => s.copyWith(enrolledCards: [a]));
+      expect(container.read(settingsProvider).signPan, '');
+
+      await notifier.update((s) => s.copyWith(enrolledCards: [a, b, c]));
+      expect(container.read(settingsProvider).signPan, '');
+
+      await notifier.selectCard('BBBB');
+      expect(container.read(settingsProvider).signPan, '');
     });
   });
 }

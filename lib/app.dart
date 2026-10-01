@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/l10n/app_localizations.dart';
 import 'core/theme/app_theme.dart';
+import 'features/app_lock/app_lock_gate.dart';
 import 'ffi/opencie_pkcs11.dart';
 import 'providers/settings_provider.dart';
 import 'router/app_router.dart';
@@ -74,9 +75,12 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
       themeMode: settings.themeMode,
       builder: (context, child) {
         final mq = MediaQuery.of(context);
+        // Compose the OS accessibility scale with the in-app scale.
+        final system = mq.textScaler.scale(100) / 100;
+        final scale = (system * settings.uiScale).clamp(0.85, 2.0).toDouble();
         return MediaQuery(
-          data: mq.copyWith(textScaler: TextScaler.linear(settings.uiScale)),
-          child: child!,
+          data: mq.copyWith(textScaler: TextScaler.linear(scale)),
+          child: AppLockGate(child: child!),
         );
       },
       routerConfig: _router!,

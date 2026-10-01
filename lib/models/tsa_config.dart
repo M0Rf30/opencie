@@ -66,3 +66,21 @@ class TsaConfig {
     autoSummerTime: json['autoSummerTime'] as bool? ?? true,
   );
 }
+
+/// TSA providers offered in the UI: FreeTSA first, then the qualified TSPs.
+List<MapEntry<String, String>> tsaProviderEntries() => [
+  const MapEntry('FreeTSA', AppConstants.defaultTsaUrl),
+  ...AppConstants.qualifiedTsaProviders.entries,
+];
+
+/// Display name for the TSA at [serverUrl]: the provider's name when it is
+/// one of [tsaProviderEntries], otherwise the URL's host (or the raw string
+/// when it does not parse as a URL).
+String tsaDisplayName(String serverUrl) {
+  final url = serverUrl.trim();
+  for (final e in tsaProviderEntries()) {
+    if (e.value == url) return e.key;
+  }
+  final host = Uri.tryParse(url)?.host ?? '';
+  return host.isNotEmpty ? host : url;
+}

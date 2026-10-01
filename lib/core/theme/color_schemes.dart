@@ -32,12 +32,19 @@ class ColorSchemes {
   static const _lightText = Color(0xFF111827);
   static const _lightTextSoft = Color(0xFF5B6172);
 
+  /// Stronger border for interactive controls (>= 3:1 against the page).
+  static const _darkOutline = Color(0x66FFFFFF);
+  static const _lightOutline = Color(0x73111827);
+
   // ---------------------------------------------------------------------------
   // Brand accents (shared across modes)
   // ---------------------------------------------------------------------------
 
   /// Primary brand blue.
   static const primary = Color(0xFF5B9DFF);
+
+  /// Primary blue for the light scheme (>= 4.5:1 on white / page).
+  static const primaryLight = Color(0xFF2B6BD0);
 
   /// Deep blue for gradients and accents.
   static const primaryDeep = Color(0xFF1A4B8E);
@@ -53,6 +60,10 @@ class ColorSchemes {
 
   /// Invalid signature red.
   static const invalid = Color(0xFFFF6B6B);
+
+  /// Valid / invalid colours for text and icons on light surfaces.
+  static const validLight = Color(0xFF16794A);
+  static const invalidLight = Color(0xFFC62828);
 
   /// Gradient ramp for the primary CTA and NFC chip.
   static const ctaGradient = [primary, Color(0xFF3F7BD9)];
@@ -93,7 +104,7 @@ class ColorSchemes {
     inverseSurface: _lightBg,
     onInverseSurface: _lightText,
     inversePrimary: primaryDeep,
-    outline: _darkBorder,
+    outline: _darkOutline,
     outlineVariant: _darkBorder,
     shadow: Colors.black,
     scrim: Colors.black54,
@@ -106,7 +117,7 @@ class ColorSchemes {
 
   static final light = ColorScheme(
     brightness: Brightness.light,
-    primary: primary,
+    primary: primaryLight,
     onPrimary: Colors.white,
     primaryContainer: const Color(0xFFE3EEFF),
     onPrimaryContainer: primaryDeep,
@@ -133,10 +144,29 @@ class ColorSchemes {
     inverseSurface: _darkBg,
     onInverseSurface: _darkText,
     inversePrimary: const Color(0xFFB7CDF7),
-    outline: _lightBorder,
+    outline: _lightOutline,
     outlineVariant: _lightBorder,
     shadow: Colors.black,
     scrim: Colors.black54,
-    surfaceTint: primary,
+    surfaceTint: primaryLight,
   );
+}
+
+/// Theme-aware status colours: bright tones on dark, darker ones on light so
+/// text and icons keep contrast on white surfaces.
+extension OcStatusColors on ColorScheme {
+  bool get _isDark => brightness == Brightness.dark;
+
+  /// Colour for "valid" text / icons.
+  Color get valid => _isDark ? ColorSchemes.valid : ColorSchemes.validLight;
+
+  /// Colour for "invalid" text / icons.
+  Color get invalid =>
+      _isDark ? ColorSchemes.invalid : ColorSchemes.invalidLight;
+
+  /// Gradient for the primary CTA, derived from [primary].
+  List<Color> get ctaGradient => [
+    primary,
+    Color.lerp(primary, Colors.black, 0.14)!,
+  ];
 }

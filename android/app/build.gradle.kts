@@ -101,6 +101,9 @@ android {
 
 dependencies {
     implementation("androidx.documentfile:documentfile:1.1.0")
+    // Theme.AppCompat parents + FragmentActivity host for the local_auth
+    // BiometricPrompt dialog.
+    implementation("androidx.appcompat:appcompat:1.8.0")
 }
 
 flutter {

@@ -37,6 +37,7 @@ class AppSettings {
     this.validationType = ValidationType.ocspFirst,
     this.logLevel = LogLevel.off,
     this.enrolledCards = const [],
+    this.selectedCardPan,
     this.uiScale = 1.0,
     this.themeMode = ThemeMode.system,
     this.oidcIssuer = 'https://idp.example/',
@@ -70,6 +71,13 @@ class AppSettings {
 
   final List<EnrolledCard> enrolledCards;
 
+  /// PAN of the card the user picked as the active one (CIE tab detail,
+  /// signer in the sign tab). Null means "not chosen yet": [selectedCard]
+  /// then resolves to the first enrolled card. Never set to a PAN that is
+  /// not enrolled — [SettingsNotifier.update] and `load` fall back when the
+  /// selected card disappears.
+  final String? selectedCardPan;
+
   final double uiScale;
   final ThemeMode themeMode;
   final String oidcIssuer;
@@ -86,6 +94,27 @@ class AppSettings {
   final bool secureStorageUnavailable;
 
   bool get isEnrolled => enrolledCards.isNotEmpty;
+
+  /// The active card: the one whose PAN is [selectedCardPan] if still
+  /// enrolled, otherwise the first enrolled card, or null if none.
+  EnrolledCard? get selectedCard {
+    if (enrolledCards.isEmpty) return null;
+    final pan = selectedCardPan;
+    if (pan != null) {
+      for (final c in enrolledCards) {
+        if (c.pan == pan) return c;
+      }
+    }
+    return enrolledCards.first;
+  }
+
+  /// PAN argument for the native sign calls: always empty. The native
+  /// library matches a non-empty value against the card's raw IdServizi
+  /// bytes and skips every non-matching reader, whereas an enrolled card's
+  /// [EnrolledCard.pan] is a different key (the enrolment-time PAN), so
+  /// passing it would make signing fail. The card physically presented
+  /// signs; the selected card only drives the UI and `lastUsed`.
+  String get signPan => '';
 
   AppSettings copyWith({
     String? locale,
@@ -110,6 +139,7 @@ class AppSettings {
     ValidationType? validationType,
     LogLevel? logLevel,
     List<EnrolledCard>? enrolledCards,
+    Object? selectedCardPan = _unset,
     double? uiScale,
     ThemeMode? themeMode,
     String? oidcIssuer,
@@ -139,6 +169,9 @@ class AppSettings {
       validationType: validationType ?? this.validationType,
       logLevel: logLevel ?? this.logLevel,
       enrolledCards: enrolledCards ?? this.enrolledCards,
+      selectedCardPan: identical(selectedCardPan, _unset)
+          ? this.selectedCardPan
+          : selectedCardPan as String?,
       uiScale: uiScale ?? this.uiScale,
       themeMode: themeMode ?? this.themeMode,
       oidcIssuer: oidcIssuer ?? this.oidcIssuer,
@@ -153,6 +186,15 @@ class AppSettings {
 enum ValidationType { ocspOnly, ocspFirst, crlOnly, crlFirst }
 
 enum LogLevel { off, standard, debug }
+
+/// Resolves a requested selected-card PAN against [cards]: null when no
+/// card is enrolled or no explicit choice exists, [pan] when it is still
+/// enrolled, and the first card's PAN when the chosen card has been removed.
+String? normalizeSelectedCardPan(List<EnrolledCard> cards, String? pan) {
+  if (cards.isEmpty || pan == null) return null;
+  if (cards.any((c) => c.pan == pan)) return pan;
+  return cards.first.pan;
+}
 
 List<EnrolledCard> _parseEnrolledCards(Map<String, dynamic> map) {
   final raw = map['enrolledCards'];
@@ -279,6 +321,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   static const _prefsKey = 'opencie_settings';
   static const _enrolledCardsKey = 'opencie_enrolled_cards';
+  static const _selectedCardKey = 'opencie_selected_card';
   static const _tsaPasswordKey = 'opencie_tsa_password';
   static const _proxyPasswordKey = 'opencie_proxy_password';
 
@@ -357,6 +400,10 @@ class SettingsNotifier extends Notifier<AppSettings> {
           ),
           logLevel: LogLevel.values.byName(map['logLevel'] as String? ?? 'off'),
           enrolledCards: cards.list,
+          selectedCardPan: normalizeSelectedCardPan(
+            cards.list,
+            await _loadSelectedCardPan(),
+          ),
           uiScale: parsedUiScale,
           themeMode: parsedThemeMode,
           oidcIssuer: map['oidcIssuer'] as String? ?? 'https://idp.example/',
@@ -442,6 +489,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
     }
 
     try {
+      await SecureStore.write(_selectedCardKey, state.selectedCardPan ?? '');
+    } on SecureStoreException {
+      unavailable = true;
+    }
+
+    try {
       await SecureStore.write(_tsaPasswordKey, state.tsaConfig.password);
     } on SecureStoreException {
       unavailable = true;
@@ -497,8 +550,35 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// [AppSettings.secureStorageUnavailable] instead of a fire-and-forget
   /// save racing the rest of the app.
   Future<void> update(AppSettings Function(AppSettings) updater) async {
-    state = updater(state);
+    final next = updater(state);
+    state = next.copyWith(
+      selectedCardPan: normalizeSelectedCardPan(
+        next.enrolledCards,
+        next.selectedCardPan,
+      ),
+    );
     await _save();
+  }
+
+  /// Makes the enrolled card with [pan] the active one and persists the
+  /// choice. Unknown PANs are ignored.
+  Future<void> selectCard(String pan) async {
+    if (!state.enrolledCards.any((c) => c.pan == pan)) return;
+    if (state.selectedCard?.pan == pan && state.selectedCardPan == pan) return;
+    state = state.copyWith(selectedCardPan: pan);
+    await _save();
+  }
+
+  /// Reads the persisted selected-card PAN. Absence and an unreachable
+  /// store both mean "no explicit choice" (the first card is used); the
+  /// unavailability itself is already reported by the enrolled-cards read.
+  Future<String?> _loadSelectedCardPan() async {
+    try {
+      final stored = await SecureStore.read(_selectedCardKey);
+      return (stored == null || stored.isEmpty) ? null : stored;
+    } on SecureStoreException {
+      return null;
+    }
   }
 
   Future<void> clearDestinationFolder() async {

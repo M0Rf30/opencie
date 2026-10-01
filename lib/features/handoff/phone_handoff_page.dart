@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -26,6 +27,7 @@ import '../../widgets/oc_mark.dart';
 import '../../widgets/oc_section_label.dart';
 import '../../widgets/oc_status_disc.dart';
 import '../../widgets/pin_entry_dialog.dart';
+import '../../providers/settings_provider.dart';
 
 /// Phone-side screen for the QR desktop-signing handoff.
 ///
@@ -148,6 +150,13 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
       return;
     }
 
+    // Routed through the selected card's settings; always empty today (the
+    // card presented to the phone is the one that signs).
+    final signPan = ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(settingsProvider).signPan;
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -185,7 +194,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         outputPath: outputPath,
         signatureType: signatureType,
         pin: pin,
-        pan: '',
+        pan: signPan,
         onProgress: (p) {
           nfcNotifier.value = (
             false,
@@ -547,7 +556,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const SizedBox(height: 8),
-          OcSectionLabel('SICUREZZA'),
+          OcSectionLabel(l10n.handoffSecurityLabel),
           const SizedBox(height: 12),
           Text(
             l10n.handoffSasConfirmTitle,
@@ -606,10 +615,14 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
             width: double.infinity,
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: ColorSchemes.primary.withValues(alpha: 0.08),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: ColorSchemes.primary.withValues(alpha: 0.32),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.32),
               ),
             ),
             child: Wrap(
@@ -620,11 +633,11 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
                   .map(
                     (w) => Text(
                       w,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'JetBrainsMono',
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        color: ColorSchemes.primary,
+                        color: Theme.of(context).colorScheme.primary,
                         letterSpacing: 1.0,
                       ),
                     ),
@@ -817,7 +830,9 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
     required bool signing,
   }) {
     final tone = signing ? OcStatusTone.warning : OcStatusTone.valid;
-    final haloColor = signing ? ColorSchemes.primary : ColorSchemes.valid;
+    final haloColor = signing
+        ? Theme.of(context).colorScheme.primary
+        : ColorSchemes.valid;
 
     return Column(
       key: ValueKey(signing ? 'signing' : 'done'),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/core/l10n/app_localizations.dart';
 import 'package:opencie/features/sign/batch_sign_page.dart';
+import 'package:opencie/widgets/oc_page.dart';
 
 void main() {
   group('BatchSignPage', () {
@@ -31,7 +32,9 @@ void main() {
       expect(find.byType(ElevatedButton), findsWidgets);
     });
 
-    testWidgets('AppBar has correct title', (WidgetTester tester) async {
+    testWidgets('page header shows the title and a back button', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -42,8 +45,11 @@ void main() {
         ),
       );
 
-      // The page should have an AppBar with title
-      expect(find.byType(AppBar), findsOneWidget);
+      // The page header shows the localised title and a back button.
+      final l10n = await AppLocalizations.delegate.load(const Locale('en'));
+      expect(find.text(l10n.batchSignTitle), findsOneWidget);
+      expect(find.byType(OcPageHeader), findsOneWidget);
+      expect(find.byTooltip(l10n.commonBack), findsOneWidget);
     });
   });
 }

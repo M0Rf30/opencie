@@ -25,27 +25,33 @@ class OcGradientButton extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final disabled = onPressed == null;
     const padV = 15.0;
+    final fg = disabled ? cs.onSurface.withValues(alpha: 0.38) : cs.onPrimary;
 
     final child = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
+        mouseCursor: disabled ? SystemMouseCursors.forbidden : null,
         borderRadius: BorderRadius.circular(14),
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: disabled
-                  ? [cs.surfaceContainerHigh, cs.surfaceContainer]
-                  : ColorSchemes.ctaGradient,
-            ),
+            color: disabled ? cs.onSurface.withValues(alpha: 0.12) : null,
+            border: disabled
+                ? Border.all(color: cs.outline.withValues(alpha: 0.5))
+                : null,
+            gradient: disabled
+                ? null
+                : LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: cs.ctaGradient,
+                  ),
             boxShadow: disabled
                 ? null
                 : [
                     BoxShadow(
-                      color: ColorSchemes.primary.withValues(alpha: 0.35),
+                      color: cs.primary.withValues(alpha: 0.35),
                       blurRadius: 24,
                       offset: const Offset(0, 8),
                     ),
@@ -57,11 +63,7 @@ class OcGradientButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(
-                  icon,
-                  size: 20,
-                  color: disabled ? cs.onSurfaceVariant : Colors.white,
-                ),
+                Icon(icon, size: 20, color: fg),
                 const SizedBox(width: 10),
               ],
               Flexible(
@@ -69,7 +71,7 @@ class OcGradientButton extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    color: disabled ? cs.onSurfaceVariant : Colors.white,
+                    color: fg,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                     letterSpacing: 0.1,

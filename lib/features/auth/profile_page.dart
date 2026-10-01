@@ -177,7 +177,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Not logged in', style: theme.textTheme.bodyLarge),
+              Text(
+                AppLocalizations.of(context).profileNotLoggedIn,
+                style: theme.textTheme.bodyLarge,
+              ),
               const SizedBox(height: 16),
               OcGradientButton(
                 onPressed: () => context.go('/login'),

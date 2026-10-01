@@ -159,6 +159,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.close_rounded),
+                      tooltip: l10n.commonClose,
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
@@ -167,7 +168,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
                       ),
                     ),
                     const Spacer(),
-                    OcSectionLabel('PASSO 01 / 03'),
+                    OcSectionLabel(l10n.signPinStepLabel),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -188,7 +189,7 @@ class _SignPinDialogState extends State<SignPinDialog> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                OcSectionLabel('PIN DELLA CARTA'),
+                OcSectionLabel(l10n.signPinCardPinLabel),
                 const SizedBox(height: 12),
 
                 // Title

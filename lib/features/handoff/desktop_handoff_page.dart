@@ -456,10 +456,14 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: ColorSchemes.primary.withValues(alpha: 0.08),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: ColorSchemes.primary.withValues(alpha: 0.32),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.32),
                       ),
                     ),
                     child: Row(
@@ -470,12 +474,12 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
                           Flexible(
                             child: Text(
                               words[i],
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: 'JetBrainsMono',
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 1.0,
-                                color: ColorSchemes.primary,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                               textAlign: TextAlign.center,
                             ),
