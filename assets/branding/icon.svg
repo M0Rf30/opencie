@@ -1,93 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  OpenCIE official app icon — V2 "Tap Angle"
-  Source: Anthropic design bundle "OpenCIE - Icon · Card", variant V2.
-  128×128 viewBox, rounded square (rx=28).
-  All platform launcher icons + .icns + .ico + Inno Setup BMPs derive from
-  this single source via tools/render_icons.sh.
+  OpenCIE app icon.
+  128x128 viewBox, rounded square (rx=28). All platform launcher icons,
+  .icns, .ico and Inno Setup BMPs derive from this file via
+  tools/render_icons.sh.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>
-    <!-- Card face gradient: light-to-deep CIE blue -->
-    <linearGradient id="card" x1="0" y1="0" x2="0" y2="80" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#9CC1E2"/>
-      <stop offset="0.5" stop-color="#3D7AB7"/>
-      <stop offset="1" stop-color="#1F4E82"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#123A6B"/>
+      <stop offset="1" stop-color="#071528"/>
     </linearGradient>
-
-    <!-- Background: deep navy gradient -->
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="128" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0B1F3F"/>
-      <stop offset="1" stop-color="#06121F"/>
-    </linearGradient>
-
-    <!-- Gold halo behind card -->
-    <radialGradient id="glow" cx="32" cy="48" r="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFE082" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#FFE082" stop-opacity="0"/>
+    <radialGradient id="glow" cx="40" cy="30" r="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5FA8E8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#5FA8E8" stop-opacity="0"/>
     </radialGradient>
-
-    <!-- Smartcard chip metal gradient -->
-    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FFE082"/>
-      <stop offset="0.55" stop-color="#D4A437"/>
-      <stop offset="1" stop-color="#A07520"/>
+    <linearGradient id="card" x1="0" y1="0" x2="72" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E9F2FB"/>
+      <stop offset="1" stop-color="#B9D3EC"/>
     </linearGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE38A"/>
+      <stop offset="0.6" stop-color="#E0AE3E"/>
+      <stop offset="1" stop-color="#B07F22"/>
+    </linearGradient>
+    <clipPath id="cardClip">
+      <rect width="72" height="48" rx="7"/>
+    </clipPath>
   </defs>
 
   <!-- Backdrop -->
   <rect width="128" height="128" rx="28" fill="url(#bg)"/>
   <rect width="128" height="128" rx="28" fill="url(#glow)"/>
 
-  <!-- NFC waves radiating from chip area -->
-  <g fill="none" stroke="#FFE082" stroke-linecap="round">
-    <path d="M 78 28 A 28 28 0 0 1 78 76" stroke-width="3" opacity="0.85"/>
-    <path d="M 88 22 A 38 38 0 0 1 88 82" stroke-width="2.5" opacity="0.7"/>
-    <path d="M 98 16 A 48 48 0 0 1 98 88" stroke-width="2" opacity="0.45"/>
+  <!-- Contactless waves, clear of the card -->
+  <g fill="none" stroke="#FFD866" stroke-linecap="round" transform="translate(3 0)">
+    <path d="M 88 46 A 18 18 0 0 1 88 70" stroke-width="5"/>
+    <path d="M 98 38 A 30 30 0 0 1 98 78" stroke-width="5" opacity="0.7"/>
+    <path d="M 108 30 A 42 42 0 0 1 108 86" stroke-width="5" opacity="0.4"/>
   </g>
 
-  <!-- Tilted card (rotated -14° around its centre) -->
-  <g transform="translate(64 64) rotate(-14) translate(-50 -38)">
-    <!-- Drop shadow behind card -->
-    <rect x="3" y="6" width="100" height="76" rx="9" fill="#000000" opacity="0.55"/>
-    <!-- Card body -->
-    <rect x="0" y="0" width="100" height="76" rx="9" fill="url(#card)"/>
-
-    <!-- Header text bars -->
-    <rect x="8" y="9" width="58" height="2.5" rx="1" fill="#FFFFFF" opacity="0.85"/>
-    <rect x="8" y="14.5" width="40" height="2" rx="1" fill="#FFFFFF" opacity="0.55"/>
-
-    <!-- Italian flag -->
-    <g transform="translate(76 8)">
-      <rect x="0" y="0" width="4.5" height="7" fill="#008C45"/>
-      <rect x="4.5" y="0" width="4.5" height="7" fill="#FFFFFF"/>
-      <rect x="9" y="0" width="4.5" height="7" fill="#CD212A"/>
+  <!-- Card -->
+  <g transform="translate(14 40) rotate(-8 36 24)">
+    <rect x="1.5" y="4" width="72" height="48" rx="7" fill="#000" opacity="0.35"/>
+    <g clip-path="url(#cardClip)">
+      <rect width="72" height="48" fill="url(#card)"/>
+      <!-- Tricolour band -->
+      <rect x="0" y="0" width="24" height="7" fill="#009246"/>
+      <rect x="24" y="0" width="24" height="7" fill="#FFFFFF"/>
+      <rect x="48" y="0" width="24" height="7" fill="#CE2B37"/>
+      <!-- MRZ lines -->
+      <rect x="8" y="37" width="56" height="2.6" rx="1.3" fill="#1F4E82" opacity="0.45"/>
+      <rect x="8" y="42" width="40" height="2.6" rx="1.3" fill="#1F4E82" opacity="0.45"/>
     </g>
-
-    <!-- Gold smartcard chip (28×22 at x=10 y=28) -->
-    <g transform="translate(10 28)">
-      <rect x="0" y="0" width="28" height="22" rx="2.5" fill="url(#chip)"/>
-      <!-- Chip pad lines: 2 horizontal at h*0.33, h*0.66 -->
-      <line x1="0" y1="7.26" x2="28" y2="7.26" stroke="#7A5512" stroke-width="0.7"/>
-      <line x1="0" y1="14.52" x2="28" y2="14.52" stroke="#7A5512" stroke-width="0.7"/>
-      <!-- Vertical at w*0.33, w*0.66 -->
-      <line x1="9.24" y1="0" x2="9.24" y2="22" stroke="#7A5512" stroke-width="0.7"/>
-      <line x1="18.48" y1="0" x2="18.48" y2="22" stroke="#7A5512" stroke-width="0.7"/>
-      <!-- Inner edge highlight -->
-      <rect x="0.5" y="0.5" width="27" height="21" rx="2" fill="none" stroke="#FFE9A6" stroke-width="0.4" opacity="0.7"/>
+    <!-- Chip -->
+    <g transform="translate(8 14)">
+      <rect width="20" height="16" rx="3" fill="url(#chip)"/>
+      <g stroke="#8A6116" stroke-width="0.9" fill="none">
+        <line x1="0" y1="5.3" x2="20" y2="5.3"/>
+        <line x1="0" y1="10.7" x2="20" y2="10.7"/>
+        <line x1="10" y1="0" x2="10" y2="16"/>
+      </g>
     </g>
-
-    <!-- Portrait avatar dot -->
-    <g transform="translate(50 30)" fill="#FFFFFF" opacity="0.8">
-      <circle cx="8" cy="5" r="3.5"/>
-      <path d="M 1 19 Q 1 12 8 12 Q 15 12 15 19 L 15 22 L 1 22 Z"/>
+    <!-- Portrait -->
+    <g transform="translate(48 13)" fill="#1F4E82" opacity="0.75">
+      <circle cx="7" cy="5" r="4"/>
+      <path d="M 0 18 Q 0 11 7 11 Q 14 11 14 18 Z"/>
     </g>
-
-    <!-- MRZ lines -->
-    <rect x="8" y="60" width="84" height="2" fill="#FFFFFF" opacity="0.55"/>
-    <rect x="8" y="65" width="70" height="2" fill="#FFFFFF" opacity="0.55"/>
-
-    <!-- Glossy highlight strip across top -->
-    <path d="M 0 0 L 100 0 L 100 12 Q 50 22 0 12 Z" fill="#FFFFFF" opacity="0.18"/>
   </g>
 </svg>
