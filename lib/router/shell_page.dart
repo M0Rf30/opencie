@@ -2,19 +2,53 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/l10n/app_localizations.dart';
 import '../core/theme/app_theme.dart';
+import '../providers/settings_provider.dart';
+import '../services/update_checker.dart';
 import '../widgets/oc_mark.dart';
+import '../widgets/update_notice.dart';
 import 'app_router.dart';
 
 /// Adaptive shell — NavigationRail desktop / NavigationBar mobile.
-class ShellPage extends StatelessWidget {
+class ShellPage extends ConsumerStatefulWidget {
   const ShellPage({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
+
+  @override
+  ConsumerState<ShellPage> createState() => _ShellPageState();
+}
+
+class _ShellPageState extends ConsumerState<ShellPage> {
+  StatefulNavigationShell get navigationShell => widget.navigationShell;
+  bool _updateCheckStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeCheckUpdates());
+  }
+
+  /// Runs once, after the first frame and once settings are loaded.
+  Future<void> _maybeCheckUpdates() async {
+    if (_updateCheckStarted || !mounted) return;
+    final settings = ref.read(settingsProvider);
+    if (!settings.isLoaded) return;
+    _updateCheckStarted = true;
+    if (!settings.checkForUpdates) return;
+    final info = await UpdateChecker.checkIfDue();
+    if (info == null || !mounted) return;
+    showUpdateBanner(
+      ScaffoldMessenger.of(context),
+      AppLocalizations.of(context),
+      info,
+    );
+  }
 
   List<AppDestination> _destinations(AppLocalizations l10n) => [
     AppDestination(
@@ -53,6 +87,9 @@ class ShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(settingsProvider, (_, next) {
+      if (next.isLoaded) _maybeCheckUpdates();
+    });
     final width = MediaQuery.sizeOf(context).width;
     final isExpanded = width >= AppConstants.expandedBreakpoint;
     final isMedium = width >= AppConstants.mediumBreakpoint;

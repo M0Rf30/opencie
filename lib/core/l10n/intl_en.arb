@@ -602,5 +602,19 @@
   "@signPlacerPdfError": { "placeholders": { "error": { "type": "String" } } },
   "signPlacerNoPage": "No page available",
   "signPlacerAreaSemanticsLabel": "Signature target area on the page",
-  "signPlacerSignHere": "SIGN HERE"
+  "signPlacerSignHere": "SIGN HERE",
+
+  "updateAvailableMessage": "OpenCIE {version} is available",
+  "@updateAvailableMessage": { "placeholders": { "version": { "type": "String" } } },
+  "updateAvailableFlatpakMessage": "OpenCIE {version} is available. Update with flatpak update or your software center.",
+  "@updateAvailableFlatpakMessage": { "placeholders": { "version": { "type": "String" } } },
+  "updateActionDownload": "Download",
+  "updateActionReleaseNotes": "Release notes",
+  "updateActionDismiss": "Dismiss",
+  "settingsCheckForUpdates": "Check for updates automatically",
+  "settingsCheckForUpdatesSubtitle": "Contacts GitHub once a day to look for a new release. No personal data is sent.",
+  "settingsCheckForUpdatesNow": "Check for updates",
+  "settingsUpdateChecking": "Checking...",
+  "settingsUpdateUpToDate": "OpenCIE is up to date",
+  "settingsUpdateFailed": "Could not check for updates"
 }

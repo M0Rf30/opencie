@@ -17,10 +17,12 @@ import '../../models/proxy_config.dart';
 import '../../models/signature_options.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/storage_service.dart';
+import '../../services/update_checker.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_help_sheet.dart';
 import '../../widgets/oc_mark.dart'; // used in About section
 import '../../widgets/oc_section_label.dart';
+import '../../widgets/update_notice.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -606,6 +608,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
 
+                const SizedBox(height: 12),
+
+                OcGroupCard(
+                  children: [
+                    OcActionRow(
+                      leadingIcon: Icons.system_update_alt,
+                      title: l10n.settingsCheckForUpdates,
+                      subtitle: l10n.settingsCheckForUpdatesSubtitle,
+                      trailing: Switch.adaptive(
+                        value: settings.checkForUpdates,
+                        activeTrackColor: ColorSchemes.primary,
+                        onChanged: (v) => ref
+                            .read(settingsProvider.notifier)
+                            .update((s) => s.copyWith(checkForUpdates: v)),
+                      ),
+                    ),
+                    OcActionRow(
+                      leadingIcon: Icons.refresh,
+                      title: l10n.settingsCheckForUpdatesNow,
+                      subtitle: _checkingUpdates
+                          ? l10n.settingsUpdateChecking
+                          : null,
+                      onTap: _checkingUpdates ? null : _checkUpdatesNow,
+                    ),
+                  ],
+                ),
+
                 const SizedBox(height: 20),
 
                 // ── Footer ────────────────────────────────────────────────
@@ -638,6 +667,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         return proxy.host.isNotEmpty
             ? '${proxy.host}:${proxy.port}'
             : l10n.settingsManualProxy;
+    }
+  }
+
+  bool _checkingUpdates = false;
+
+  Future<void> _checkUpdatesNow() async {
+    setState(() => _checkingUpdates = true);
+    final result = await ManualCheck.run();
+    if (!mounted) return;
+    setState(() => _checkingUpdates = false);
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    switch (result.status) {
+      case ManualCheckStatus.available:
+        showUpdateBanner(messenger, l10n, result.info!, recordDismissal: false);
+      case ManualCheckStatus.upToDate:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUpdateUpToDate)),
+        );
+      case ManualCheckStatus.failed:
+        messenger.showSnackBar(
+          SnackBar(content: Text(l10n.settingsUpdateFailed)),
+        );
     }
   }
 

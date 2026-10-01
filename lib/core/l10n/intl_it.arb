@@ -596,5 +596,17 @@
   "signPlacerPdfError": "Impossibile visualizzare il PDF: {error}",
   "signPlacerNoPage": "Nessuna pagina disponibile",
   "signPlacerAreaSemanticsLabel": "Area di destinazione della firma sulla pagina",
-  "signPlacerSignHere": "FIRMA QUI"
+  "signPlacerSignHere": "FIRMA QUI",
+
+  "updateAvailableMessage": "OpenCIE {version} è disponibile",
+  "updateAvailableFlatpakMessage": "OpenCIE {version} è disponibile. Aggiorna con flatpak update o dal tuo gestore software.",
+  "updateActionDownload": "Scarica",
+  "updateActionReleaseNotes": "Note di rilascio",
+  "updateActionDismiss": "Ignora",
+  "settingsCheckForUpdates": "Controlla gli aggiornamenti automaticamente",
+  "settingsCheckForUpdatesSubtitle": "Contatta GitHub una volta al giorno per cercare una nuova versione. Non viene inviato alcun dato personale.",
+  "settingsCheckForUpdatesNow": "Controlla aggiornamenti",
+  "settingsUpdateChecking": "Controllo in corso...",
+  "settingsUpdateUpToDate": "OpenCIE è aggiornato",
+  "settingsUpdateFailed": "Impossibile controllare gli aggiornamenti"
 }

@@ -29,6 +29,7 @@ class AppSettings {
     this.preservePdfA = false,
     this.alwaysTimestamp = false,
     this.openFolderAfterSign = true,
+    this.checkForUpdates = true,
     this.destinationFolder,
     this.tsaConfig = const TsaConfig(),
     this.proxyConfig = const ProxyConfig(),
@@ -53,6 +54,7 @@ class AppSettings {
   final bool preservePdfA;
   final bool alwaysTimestamp;
   final bool openFolderAfterSign;
+  final bool checkForUpdates;
   final String? destinationFolder;
   final TsaConfig tsaConfig;
   final ProxyConfig proxyConfig;
@@ -89,6 +91,7 @@ class AppSettings {
     bool? preservePdfA,
     bool? alwaysTimestamp,
     bool? openFolderAfterSign,
+    bool? checkForUpdates,
     // Use the [_unset] sentinel to allow clearing back to null:
     //   copyWith(destinationFolder: null)        → keeps existing value
     //   copyWith(destinationFolder: _unset)      → sets to null
@@ -117,6 +120,7 @@ class AppSettings {
       preservePdfA: preservePdfA ?? this.preservePdfA,
       alwaysTimestamp: alwaysTimestamp ?? this.alwaysTimestamp,
       openFolderAfterSign: openFolderAfterSign ?? this.openFolderAfterSign,
+      checkForUpdates: checkForUpdates ?? this.checkForUpdates,
       destinationFolder: identical(destinationFolder, _unset)
           ? this.destinationFolder
           : destinationFolder as String?,
@@ -324,6 +328,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
           preservePdfA: map['preservePdfA'] as bool? ?? false,
           alwaysTimestamp: map['alwaysTimestamp'] as bool? ?? false,
           openFolderAfterSign: map['openFolderAfterSign'] as bool? ?? true,
+          checkForUpdates: map['checkForUpdates'] as bool? ?? true,
           destinationFolder: map['destinationFolder'] as String?,
           tsaConfig:
               (tsaJson != null
@@ -382,6 +387,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'preservePdfA': state.preservePdfA,
       'alwaysTimestamp': state.alwaysTimestamp,
       'openFolderAfterSign': state.openFolderAfterSign,
+      'checkForUpdates': state.checkForUpdates,
       'destinationFolder': state.destinationFolder,
       'tsaConfig': state.tsaConfig.toJson(),
       'proxyConfig': state.proxyConfig.toJson(),
