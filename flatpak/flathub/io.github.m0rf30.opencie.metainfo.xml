@@ -60,6 +60,18 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.4" date="2026-10-01">
+      <description>
+        <p>Multiple cards, app lock and a design review.</p>
+        <ul>
+          <li>Several enrolled cards: a card list with status, and a signer picker when signing.</li>
+          <li>Optional app lock with its own passcode and fingerprint, face, Touch ID or Windows Hello unlock.</li>
+          <li>Better contrast in the light theme, clearer disabled states and a reason when signing is not possible.</li>
+          <li>The timestamp page and signing options show the configured server and folder.</li>
+          <li>Every screen is translated, with improved keyboard and screen reader support.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.3" date="2026-10-01">
       <description>
         <p>Linux on ARM and a refreshed look, with native library opencie-pkcs11 1.2.1.</p>
