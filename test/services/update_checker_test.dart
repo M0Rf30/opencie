@@ -69,7 +69,8 @@ void main() {
       expect(info.url, contains('/releases/tag/v0.5.0'));
       expect(info.publishedAt, DateTime.utc(2026, 9, 1, 10));
       expect(seen.headers['Accept'], 'application/vnd.github+json');
-      expect(seen.headers['User-Agent'], 'OpenCIE/0.4.3');
+      // The version must not leak to GitHub.
+      expect(seen.headers['User-Agent'], 'OpenCIE');
     });
 
     test('returns null on 404', () async {

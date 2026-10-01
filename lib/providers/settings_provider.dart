@@ -29,7 +29,8 @@ class AppSettings {
     this.preservePdfA = false,
     this.alwaysTimestamp = false,
     this.openFolderAfterSign = true,
-    this.checkForUpdates = true,
+    this.checkForUpdates = false,
+    this.updateCheckConsentAsked = false,
     this.destinationFolder,
     this.tsaConfig = const TsaConfig(),
     this.proxyConfig = const ProxyConfig(),
@@ -54,7 +55,13 @@ class AppSettings {
   final bool preservePdfA;
   final bool alwaysTimestamp;
   final bool openFolderAfterSign;
+
+  /// Off until the user agrees in the first-launch prompt or in Settings:
+  /// each check sends the user's IP address to GitHub.
   final bool checkForUpdates;
+
+  /// Whether the one-time update-check consent prompt has been answered.
+  final bool updateCheckConsentAsked;
   final String? destinationFolder;
   final TsaConfig tsaConfig;
   final ProxyConfig proxyConfig;
@@ -92,6 +99,7 @@ class AppSettings {
     bool? alwaysTimestamp,
     bool? openFolderAfterSign,
     bool? checkForUpdates,
+    bool? updateCheckConsentAsked,
     // Use the [_unset] sentinel to allow clearing back to null:
     //   copyWith(destinationFolder: null)        → keeps existing value
     //   copyWith(destinationFolder: _unset)      → sets to null
@@ -121,6 +129,8 @@ class AppSettings {
       alwaysTimestamp: alwaysTimestamp ?? this.alwaysTimestamp,
       openFolderAfterSign: openFolderAfterSign ?? this.openFolderAfterSign,
       checkForUpdates: checkForUpdates ?? this.checkForUpdates,
+      updateCheckConsentAsked:
+          updateCheckConsentAsked ?? this.updateCheckConsentAsked,
       destinationFolder: identical(destinationFolder, _unset)
           ? this.destinationFolder
           : destinationFolder as String?,
@@ -328,7 +338,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
           preservePdfA: map['preservePdfA'] as bool? ?? false,
           alwaysTimestamp: map['alwaysTimestamp'] as bool? ?? false,
           openFolderAfterSign: map['openFolderAfterSign'] as bool? ?? true,
-          checkForUpdates: map['checkForUpdates'] as bool? ?? true,
+          checkForUpdates: map['checkForUpdates'] as bool? ?? false,
+          updateCheckConsentAsked:
+              map['updateCheckConsentAsked'] as bool? ?? false,
           destinationFolder: map['destinationFolder'] as String?,
           tsaConfig:
               (tsaJson != null
@@ -388,6 +400,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'alwaysTimestamp': state.alwaysTimestamp,
       'openFolderAfterSign': state.openFolderAfterSign,
       'checkForUpdates': state.checkForUpdates,
+      'updateCheckConsentAsked': state.updateCheckConsentAsked,
       'destinationFolder': state.destinationFolder,
       'tsaConfig': state.tsaConfig.toJson(),
       'proxyConfig': state.proxyConfig.toJson(),

@@ -621,7 +621,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         activeTrackColor: ColorSchemes.primary,
                         onChanged: (v) => ref
                             .read(settingsProvider.notifier)
-                            .update((s) => s.copyWith(checkForUpdates: v)),
+                            .update(
+                              (s) => s.copyWith(
+                                checkForUpdates: v,
+                                updateCheckConsentAsked: true,
+                              ),
+                            ),
                       ),
                     ),
                     OcActionRow(

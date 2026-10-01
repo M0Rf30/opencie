@@ -40,7 +40,20 @@ class _ShellPageState extends ConsumerState<ShellPage> {
     final settings = ref.read(settingsProvider);
     if (!settings.isLoaded) return;
     _updateCheckStarted = true;
-    if (!settings.checkForUpdates) return;
+    var enabled = settings.checkForUpdates;
+    if (!settings.updateCheckConsentAsked) {
+      enabled = await _askUpdateCheckConsent();
+      if (!mounted) return;
+      await ref
+          .read(settingsProvider.notifier)
+          .update(
+            (s) => s.copyWith(
+              checkForUpdates: enabled,
+              updateCheckConsentAsked: true,
+            ),
+          );
+    }
+    if (!enabled || !mounted) return;
     final info = await UpdateChecker.checkIfDue();
     if (info == null || !mounted) return;
     showUpdateBanner(
@@ -48,6 +61,30 @@ class _ShellPageState extends ConsumerState<ShellPage> {
       AppLocalizations.of(context),
       info,
     );
+  }
+
+  /// One-time consent prompt: the check sends the user's IP address to
+  /// GitHub, so it stays off unless the user agrees.
+  Future<bool> _askUpdateCheckConsent() async {
+    final l10n = AppLocalizations.of(context);
+    final allowed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.updateConsentTitle),
+        content: Text(l10n.updateConsentBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n.updateConsentDecline),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n.updateConsentAllow),
+          ),
+        ],
+      ),
+    );
+    return allowed ?? false;
   }
 
   List<AppDestination> _destinations(AppLocalizations l10n) => [

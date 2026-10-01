@@ -62,7 +62,9 @@ class UpdateChecker {
             Uri.parse(releasesUrl),
             headers: {
               'Accept': 'application/vnd.github+json',
-              'User-Agent': 'OpenCIE/$appVersion',
+              // No version: the comparison happens locally, so GitHub
+              // doesn't need to learn which release this user runs.
+              'User-Agent': 'OpenCIE',
             },
           )
           .timeout(_timeout);
