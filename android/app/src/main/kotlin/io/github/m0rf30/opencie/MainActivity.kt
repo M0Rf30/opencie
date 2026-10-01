@@ -11,7 +11,7 @@ import android.nfc.Tag
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.documentfile.provider.DocumentFile
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -34,7 +34,7 @@ import java.util.concurrent.CompletableFuture
  * block screenshots/recording while sensitive screens (e.g. PIN entry) are
  * visible.
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val NFC_CHANNEL = "io.github.m0rf30.opencie/nfc"
