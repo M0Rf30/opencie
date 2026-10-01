@@ -424,6 +424,7 @@
   "cieErrorReaderNotFound": "Nessun lettore di carte trovato. Collega un lettore PC/SC e riprova.",
   "cieErrorExtendedApduNotSupported": "Questo telefono o lettore non supporta i comandi estesi richiesti dalla CIE. Prova con un altro telefono NFC o un lettore PC/SC.",
   "cieErrorCardExpired": "Questa CIE è scaduta e non può più essere usata per firmare. Rinnova la carta in comune.",
+  "cieErrorUnsupportedCard": "Questa CIE usa una versione del chip che OpenCIE non supporta ancora. Apri una segnalazione su github.com/M0Rf30/opencie/issues e allega il log dell'applicazione (su desktop: la cartella .CIEPKI nella tua home).",
   "nfcUxDisabledTitle": "NFC disattivato",
   "nfcUxDisabledBody": "Attiva l'NFC nelle impostazioni di sistema, poi riprova.",
 

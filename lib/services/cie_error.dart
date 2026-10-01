@@ -38,6 +38,11 @@ enum CieErrorKind {
   readerNotFound,
   extendedApduNotSupported,
   cardExpired,
+
+  /// Card answered but its chip/applet is not in the supported list. Comes
+  /// from native kind 10 (`CIE_ERR_UNSUPPORTED_CARD`) together with
+  /// `CKR_TOKEN_NOT_RECOGNIZED`. Not retryable.
+  unsupportedCard,
   unknown,
 }
 
@@ -71,7 +76,10 @@ CieErrorKind classifyCieError(
     case AppConstants.ckrTokenNotPresent:
       return CieErrorKind.cardNotPresent;
     case AppConstants.ckrTokenNotRecognized:
-      return CieErrorKind.notACie;
+      // Native kind 10 (unsupported chip) refines the plain "not a CIE".
+      return _kindFromNative(nativeErrorKind) == CieErrorKind.unsupportedCard
+          ? CieErrorKind.unsupportedCard
+          : CieErrorKind.notACie;
     case AppConstants.ckrDeviceRemoved:
       return CieErrorKind.tagLost;
     case AppConstants.ckrDeviceError:
@@ -96,7 +104,8 @@ CieErrorKind classifyCieError(
 /// [CieErrorKind]. Values mirror `enum cie_error_kind` in `cie_ext.h`:
 /// 0 NONE, 1 WRONG_PIN, 2 PIN_BLOCKED, 3 PIN_NOT_SET,
 /// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND, 6 WRONG_PARAMS,
-/// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN.
+/// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN,
+/// 10 UNSUPPORTED_CARD.
 ///
 /// Returns null for NONE/UNKNOWN/an absent value, letting the caller fall
 /// back to [_classifyGenericFailure]'s status-word heuristic.
@@ -115,6 +124,8 @@ CieErrorKind? _kindFromNative(int? nativeErrorKind) {
       return CieErrorKind.cardCommunicationError;
     case 7: // CIE_ERR_INS_NOT_SUPPORTED (SW 6D00/6E00)
       return CieErrorKind.extendedApduNotSupported;
+    case 10: // CIE_ERR_UNSUPPORTED_CARD
+      return CieErrorKind.unsupportedCard;
     case 0:
     case 9:
     default:
@@ -201,6 +212,8 @@ String cieErrorMessage(
       return l10n.cieErrorExtendedApduNotSupported;
     case CieErrorKind.cardExpired:
       return l10n.cieErrorCardExpired;
+    case CieErrorKind.unsupportedCard:
+      return l10n.cieErrorUnsupportedCard;
     case CieErrorKind.unknown:
       return l10n.cieErrorUnknown(_hexCode(rawCode ?? 0));
   }

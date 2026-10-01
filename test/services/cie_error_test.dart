@@ -187,6 +187,24 @@ void main() {
     expect(cieErrorMessage(it, CieErrorKind.pinBlocked), it.ciePinLockedUsePuk);
   });
 
+  test('native kind 10 + CKR_TOKEN_NOT_RECOGNIZED → unsupportedCard', () {
+    expect(
+      classifyCieError(AppConstants.ckrTokenNotRecognized, nativeErrorKind: 10),
+      CieErrorKind.unsupportedCard,
+    );
+  });
+
+  test('CKR_TOKEN_NOT_RECOGNIZED alone stays notACie', () {
+    expect(
+      classifyCieError(AppConstants.ckrTokenNotRecognized),
+      CieErrorKind.notACie,
+    );
+    expect(
+      classifyCieError(AppConstants.ckrTokenNotRecognized, nativeErrorKind: 9),
+      CieErrorKind.notACie,
+    );
+  });
+
   group('cieErrorMessage — every other kind has a non-generic message', () {
     final kinds = {
       CieErrorKind.wrongPinFormat: (AppLocalizationsEn l) =>
@@ -207,6 +225,8 @@ void main() {
       CieErrorKind.extendedApduNotSupported: (AppLocalizationsEn l) =>
           l.cieErrorExtendedApduNotSupported,
       CieErrorKind.cardExpired: (AppLocalizationsEn l) => l.cieErrorCardExpired,
+      CieErrorKind.unsupportedCard: (AppLocalizationsEn l) =>
+          l.cieErrorUnsupportedCard,
     };
 
     kinds.forEach((kind, expected) {

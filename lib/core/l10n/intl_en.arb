@@ -429,6 +429,7 @@
   "cieErrorReaderNotFound": "No card reader found. Connect a PC/SC reader and try again.",
   "cieErrorExtendedApduNotSupported": "This phone or reader does not support the extended commands your CIE needs. Try a different NFC phone or a PC/SC reader.",
   "cieErrorCardExpired": "This CIE has expired and can no longer be used to sign. Renew your card at the municipality.",
+  "cieErrorUnsupportedCard": "This CIE uses a chip version OpenCIE doesn't support yet. Please open an issue at github.com/M0Rf30/opencie/issues and attach the application log (on desktop: the .CIEPKI folder in your home directory).",
   "nfcUxDisabledTitle": "NFC is off",
   "nfcUxDisabledBody": "Turn on NFC in system settings, then try again.",
 
