@@ -28,6 +28,10 @@ finish-args:
   - --share=network
   # Smart card reader access (talks to the host pcscd)
   - --socket=pcsc
+  # The PKCS#11 library keeps its card cache and logs in ~/.CIEPKI. Without
+  # home access that path lives on the sandbox tmpfs and is lost on exit;
+  # persist it under ~/.var/app/io.github.m0rf30.opencie/.CIEPKI instead.
+  - --persist=.CIEPKI
   # Secure Secret Service access (flutter_secure_storage via libsecret,
   # already shipped by the Freedesktop Platform runtime) for encrypted
   # OIDC tokens and enrolled-card records.

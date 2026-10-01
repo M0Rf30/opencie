@@ -17,6 +17,7 @@ finish-args:
   - --device=dri
   - --share=network
   - --socket=pcsc
+  - --persist=.CIEPKI
   - --talk-name=org.freedesktop.secrets
   - --filesystem=xdg-documents
   - --filesystem=xdg-download
