@@ -63,6 +63,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.3" date="2026-10-01">
+      <description>
+        <p>Linux on ARM and a refreshed look, with native library opencie-pkcs11 1.2.1.</p>
+        <ul>
+          <li>New Linux arm64 builds: tarball and Flatpak.</li>
+          <li>Refreshed app icon.</li>
+          <li>Updated PoDoFo, pcsc-lite and other bundled dependencies.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.2" date="2026-10-01">
       <description>
         <p>Broader card support, with native library opencie-pkcs11 1.2.0.</p>
