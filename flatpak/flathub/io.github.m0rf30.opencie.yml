@@ -56,8 +56,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/LudovicRousseau/PCSC.git
-        tag: '2.5.1'
-        commit: 09138d7f7d02c714b004d9850f28727fbcc48a97
+        tag: '2.5.2'
+        commit: 6cadd8152f3cfdb79131a65843d9b85f01f0ae51
 
   - name: libxml2
     buildsystem: autotools
