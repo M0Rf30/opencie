@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/icon.svg" width="96" alt="OpenCIE logo">
+  <img src="assets/branding/icon.svg" width="112" alt="OpenCIE logo">
 </p>
 
 <h1 align="center">OpenCIE</h1>
@@ -10,8 +10,18 @@
 
 <p align="center">
   <a href="https://github.com/M0Rf30/opencie/actions"><img src="https://github.com/M0Rf30/opencie/actions/workflows/main.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/platforms-Android%20%7C%20Linux%20%7C%20macOS%20%7C%20Windows-blue" alt="Platforms">
+  <a href="https://github.com/M0Rf30/opencie/releases/latest"><img src="https://img.shields.io/github/v/release/M0Rf30/opencie" alt="Latest release"></a>
+  <a href="https://github.com/M0Rf30/opencie/releases"><img src="https://img.shields.io/github/downloads/M0Rf30/opencie/total" alt="Downloads"></a>
+  <img src="https://img.shields.io/badge/platforms-Android%20%7C%20Linux%20(x86__64%2C%20arm64)%20%7C%20macOS%20%7C%20Windows-blue" alt="Platforms">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-green" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#supported-cards--readers">Supported cards</a> ·
+  <a href="#getting-started">Build</a> ·
+  <a href="#usage">Usage</a>
 </p>
 
 ---
@@ -24,25 +34,43 @@
   <img src="docs/screenshots/cie.png" width="48%" alt="Manage enrolled CIE cards">
   <img src="docs/screenshots/settings.png" width="48%" alt="Application settings">
 </p>
+<p align="center">
+  <sub>Sign · Verify · Manage cards · Settings</sub>
+</p>
 
 ## Features
 
-- **Sign** — CAdES (`.p7m`), PAdES (PDF), and XAdES (`.xml`) digital signatures using the CIE chip
-- **Verify** — Validate signatures with OCSP/CRL revocation checking
-- **Timestamp** — RFC 3161 trusted timestamps; upgrade signatures for long-term validation (B-LT/B-LTA)
-- **Manage** — Enroll and manage CIE cards, change/unblock PIN
-- **Cross-platform** — Android, Linux, macOS, Windows
+| | |
+|---|---|
+| **Sign** | CAdES (`.p7m`), PAdES (PDF), and XAdES (`.xml`) digital signatures using the CIE chip |
+| **Verify** | Validate signatures with OCSP/CRL revocation checking |
+| **Timestamp** | RFC 3161 trusted timestamps; upgrade signatures for long-term validation (B-LT/B-LTA) |
+| **Manage** | Enroll and manage CIE cards, change/unblock PIN |
+| **Cross-platform** | Android, Linux, macOS, Windows |
 
 Application bundle ID: `io.github.m0rf30.opencie`. iOS is not supported.
 
 ## Install
+
+### Downloads
+
+Grab the file for your platform from the [latest release](https://github.com/M0Rf30/opencie/releases/latest):
+
+| Platform | File | Notes |
+|---|---|---|
+| Linux (Flatpak, x86_64) | `opencie-<version>-x86_64.flatpak` | Sandboxed; see [Linux (Flatpak)](#linux-flatpak) |
+| Linux (Flatpak, arm64) | `opencie-<version>-aarch64.flatpak` | 64-bit ARM |
+| Linux (tarball) | `opencie-<version>-linux-{x86_64,aarch64}.tar.gz` | Pick the one matching your architecture |
+| Android | `opencie-<version>-android-arm64-v8a.apk` | An `x86_64` APK is also published for x86_64 devices/emulators |
+| Windows | `opencie-<version>-windows-x86_64-setup.exe` | Installer |
+| macOS | `opencie-<version>-macos-arm64.dmg` | Apple Silicon; see [macOS notes](#macos-notes) |
 
 ### Linux (Flatpak)
 
 Download `opencie-<version>-x86_64.flatpak` (or `opencie-<version>-aarch64.flatpak` on 64-bit ARM) from the [latest release](https://github.com/M0Rf30/opencie/releases/latest) and install it:
 
 ```bash
-flatpak install --user opencie-v0.4.1-x86_64.flatpak
+flatpak install --user opencie-<version>-x86_64.flatpak
 flatpak run io.github.m0rf30.opencie
 ```
 
@@ -76,7 +104,17 @@ key fail CI instead of shipping a debug-signed APK.
 
 Download the `.dmg` or installer from the [releases page](https://github.com/M0Rf30/opencie/releases).
 
+## Supported cards & readers
+
+OpenCIE supports the CIE 3.0 (contactless and contact). CIE 2.0/older contact cards, health cards (TS/CNS) and other eIDs are not supported. Any PC/SC reader with a contactless or contact slot works; combo readers expose several slots and all are tried, so you don't need to disable built-in readers.
+
+If you see an "unsupported card" error, run `pcsc_scan` to get the card's ATR and open an [issue](https://github.com/M0Rf30/opencie/issues) attaching it together with the log from `~/.CIEPKI/` (Flatpak: `~/.var/app/io.github.m0rf30.opencie/.CIEPKI/`).
+
+Full list of recognised chips and details: [supported-cards.md](https://github.com/M0Rf30/opencie-pkcs11/blob/main/docs/supported-cards.md).
+
 ## Getting Started
+
+Building from source is only needed for development or unsupported platforms.
 
 ### Prerequisites
 
@@ -104,6 +142,9 @@ flutter build windows --release  # Windows
 
 ### Flatpak (Linux)
 
+<details>
+<summary>Build the Flatpak locally</summary>
+
 Build and install into the user installation:
 
 ```bash
@@ -124,6 +165,8 @@ flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
   repo opencie-x86_64.flatpak io.github.m0rf30.opencie
 ```
 
+</details>
+
 ### Run (development)
 
 ```bash
@@ -131,6 +174,9 @@ flutter run -d <device-id>       # use `flutter devices` to list
 ```
 
 ### Android release signing
+
+<details>
+<summary>Keystore setup for local and CI builds</summary>
 
 `flutter build apk --release` and `flutter build appbundle --release` will use a release keystore when one is configured, and fall back to debug signing otherwise (so `flutter run --release` keeps working out of the box).
 
@@ -160,20 +206,14 @@ keyPassword=...
 
 Without `KEYSTORE_BASE64`, PR/branch builds continue with a warning and produce a debug-signed APK/AAB (useful for local testing). Tag builds (`refs/tags/v*`) instead **fail CI** if the release keystore secrets aren't configured — the workflow never publishes a debug-signed release, and also verifies (via `apksigner verify --print-certs`) that the built APKs aren't signed with the Android Debug certificate before staging them. Keep the keystore and passwords offline; losing them means you can't ship updates that Android will accept as the same app.
 
+</details>
+
 ## Usage
 
 1. Launch OpenCIE.
 2. Choose **Sign**, **Verify**, **Timestamp**, or **Manage**.
 3. When prompted, present your CIE to the reader (tap on NFC, or insert into a smart card reader) and enter your PIN.
 4. For signatures, pick the file to sign and the desired format (CAdES / PAdES / XAdES). The signed output is written next to the original.
-
-## Supported cards & readers
-
-OpenCIE supports the CIE 3.0 (contactless and contact). CIE 2.0/older contact cards, health cards (TS/CNS) and other eIDs are not supported. Any PC/SC reader with a contactless or contact slot works; combo readers expose several slots and all are tried, so you don't need to disable built-in readers.
-
-If you see an "unsupported card" error, run `pcsc_scan` to get the card's ATR and open an [issue](https://github.com/M0Rf30/opencie/issues) attaching it together with the log from `~/.CIEPKI/` (Flatpak: `~/.var/app/io.github.m0rf30.opencie/.CIEPKI/`).
-
-Full list of recognised chips and details: [supported-cards.md](https://github.com/M0Rf30/opencie-pkcs11/blob/main/docs/supported-cards.md).
 
 ## macOS notes
 
