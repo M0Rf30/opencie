@@ -167,6 +167,14 @@ Without `KEYSTORE_BASE64`, PR/branch builds continue with a warning and produce 
 3. When prompted, present your CIE to the reader (tap on NFC, or insert into a smart card reader) and enter your PIN.
 4. For signatures, pick the file to sign and the desired format (CAdES / PAdES / XAdES). The signed output is written next to the original.
 
+## Supported cards & readers
+
+OpenCIE supports the CIE 3.0 (contactless and contact). CIE 2.0/older contact cards, health cards (TS/CNS) and other eIDs are not supported. Any PC/SC reader with a contactless or contact slot works; combo readers expose several slots and all are tried, so you don't need to disable built-in readers.
+
+If you see an "unsupported card" error, run `pcsc_scan` to get the card's ATR and open an [issue](https://github.com/M0Rf30/opencie/issues) attaching it together with the log from `~/.CIEPKI/` (Flatpak: `~/.var/app/io.github.m0rf30.opencie/.CIEPKI/`).
+
+Full list of recognised chips and details: [supported-cards.md](https://github.com/M0Rf30/opencie-pkcs11/blob/main/docs/supported-cards.md).
+
 ## macOS notes
 
 <details>
