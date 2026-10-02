@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/core/constants/app_constants.dart';
 import 'package:opencie/core/l10n/app_localizations_en.dart';
 import 'package:opencie/core/l10n/app_localizations_it.dart';
+import 'package:opencie/features/cie_management/cie_management_page.dart';
 import 'package:opencie/services/cie_error.dart';
 
 void main() {
@@ -117,7 +118,7 @@ void main() {
         2: CieErrorKind.pinBlocked,
         3: CieErrorKind.wrongPinFormat,
         4: CieErrorKind.cardCommunicationError,
-        5: CieErrorKind.cardCommunicationError,
+        5: CieErrorKind.chipDataUnavailable,
         6: CieErrorKind.cardCommunicationError,
         7: CieErrorKind.extendedApduNotSupported,
         8: CieErrorKind.cardCommunicationError,
@@ -216,6 +217,8 @@ void main() {
       CieErrorKind.tagLost: (AppLocalizationsEn l) => l.cieErrorTagLost,
       CieErrorKind.cardCommunicationError: (AppLocalizationsEn l) =>
           l.cieErrorCardCommunicationError,
+      CieErrorKind.chipDataUnavailable: (AppLocalizationsEn l) =>
+          l.cieErrorChipDataUnavailable,
       CieErrorKind.cancelledByUser: (AppLocalizationsEn l) =>
           l.cieErrorCancelledByUser,
       CieErrorKind.alreadyEnrolled: (AppLocalizationsEn l) =>
@@ -248,5 +251,29 @@ void main() {
         en.cieErrorUnknown('0x00000000'),
       );
     });
+  });
+
+  test('chip-read helpers: chipDataUnavailable is not retryable', () {
+    expect(chipReadRetryable(CieErrorKind.chipDataUnavailable), isFalse);
+    expect(chipReadRetryable(CieErrorKind.wrongPin), isFalse);
+    expect(chipReadRetryable(CieErrorKind.cardCommunicationError), isTrue);
+    expect(chipReadRetryable(CieErrorKind.tagLost), isTrue);
+    expect(chipReadRetryable(null), isTrue);
+    expect(
+      chipReadFailureMessage(
+        en,
+        CieErrorKind.chipDataUnavailable,
+        isAndroid: false,
+      ),
+      en.cieReadChipDataUnavailable,
+    );
+    expect(
+      chipReadFailureMessage(
+        en,
+        CieErrorKind.cardCommunicationError,
+        isAndroid: false,
+      ),
+      en.cieReadIncompletePcsc,
+    );
   });
 }

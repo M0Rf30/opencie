@@ -33,6 +33,10 @@ enum CieErrorKind {
   notACie,
   tagLost,
   cardCommunicationError,
+
+  /// The card answered but does not expose the requested data (native
+  /// FILE_NOT_FOUND, SW 6A82). Deterministic: retrying cannot help.
+  chipDataUnavailable,
   cancelledByUser,
   alreadyEnrolled,
   readerNotFound,
@@ -103,7 +107,7 @@ CieErrorKind classifyCieError(
 /// `cie_last_error`, surfaced as [CieResult.nativeErrorKind]) directly onto
 /// [CieErrorKind]. Values mirror `enum cie_error_kind` in `cie_ext.h`:
 /// 0 NONE, 1 WRONG_PIN, 2 PIN_BLOCKED, 3 PIN_NOT_SET,
-/// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND, 6 WRONG_PARAMS,
+/// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND (-> chipDataUnavailable), 6 WRONG_PARAMS,
 /// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN,
 /// 10 UNSUPPORTED_CARD.
 ///
@@ -117,8 +121,9 @@ CieErrorKind? _kindFromNative(int? nativeErrorKind) {
       return CieErrorKind.pinBlocked;
     case 3:
       return CieErrorKind.wrongPinFormat;
+    case 5: // CIE_ERR_FILE_NOT_FOUND (SW 6A82): data absent, not a link drop
+      return CieErrorKind.chipDataUnavailable;
     case 4:
-    case 5:
     case 6:
     case 8:
       return CieErrorKind.cardCommunicationError;
@@ -202,6 +207,8 @@ String cieErrorMessage(
       return l10n.cieErrorTagLost;
     case CieErrorKind.cardCommunicationError:
       return l10n.cieErrorCardCommunicationError;
+    case CieErrorKind.chipDataUnavailable:
+      return l10n.cieErrorChipDataUnavailable;
     case CieErrorKind.cancelledByUser:
       return l10n.cieErrorCancelledByUser;
     case CieErrorKind.alreadyEnrolled:
