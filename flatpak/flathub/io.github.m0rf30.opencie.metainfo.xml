@@ -60,6 +60,14 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.6" date="2026-10-02">
+      <description>
+        <p>Chip reading fix, with native library opencie-pkcs11 1.2.3.</p>
+        <ul>
+          <li>Photo and personal data can be read from Actalis B946 cards, which need the card root selected first.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.5" date="2026-10-02">
       <description>
         <p>Chip reading fix, with native library opencie-pkcs11 1.2.2.</p>
