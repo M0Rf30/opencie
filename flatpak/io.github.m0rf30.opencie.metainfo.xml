@@ -63,6 +63,15 @@
   </screenshots>
 
   <releases>
+    <release version="0.4.5" date="2026-10-02">
+      <description>
+        <p>Chip reading fix, with native library opencie-pkcs11 1.2.2.</p>
+        <ul>
+          <li>Photo and personal data can be read from cards that need their files selected by identifier (seen on newer Actalis cards).</li>
+          <li>When a card does not provide that data, the app says so instead of asking to keep the card still, and offers no pointless retry.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.4" date="2026-10-01">
       <description>
         <p>Multiple cards, app lock and a design review.</p>

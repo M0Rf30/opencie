@@ -106,6 +106,25 @@ bool isPinStatusErrorKind(CieErrorKind? kind) {
   }
 }
 
+/// Whether a failed chip read is worth offering Retry for. PIN-status
+/// failures must never be retried (extra wrong-PIN attempt) and a
+/// [CieErrorKind.chipDataUnavailable] result is deterministic.
+bool chipReadRetryable(CieErrorKind? kind) =>
+    !isPinStatusErrorKind(kind) && kind != CieErrorKind.chipDataUnavailable;
+
+/// Message for the chip-read-incomplete dialog, by failure kind.
+String chipReadFailureMessage(
+  AppLocalizations l10n,
+  CieErrorKind? kind, {
+  required bool isAndroid,
+}) {
+  if (kind == CieErrorKind.chipDataUnavailable) {
+    return l10n.cieReadChipDataUnavailable;
+  }
+  if (isPinStatusErrorKind(kind)) return cieErrorMessage(l10n, kind!);
+  return isAndroid ? l10n.cieReadIncompleteNfc : l10n.cieReadIncompletePcsc;
+}
+
 /// Shows the chip-read-incomplete state (missing MRZ and/or photo) as a
 /// standalone [NfcCardDialog] error view. When [allowRetry] is true (the
 /// default) a Retry action is shown alongside "Continue without"; pass
@@ -405,21 +424,20 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       });
       if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
       final l10n = AppLocalizations.of(context);
-      final pinStatusError = isPinStatusErrorKind(outcome.errorKind);
-      final message = pinStatusError
-          ? cieErrorMessage(l10n, outcome.errorKind!)
-          : (Platform.isAndroid
-                ? l10n.cieReadIncompleteNfc
-                : l10n.cieReadIncompletePcsc);
+      final message = chipReadFailureMessage(
+        l10n,
+        outcome.errorKind,
+        isAndroid: Platform.isAndroid,
+      );
       if (outcome.errorKind == CieErrorKind.wrongPin) {
         PinThrottle.recordFailure();
       }
       final wantsRetry = await showChipReadIncompleteDialog(
         context,
         message,
-        allowRetry: !pinStatusError,
+        allowRetry: chipReadRetryable(outcome.errorKind),
       );
-      if (pinStatusError || !wantsRetry) break;
+      if (!chipReadRetryable(outcome.errorKind) || !wantsRetry) break;
     }
     return outcome;
   }
@@ -2016,21 +2034,20 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
             setProgress(p.percent / 100.0, l10n.localizeProgress(p.message)),
       );
       if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
-      final pinStatusError = isPinStatusErrorKind(outcome.errorKind);
-      final message = pinStatusError
-          ? cieErrorMessage(l10n, outcome.errorKind!)
-          : (Platform.isAndroid
-                ? l10n.cieReadIncompleteNfc
-                : l10n.cieReadIncompletePcsc);
+      final message = chipReadFailureMessage(
+        l10n,
+        outcome.errorKind,
+        isAndroid: Platform.isAndroid,
+      );
       if (outcome.errorKind == CieErrorKind.wrongPin) {
         PinThrottle.recordFailure();
       }
       final wantsRetry = await showChipReadIncompleteDialog(
         context,
         message,
-        allowRetry: !pinStatusError,
+        allowRetry: chipReadRetryable(outcome.errorKind),
       );
-      if (pinStatusError || !wantsRetry) break;
+      if (!chipReadRetryable(outcome.errorKind) || !wantsRetry) break;
     }
     return outcome;
   }
