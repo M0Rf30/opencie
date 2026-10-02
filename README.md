@@ -216,6 +216,8 @@ Without `KEYSTORE_BASE64`, PR/branch builds continue with a warning and produce 
 3. When prompted, present your CIE to the reader (tap on NFC, or insert into a smart card reader) and enter your PIN.
 4. For signatures, pick the file to sign and the desired format (CAdES / PAdES / XAdES). The signed output is written next to the original.
 
+No contactless reader on your computer? Use your NFC phone instead — see [Signing with your phone](docs/HANDOFF.md).
+
 ## macOS notes
 
 <details>
