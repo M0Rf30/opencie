@@ -83,6 +83,16 @@ class HandoffPairing implements HandoffTransport {
 
   static const String _channelLabel = 'opencie-handoff';
 
+  /// flutter_webrtc defaults to `OfferToReceiveAudio/Video: true`, which
+  /// adds audio + video m-sections (dozens of codec lines, every ICE
+  /// candidate repeated per section) to an SDP that only needs the data
+  /// channel. On Linux that produced a ~9 KB offer, far past the ~2.3 KB a
+  /// QR code can hold, so QR1 failed to render at all.
+  static const Map<String, dynamic> _dataOnlyConstraints = {
+    'mandatory': {'OfferToReceiveAudio': false, 'OfferToReceiveVideo': false},
+    'optional': <Map<String, dynamic>>[],
+  };
+
   RTCPeerConnection? _pc;
   RTCDataChannel? _dc;
   HandoffPairingState _state = HandoffPairingState.idle;
@@ -178,7 +188,7 @@ class HandoffPairing implements HandoffTransport {
     final dc = await pc.createDataChannel(_channelLabel, init);
     _attachDataChannel(dc);
 
-    final offer = await pc.createOffer();
+    final offer = await pc.createOffer(_dataOnlyConstraints);
     await pc.setLocalDescription(offer);
     _transition(HandoffPairingState.gatheringIce);
 
@@ -209,7 +219,7 @@ class HandoffPairing implements HandoffTransport {
     await pc.setRemoteDescription(
       RTCSessionDescription(remoteOfferSdp, 'offer'),
     );
-    final answer = await pc.createAnswer();
+    final answer = await pc.createAnswer(_dataOnlyConstraints);
     await pc.setLocalDescription(answer);
     _transition(HandoffPairingState.gatheringIce);
     final localSdp = await _waitForIceGatheringComplete(pc);
@@ -295,6 +305,22 @@ class HandoffPairing implements HandoffTransport {
     if (desc == null || desc.sdp == null) {
       throw StateError('Local description is missing after ICE gathering');
     }
-    return desc.sdp!;
+    return compactSdpForQr(desc.sdp!);
+  }
+
+  /// Shrinks [sdp] for QR transport by dropping TCP ICE candidates. The data
+  /// channel runs over UDP; TCP host candidates roughly double the candidate
+  /// lines on multi-homed machines (IPv4 + several IPv6 addresses). If the
+  /// SDP has no UDP candidate at all, it's returned unchanged so pairing can
+  /// still fall back to TCP.
+  @visibleForTesting
+  static String compactSdpForQr(String sdp) {
+    final lines = sdp.split('\r\n');
+    bool isCandidate(String l) => l.startsWith('a=candidate:');
+    bool isTcp(String l) =>
+        l.split(' ').elementAtOrNull(2)?.toLowerCase() == 'tcp';
+    final hasUdp = lines.any((l) => isCandidate(l) && !isTcp(l));
+    if (!hasUdp) return sdp;
+    return lines.where((l) => !(isCandidate(l) && isTcp(l))).join('\r\n');
   }
 }

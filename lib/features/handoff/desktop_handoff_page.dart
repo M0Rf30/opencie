@@ -322,6 +322,20 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
             size: 280,
             version: QrVersions.auto,
             errorCorrectionLevel: QrErrorCorrectLevel.M,
+            // Without this, a payload too large for a QR renders an empty
+            // box sized to the unbounded column height: a grey slab that
+            // covers the Cancel/Refresh buttons.
+            constrainErrorBounds: true,
+            errorStateBuilder: (ctx, _) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  l10n.handoffQrTooLarge,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black87),
+                ),
+              ),
+            ),
           ),
         ),
       ],

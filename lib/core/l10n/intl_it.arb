@@ -452,6 +452,7 @@
   "handoffReceivingDocument": "Ricezione del documento…",
   "handoffVerifyingSignature": "Verifica della firma…",
   "handoffRefreshQr": "Aggiorna codice",
+  "handoffQrTooLarge": "Il codice di abbinamento è troppo grande per un QR. Tocca \"Aggiorna codice\" per riprovare.",
   "handoffWaitingForPin": "Inserisci il PIN sul telefono",
   "handoffSigning": "Firma in corso sul telefono…",
   "handoffSignedReceived": "Firma ricevuta",

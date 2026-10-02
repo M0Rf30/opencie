@@ -453,6 +453,7 @@
   "handoffReceivingDocument": "Receiving the document…",
   "handoffVerifyingSignature": "Verifying the signature…",
   "handoffRefreshQr": "Refresh code",
+  "handoffQrTooLarge": "The pairing code is too large to show as a QR code. Tap \"Refresh code\" to try again.",
   "handoffWaitingForPin": "Enter the PIN on your phone",
   "handoffSigning": "Signing on your phone…",
   "handoffSignedReceived": "Signature received",
