@@ -34,6 +34,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Profile" "Release")
 endif()
 
+# Clang 23 added -Wunused-but-set-global to -Wall. Third-party plugins
+# (e.g. flutter_webrtc) trip it, and -Werror makes that fatal. Probe for the
+# flag so older Clang/GCC, which don't know it, are unaffected.
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-Wno-unused-but-set-global
+  HAVE_WNO_UNUSED_BUT_SET_GLOBAL)
+
 # Compilation settings that should be applied to most targets.
 #
 # Be cautious about adding new options here, as plugins use this function by
@@ -42,6 +49,9 @@ endif()
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  if(HAVE_WNO_UNUSED_BUT_SET_GLOBAL)
+    target_compile_options(${TARGET} PRIVATE -Wno-unused-but-set-global)
+  endif()
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
