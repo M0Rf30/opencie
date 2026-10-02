@@ -4,7 +4,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path/path.dart' as p;
 import 'package:qr_flutter/qr_flutter.dart';
@@ -15,6 +18,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/color_schemes.dart';
 import '../../services/handoff/desktop_handoff_session.dart';
 import '../../services/handoff/messages.dart';
+import '../../services/handoff/qr_image_decoder.dart';
+import '../../services/handoff/qr_payload.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_mark.dart';
@@ -36,10 +41,14 @@ class DesktopHandoffPage extends StatefulWidget {
   State<DesktopHandoffPage> createState() => _DesktopHandoffPageState();
 }
 
+enum _ReplyError { invalid, noQrInImage }
+
 class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
   late final DesktopHandoffSession _session;
   late final StreamSubscription<DesktopHandoffState> _sub;
   final TextEditingController _pasteCtrl = TextEditingController();
+  _ReplyError? _replyError;
+  bool _dragging = false;
 
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -71,15 +80,98 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
 
   // ── actions ───────────────────────────────────────────────────────────────
 
-  Future<void> _acceptQr2(String wire) async {
+  /// Characters that sneak in when copying from chat apps or web pages.
+  static final _invisibleChars = RegExp('[\u200B-\u200D\u2060\uFEFF]');
+  static const _wrappingQuotes = '"\'`\u201C\u201D\u2018\u2019\u00AB\u00BB';
+
+  /// Strips whitespace, zero-width characters and wrapping quotes that are
+  /// never part of a valid reply code.
+  static String _normalizeReply(String raw) {
+    var s = raw.replaceAll(_invisibleChars, '').trim();
+    while (s.length >= 2 &&
+        _wrappingQuotes.contains(s[0]) &&
+        _wrappingQuotes.contains(s[s.length - 1])) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
+  }
+
+  /// Whether [wire] is a fresh QR2 ("answer") payload the session can use.
+  /// Checked up front because [DesktopHandoffSession.acceptQr2] tears the
+  /// whole session down on a bad payload.
+  static bool _isValidReply(String wire) {
+    try {
+      final payload = HandoffQrPayload.decode(wire);
+      return payload.role == 'answer' && payload.isFresh();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _acceptQr2(String raw) async {
+    if (_session.state != DesktopHandoffState.showingQr) return;
+    final wire = _normalizeReply(raw);
+    if (!_isValidReply(wire)) {
+      if (mounted) setState(() => _replyError = _ReplyError.invalid);
+      return;
+    }
+    if (_replyError != null) setState(() => _replyError = null);
     try {
       await _session.acceptQr2(wire);
-    } catch (_) {}
+    } catch (_) {
+      // The session moved to its error state, which the page renders.
+    }
+  }
+
+  void _submitPasteField() {
+    if (_pasteCtrl.text.trim().isEmpty) return;
+    unawaited(_acceptQr2(_pasteCtrl.text));
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted) return;
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty) {
+      setState(() => _replyError = _ReplyError.invalid);
+      return;
+    }
+    _pasteCtrl.text = _normalizeReply(text);
+    await _acceptQr2(text);
+  }
+
+  Future<void> _openQrImage() async {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+    );
+    final path = file?.path;
+    if (path == null) return;
+    await _acceptImagePath(path);
+  }
+
+  /// Decodes the QR in the image at [path] and feeds it to [_acceptQr2].
+  Future<void> _acceptImagePath(String path) async {
+    String? text;
+    try {
+      text = await decodeQrFromImageBytes(await File(path).readAsBytes());
+    } catch (_) {
+      text = null;
+    }
+    if (!mounted) return;
+    if (text == null) {
+      setState(() => _replyError = _ReplyError.noQrInImage);
+      return;
+    }
+    _pasteCtrl.text = _normalizeReply(text);
+    await _acceptQr2(text);
   }
 
   /// Regenerates QR1 in place — used when the user waited long enough that
   /// the original offer may have gone stale before the phone scanned it.
   Future<void> _refreshQr() async {
+    _pasteCtrl.clear();
+    if (_replyError != null) setState(() => _replyError = null);
     try {
       await _session.start();
     } catch (_) {}
@@ -260,9 +352,9 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: left),
+                    Expanded(child: SingleChildScrollView(child: left)),
                     const SizedBox(width: 32),
-                    Expanded(child: right),
+                    Expanded(child: SingleChildScrollView(child: right)),
                   ],
                 );
               }
@@ -343,7 +435,12 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
   }
 
   Widget _qrRightPane(AppLocalizations l10n, ColorScheme cs) {
-    return Column(
+    final errorText = switch (_replyError) {
+      _ReplyError.invalid => l10n.handoffDesktopInvalidReply,
+      _ReplyError.noQrInImage => l10n.handoffDesktopNoQrInImage,
+      null => null,
+    };
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -359,31 +456,72 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
           ),
         ),
         const SizedBox(height: 20),
-        // Webcam scanner — falls back gracefully if no camera is available.
-        _ScannerBox(onScan: (wire) => _acceptQr2(wire)),
+        // Webcam scanner on supported platforms; instructions + drop target
+        // elsewhere.
+        _ScannerBox(onScan: (wire) => _acceptQr2(wire), dragging: _dragging),
         const SizedBox(height: 20),
         // Paste fallback
-        TextField(
-          controller: _pasteCtrl,
-          maxLines: 3,
-          decoration: InputDecoration(
-            hintText: l10n.handoffPasteQr2Hint,
-            filled: true,
-            fillColor: cs.surfaceContainerHigh,
+        CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.enter): _submitPasteField,
+            const SingleActivator(LogicalKeyboardKey.numpadEnter):
+                _submitPasteField,
+          },
+          child: TextField(
+            controller: _pasteCtrl,
+            maxLines: 3,
+            onChanged: (_) {
+              if (_replyError != null) setState(() => _replyError = null);
+            },
+            decoration: InputDecoration(
+              hintText: l10n.handoffPasteQr2Hint,
+              filled: true,
+              fillColor: cs.surfaceContainerHigh,
+              errorText: errorText,
+              errorMaxLines: 4,
+            ),
           ),
         ),
         const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pasteFromClipboard,
+              icon: const Icon(Icons.content_paste, size: 16),
+              label: Text(l10n.handoffDesktopPasteClipboard),
+            ),
+            OutlinedButton.icon(
+              onPressed: _openQrImage,
+              icon: const Icon(Icons.image_outlined, size: 16),
+              label: Text(l10n.handoffDesktopOpenImage),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: _pasteCtrl,
           builder: (_, value, _) => OcGradientButton(
             label: l10n.commonConfirm,
             onPressed: value.text.trim().isNotEmpty
-                ? () => _acceptQr2(_pasteCtrl.text.trim())
+                ? () => _acceptQr2(_pasteCtrl.text)
                 : null,
             expand: false,
           ),
         ),
       ],
+    );
+    return DropTarget(
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: (details) {
+        setState(() => _dragging = false);
+        if (details.files.isNotEmpty) {
+          unawaited(_acceptImagePath(details.files.first.path));
+        }
+      },
+      child: content,
     );
   }
 
@@ -729,9 +867,12 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
 
 /// Webcam QR scanner box. Gracefully degrades when no camera is available.
 class _ScannerBox extends StatefulWidget {
-  const _ScannerBox({required this.onScan});
+  const _ScannerBox({required this.onScan, required this.dragging});
 
   final void Function(String wire) onScan;
+
+  /// Whether an image is currently being dragged over the drop target.
+  final bool dragging;
 
   @override
   State<_ScannerBox> createState() => _ScannerBoxState();
@@ -740,7 +881,7 @@ class _ScannerBox extends StatefulWidget {
 class _ScannerBoxState extends State<_ScannerBox> {
   // mobile_scanner only supports Android, iOS, macOS, and web.
   // On Linux/Windows the plugin throws MissingPluginException at runtime,
-  // so skip controller construction and render the fallback box.
+  // so skip controller construction and show instructions instead.
   static bool get _platformSupported =>
       Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
@@ -771,6 +912,10 @@ class _ScannerBoxState extends State<_ScannerBox> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
+    if (!_platformSupported) {
+      return _noWebcamPanel(context, cs);
+    }
 
     if (_hasError || _ctrl == null) {
       return _errorBox(cs);
@@ -824,13 +969,76 @@ class _ScannerBoxState extends State<_ScannerBox> {
             color: cs.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
-          Text(
-            'Webcam non disponibile',
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 13,
-              color: cs.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              AppLocalizations.of(context).handoffDesktopWebcamUnavailable,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Instructions panel for platforms without webcam scanning. Doubles as the
+  /// visual drop target for a screenshot of the phone's reply code.
+  Widget _noWebcamPanel(BuildContext context, ColorScheme cs) {
+    final l10n = AppLocalizations.of(context);
+    final bodyStyle = TextStyle(
+      fontFamily: 'Inter',
+      fontSize: 13,
+      height: 1.5,
+      color: cs.onSurfaceVariant,
+    );
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: widget.dragging
+            ? cs.primary.withValues(alpha: 0.08)
+            : cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: widget.dragging ? cs.primary : cs.outlineVariant,
+          width: widget.dragging ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            widget.dragging
+                ? Icons.file_download_outlined
+                : Icons.no_photography_outlined,
+            size: 36,
+            color: widget.dragging ? cs.primary : cs.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.handoffDesktopNoWebcamTitle,
+            style: bodyStyle.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.handoffDesktopNoWebcamBody,
+            style: bodyStyle,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.handoffDesktopDropImage,
+            style: bodyStyle,
             textAlign: TextAlign.center,
           ),
         ],

@@ -19,6 +19,7 @@ import '../../core/theme/color_schemes.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../services/handoff/messages.dart';
 import '../../services/handoff/phone_handoff_session.dart';
+import '../../services/handoff/scanned_code_kind.dart';
 import '../../services/pin_throttle.dart';
 import '../../widgets/nfc_card_dialog.dart';
 import '../../widgets/oc_file_tile.dart';
@@ -51,6 +52,9 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
   /// Guard against double-firing the QR1 scanner callback.
   bool _qrScanned = false;
 
+  static const _foreignQrCooldown = Duration(seconds: 3);
+  DateTime? _lastForeignQrHint;
+
   /// Created once in [initState], never in `build()` — a controller
   /// created per-build leaks the camera session on every rebuild.
   MobileScannerController? _scannerCtrl;
@@ -81,14 +85,44 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
 
   Future<void> _onQr1Detected(String raw) async {
     if (_qrScanned) return;
-    if (!raw.startsWith('{')) return;
+    final kind = classifyScannedCode(raw);
+    if (kind != ScannedCodeKind.openCie) {
+      _showForeignQrHint(kind);
+      return;
+    }
     setState(() => _qrScanned = true);
     unawaited(_scannerCtrl?.stop());
     try {
-      await _session.startFromQr1(raw);
+      await _session.startFromQr1(raw.trim());
     } catch (_) {
-      // _session transitions to error; setState in listener rebuilds.
+      // _session transitions to error (message shown with a retry button);
+      // the listener's setState rebuilds.
     }
+  }
+
+  /// Tells the user the scanned code isn't for this screen. The scanner
+  /// fires many times per second, so each kind is shown at most once per
+  /// [_foreignQrCooldown] and SnackBars never stack.
+  void _showForeignQrHint(ScannedCodeKind kind) {
+    final now = DateTime.now();
+    final last = _lastForeignQrHint;
+    if (last != null && now.difference(last) < _foreignQrCooldown) return;
+    if (!mounted) return;
+    _lastForeignQrHint = now;
+    final l10n = AppLocalizations.of(context);
+    final message = kind == ScannedCodeKind.cieWebLogin
+        ? l10n.handoffPhoneCieLoginQr
+        : l10n.handoffPhoneNotOpenCieQr;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
   }
 
   // ── PIN dialog ────────────────────────────────────────────────────────────
@@ -456,7 +490,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
         const CircularProgressIndicator(),
         const SizedBox(height: 20),
         Text(
-          'Preparazione…',
+          l10n.handoffPhonePreparing,
           style: AppTheme.headlineBold(cs),
           textAlign: TextAlign.center,
         ),
@@ -535,7 +569,7 @@ class _PhoneHandoffPageState extends State<PhoneHandoffPage> {
           const CircularProgressIndicator(),
           const SizedBox(height: 12),
           OcMonoText(
-            'In attesa del computer…',
+            l10n.handoffPhoneWaitingForDesktop,
             color: cs.onSurfaceVariant,
             fontSize: 12,
           ),
