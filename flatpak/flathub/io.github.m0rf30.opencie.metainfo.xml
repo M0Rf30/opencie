@@ -60,6 +60,16 @@
   </screenshots>
 
   <releases>
+    <release version="0.5.0" date="2026-10-05">
+      <description>
+        <p>Chip data with the CAN and easier signature placement, with native library opencie-pkcs11 1.3.0.</p>
+        <ul>
+          <li>Photo and personal data are read with the CAN, the 6-digit number printed on the front of the card. The CAN is not stored. Readers that can't use the CAN can read with the PIN instead.</li>
+          <li>The signature box can be moved and resized with its corners and edges, keeps the image proportions, and the whole page fits in view.</li>
+          <li>Cards paired with the official CIE ID app open a session with their existing certificate cache.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.6" date="2026-10-02">
       <description>
         <p>Chip reading fix, with native library opencie-pkcs11 1.2.3.</p>
