@@ -11,6 +11,9 @@ import '../../../widgets/oc_file_tile.dart';
 import '../../../widgets/oc_gradient_button.dart';
 import '../../../widgets/oc_section_label.dart';
 import '../../../widgets/oc_status_disc.dart';
+import '../../../services/sign/signature_upgrader.dart'
+    show SignatureUpgradeWarning;
+import '../utils/upgrade_warning_text.dart';
 
 /// Success dialog shown after a document is signed.
 ///
@@ -26,6 +29,9 @@ class SignedResultDialog extends StatelessWidget {
     required this.onOpenFile,
     required this.onVerifyFile,
     this.tsaLabel,
+    this.timestamped = false,
+    this.warning,
+    this.warningDetail,
   });
 
   final String outputPath;
@@ -35,6 +41,17 @@ class SignedResultDialog extends StatelessWidget {
 
   /// Display name of the TSA that stamped the document, when timestamped.
   final String? tsaLabel;
+
+  /// Whether a timestamp was actually written into the signed file (not
+  /// merely requested).
+  final bool timestamped;
+
+  /// Set when the signature succeeded but the timestamp / LTV upgrade did
+  /// not fully succeed; the signed file is kept regardless.
+  final SignatureUpgradeWarning? warning;
+
+  /// Technical detail for [warning].
+  final String? warningDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +106,7 @@ class SignedResultDialog extends StatelessWidget {
 
             // Format mono subtitle
             OcMonoText(
-              '${options.format.displayName.split(' ').first}${options.addTimestamp ? ' · TSA' : ''}',
+              '${options.format.displayName.split(' ').first}${timestamped ? ' · TSA' : ''}',
               color: cs.onSurfaceVariant,
               fontSize: 12,
             ),
@@ -154,11 +171,47 @@ class SignedResultDialog extends StatelessWidget {
                   ),
                   _DiagRow(
                     label: l10n.signedResultTsa,
-                    value: options.addTimestamp ? (tsaLabel ?? '—') : '—',
+                    value: timestamped ? (tsaLabel ?? '—') : '—',
                   ),
                 ],
               ),
             ),
+            if (warning != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                key: const ValueKey('signedResultWarning'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cs.tertiaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: cs.onTertiaryContainer,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        upgradeWarningText(
+                          l10n,
+                          warning!,
+                          detail: warningDetail,
+                        ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onTertiaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
 
             // Action buttons

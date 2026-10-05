@@ -43,6 +43,7 @@ class PdfSignaturePlacer extends StatefulWidget {
     required this.imageData,
     required this.onChanged,
     required this.alignedFieldName,
+    this.includeDate = true,
     super.key,
   });
 
@@ -54,6 +55,10 @@ class PdfSignaturePlacer extends StatefulWidget {
   final double sigH;
   final Uint8List? imageData;
   final String? alignedFieldName;
+
+  /// Whether the generated default appearance shows the signing date
+  /// (the `includeDate` setting).
+  final bool includeDate;
   final void Function({
     required int page,
     required double x,
@@ -106,6 +111,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       _sigFields = const [];
       _loadSigFields();
     }
+    if (old.includeDate != widget.includeDate) {
+      _regenerateDefaultImage();
+    }
     _resolveImageAspect();
   }
 
@@ -142,7 +150,9 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
     if (_generatingDefault || _defaultImageData != null) return;
     setState(() => _generatingDefault = true);
     try {
-      final bytes = await generateDefaultSignatureImage();
+      final bytes = await generateDefaultSignatureImage(
+        includeDate: widget.includeDate,
+      );
       if (mounted) {
         setState(() {
           _defaultImageData = bytes;
@@ -163,6 +173,36 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       }
     } catch (_) {
       if (mounted) setState(() => _generatingDefault = false);
+    }
+  }
+
+  /// Re-renders the default appearance after the `includeDate` setting
+  /// changed. A user-picked custom image is left alone; only an image that
+  /// is (still) the generated default follows the change.
+  Future<void> _regenerateDefaultImage() async {
+    final previous = _defaultImageData;
+    final followsDefault =
+        widget.imageData == null || identical(widget.imageData, previous);
+    try {
+      final bytes = await generateDefaultSignatureImage(
+        includeDate: widget.includeDate,
+      );
+      if (!mounted) return;
+      setState(() => _defaultImageData = bytes);
+      _resolveImageAspect();
+      if (followsDefault) {
+        widget.onChanged(
+          page: _pageIndex,
+          x: widget.sigX,
+          y: widget.sigY,
+          w: widget.sigW,
+          h: widget.sigH,
+          imageData: bytes,
+          alignedFieldName: widget.alignedFieldName,
+        );
+      }
+    } catch (e) {
+      debugPrint('PdfSignaturePlacer._regenerateDefaultImage: $e');
     }
   }
 

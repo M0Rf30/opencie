@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import '../../models/signature_options.dart';
+import '../sign/signature_upgrader.dart' show SignatureUpgradeWarning;
 
 enum BatchSignItemStatus {
   pending,
@@ -20,6 +21,16 @@ class BatchSignItem {
   final String? outputPath; // when success
   final int? errorCode; // CieResult.returnValue when failed
 
+  /// A timestamp was written into [outputPath] (success only).
+  final bool timestamped;
+
+  /// Set when the signature succeeded but the timestamp/LTV upgrade did not
+  /// fully succeed. The signed file is kept either way.
+  final SignatureUpgradeWarning? warning;
+
+  /// Technical detail for [warning] (not localized).
+  final String? warningDetail;
+
   const BatchSignItem({
     required this.inputPath,
     required this.format,
@@ -28,6 +39,9 @@ class BatchSignItem {
     this.message,
     this.outputPath,
     this.errorCode,
+    this.timestamped = false,
+    this.warning,
+    this.warningDetail,
   });
 
   BatchSignItem copyWith({
@@ -38,6 +52,9 @@ class BatchSignItem {
     String? message,
     String? outputPath,
     int? errorCode,
+    bool? timestamped,
+    SignatureUpgradeWarning? warning,
+    String? warningDetail,
   }) {
     return BatchSignItem(
       inputPath: inputPath ?? this.inputPath,
@@ -47,6 +64,9 @@ class BatchSignItem {
       message: message ?? this.message,
       outputPath: outputPath ?? this.outputPath,
       errorCode: errorCode ?? this.errorCode,
+      timestamped: timestamped ?? this.timestamped,
+      warning: warning ?? this.warning,
+      warningDetail: warningDetail ?? this.warningDetail,
     );
   }
 }

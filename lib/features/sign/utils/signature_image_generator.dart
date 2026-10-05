@@ -5,9 +5,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+/// Renders the default PAdES signature appearance as a PNG.
+///
+/// The "Data: …" line is drawn only when [includeDate] is true (mirrors the
+/// `includeDate` setting).
 Future<Uint8List> generateDefaultSignatureImage({
   String? signerCN,
   DateTime? signingDate,
+  bool includeDate = true,
 }) async {
   const double w = 600;
   const double h = 180;
@@ -97,11 +102,18 @@ Future<Uint8List> generateDefaultSignatureImage({
   final name = signerCN?.isNotEmpty == true ? signerCN! : 'Titolare CIE';
   drawLine(name, 60, fontSize: 26, weight: FontWeight.w600);
 
-  final now = signingDate ?? DateTime.now();
-  final dateStr =
-      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}'
-      '  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-  drawLine('Data: $dateStr', 100, fontSize: 20, color: const Color(0xFF37474F));
+  if (includeDate) {
+    final now = signingDate ?? DateTime.now();
+    final dateStr =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}'
+        '  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    drawLine(
+      'Data: $dateStr',
+      100,
+      fontSize: 20,
+      color: const Color(0xFF37474F),
+    );
+  }
 
   drawLine(
     'opencie · firma qualificata eIDAS',

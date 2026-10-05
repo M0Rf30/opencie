@@ -8,6 +8,7 @@ import 'package:opencie/models/signature_options.dart';
 import 'package:opencie/services/batch_sign/batch_sign_models.dart';
 import 'package:opencie/services/batch_sign/batch_sign_service.dart';
 import 'package:opencie/services/sign/sign_backend.dart';
+import 'package:opencie/services/sign/signature_upgrader.dart';
 
 /// Fake implementation of SignBackend for testing.
 class _FakeSignBackend implements SignBackend {
@@ -41,6 +42,29 @@ class _FakeSignBackend implements SignBackend {
 
     return resultMap[inputPath] ??
         const CieResult(returnValue: AppConstants.ckrOk);
+  }
+}
+
+/// Fake [SignatureUpgrader]: records the upgraded paths, no I/O.
+class _FakeUpgrader implements SignatureUpgrader {
+  _FakeUpgrader({
+    this.result = const SignatureUpgradeResult(timestamped: true),
+    this.throwError = false,
+  });
+
+  final SignatureUpgradeResult result;
+  final bool throwError;
+  final upgraded = <String>[];
+
+  @override
+  Future<SignatureUpgradeResult> upgrade({
+    required String path,
+    required SignatureFormat format,
+    required SignatureUpgradeSettings settings,
+  }) async {
+    if (throwError) throw StateError('boom');
+    upgraded.add(path);
+    return result;
   }
 }
 
@@ -264,6 +288,117 @@ void main() {
       final finalState = states.last;
       expect(finalState.isRunning, false);
       expect(finalState.successCount, 2);
+    });
+  });
+
+  group('BatchSignService timestamping', () {
+    Future<BatchSignState> runBatch(
+      List<BatchSignItem> items,
+      _FakeUpgrader upgrader, {
+      bool addTimestamp = true,
+      Map<String, CieResult> results = const {},
+    }) async {
+      final service = BatchSignService(
+        backend: _FakeSignBackend(resultMap: results),
+        upgrader: upgrader,
+      );
+      final states = <BatchSignState>[];
+      await service
+          .run(
+            items: items,
+            pin: '1234',
+            pan: '',
+            outputPathBuilder: (inputPath, format) => '$inputPath.out',
+            addTimestamp: addTimestamp,
+          )
+          .forEach(states.add);
+      return states.last;
+    }
+
+    test('upgrades each signed file when addTimestamp is on', () async {
+      final upgrader = _FakeUpgrader();
+      final state = await runBatch([
+        BatchSignItem(inputPath: '/a.pdf', format: SignatureFormat.pades),
+        BatchSignItem(inputPath: '/b.pdf', format: SignatureFormat.pades),
+      ], upgrader);
+
+      expect(upgrader.upgraded, ['/a.pdf.out', '/b.pdf.out']);
+      expect(state.successCount, 2);
+      for (final item in state.items) {
+        expect(item.timestamped, isTrue);
+        expect(item.warning, isNull);
+      }
+    });
+
+    test('does not upgrade when addTimestamp is off', () async {
+      final upgrader = _FakeUpgrader();
+      final state = await runBatch(
+        [BatchSignItem(inputPath: '/a.pdf', format: SignatureFormat.pades)],
+        upgrader,
+        addTimestamp: false,
+      );
+
+      expect(upgrader.upgraded, isEmpty);
+      expect(state.items.single.timestamped, isFalse);
+      expect(state.items.single.warning, isNull);
+    });
+
+    test('skips XAdES: no upgrade, no warning', () async {
+      final upgrader = _FakeUpgrader();
+      final state = await runBatch([
+        BatchSignItem(inputPath: '/a.xml', format: SignatureFormat.xades),
+      ], upgrader);
+
+      expect(upgrader.upgraded, isEmpty);
+      expect(state.items.single.status, BatchSignItemStatus.success);
+      expect(state.items.single.warning, isNull);
+    });
+
+    test('upgrade warning keeps the item successful and records it', () async {
+      final upgrader = _FakeUpgrader(
+        result: const SignatureUpgradeResult(
+          warning: SignatureUpgradeWarning.timestampFailed,
+          detail: 'TSA unreachable',
+        ),
+      );
+      final state = await runBatch([
+        BatchSignItem(inputPath: '/a.pdf', format: SignatureFormat.pades),
+      ], upgrader);
+
+      final item = state.items.single;
+      expect(item.status, BatchSignItemStatus.success);
+      expect(item.outputPath, '/a.pdf.out');
+      expect(item.timestamped, isFalse);
+      expect(item.warning, SignatureUpgradeWarning.timestampFailed);
+      expect(item.warningDetail, 'TSA unreachable');
+    });
+
+    test('an upgrader that throws never fails the item', () async {
+      final upgrader = _FakeUpgrader(throwError: true);
+      final state = await runBatch([
+        BatchSignItem(inputPath: '/a.pdf', format: SignatureFormat.pades),
+        BatchSignItem(inputPath: '/b.pdf', format: SignatureFormat.pades),
+      ], upgrader);
+
+      expect(state.successCount, 2);
+      expect(state.failedCount, 0);
+      for (final item in state.items) {
+        expect(item.warning, SignatureUpgradeWarning.timestampFailed);
+      }
+    });
+
+    test('failed signature is never upgraded', () async {
+      final upgrader = _FakeUpgrader();
+      final state = await runBatch(
+        [BatchSignItem(inputPath: '/a.pdf', format: SignatureFormat.pades)],
+        upgrader,
+        results: {
+          '/a.pdf': const CieResult(returnValue: AppConstants.ckrGeneralError),
+        },
+      );
+
+      expect(upgrader.upgraded, isEmpty);
+      expect(state.failedCount, 1);
     });
   });
 }

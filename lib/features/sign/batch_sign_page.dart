@@ -14,6 +14,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/batch_sign_provider.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../services/batch_sign/batch_sign_models.dart';
+import 'utils/upgrade_warning_text.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_page.dart';
 import '../../widgets/pin_entry_dialog.dart';
@@ -245,6 +246,35 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
                   style: TextStyle(fontSize: 12, color: cs.error),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            if (item.status == BatchSignItemStatus.success &&
+                item.warning != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 16,
+                      color: cs.tertiary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        upgradeWarningText(
+                          l10n,
+                          item.warning!,
+                          detail: item.warningDetail,
+                        ),
+                        key: const ValueKey('batchItemWarning'),
+                        style: TextStyle(fontSize: 12, color: cs.tertiary),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

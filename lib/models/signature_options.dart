@@ -14,6 +14,11 @@ enum SignatureFormat {
   final String nativeType;
   final String displayName;
   final String extension;
+
+  /// Whether the post-sign LTV/timestamp upgrade (PAdES-LT/LTA, CAdES-LT/LTA)
+  /// exists for this format. There is no XAdES upgrader, so a timestamp
+  /// cannot be applied to `.xml` signatures.
+  bool get supportsTimestamp => this != SignatureFormat.xades;
 }
 
 class SignatureOptions {
@@ -27,8 +32,6 @@ class SignatureOptions {
     this.height = 0.095,
     this.imageData,
     this.addTimestamp = false,
-    this.reason,
-    this.location,
     this.alignedFieldName,
   });
 
@@ -47,8 +50,10 @@ class SignatureOptions {
   final String? alignedFieldName;
   final Uint8List? imageData;
   final bool addTimestamp;
-  final String? reason;
-  final String? location;
+
+  /// Whether a timestamp will actually be requested for this signature:
+  /// the toggle is on and the format can carry one.
+  bool get timestampRequested => addTimestamp && format.supportsTimestamp;
 
   SignatureOptions copyWith({
     SignatureFormat? format,
@@ -60,8 +65,6 @@ class SignatureOptions {
     double? height,
     Uint8List? imageData,
     bool? addTimestamp,
-    String? reason,
-    String? location,
     String? alignedFieldName,
     bool clearAlignedFieldName = false,
   }) {
@@ -75,8 +78,6 @@ class SignatureOptions {
       height: height ?? this.height,
       imageData: imageData ?? this.imageData,
       addTimestamp: addTimestamp ?? this.addTimestamp,
-      reason: reason ?? this.reason,
-      location: location ?? this.location,
       alignedFieldName: clearAlignedFieldName
           ? null
           : (alignedFieldName ?? this.alignedFieldName),

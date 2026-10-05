@@ -37,6 +37,7 @@ import '../../services/nfc_service.dart';
 import '../../services/cie_error.dart';
 import '../../services/pin_throttle.dart';
 import '../../services/storage_service.dart';
+import '../../services/sign/signature_upgrader.dart';
 import '../../widgets/oc_help_sheet.dart';
 import 'batch_sign_page.dart';
 import 'sign_requirements.dart';
@@ -85,6 +86,19 @@ class _SignPageState extends ConsumerState<SignPage> {
   @override
   void initState() {
     super.initState();
+    // The timestamp toggle starts from the `alwaysTimestamp` setting and
+    // follows later changes to it; the user can still flip it per document.
+    _options = SignatureOptions(
+      addTimestamp: ref.read(settingsProvider).alwaysTimestamp,
+    );
+    ref.listenManual(settingsProvider.select((s) => s.alwaysTimestamp), (
+      _,
+      enabled,
+    ) {
+      if (mounted) {
+        setState(() => _options = _options.copyWith(addTimestamp: enabled));
+      }
+    });
     _subscribeReaders();
   }
 
@@ -183,7 +197,9 @@ class _SignPageState extends ConsumerState<SignPage> {
           options.format == SignatureFormat.pades &&
           options.imageData == null) {
         try {
-          final bytes = await generateDefaultSignatureImage();
+          final bytes = await generateDefaultSignatureImage(
+            includeDate: ref.read(settingsProvider).includeDate,
+          );
           options = options.copyWith(imageData: bytes);
           if (mounted) setState(() => _options = options);
         } catch (_) {}
@@ -322,6 +338,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     // desktop, or via `_onCardDetectedForSign` on Android).
 
     String? successPath;
+    SignatureUpgradeResult? upgrade;
 
     try {
       final file = _selectedFile!;
@@ -366,6 +383,30 @@ class _SignPageState extends ConsumerState<SignPage> {
               ),
             );
         successPath = outputPath;
+
+        // Timestamp / LTV upgrade. The native signature is already valid
+        // and on disk, so any failure here only produces a warning.
+        if (options.timestampRequested) {
+          _nfcNotifier.value = (false, 1.0, l10n.cieProgressTimestamping);
+          try {
+            upgrade = await ref
+                .read(signatureUpgraderProvider)
+                .upgrade(
+                  path: outputPath,
+                  format: options.format,
+                  settings: SignatureUpgradeSettings.fromAppSettings(
+                    ref.read(settingsProvider),
+                  ),
+                );
+          } catch (e) {
+            debugPrint('SignPage._executeSign: timestamp upgrade failed ($e)');
+            upgrade = SignatureUpgradeResult(
+              warning: SignatureUpgradeWarning.timestampFailed,
+              detail: e.toString(),
+            );
+          }
+          if (!mounted) return;
+        }
 
         if (Platform.isAndroid) {
           final settings = ref.read(settingsProvider);
@@ -443,7 +484,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     }
 
     if (successPath != null && mounted) {
-      _showSignedResultDialog(successPath);
+      _showSignedResultDialog(successPath, upgrade);
     }
   }
 
@@ -514,7 +555,10 @@ class _SignPageState extends ConsumerState<SignPage> {
 
   // ── Success dialog ──────────────────────────────────────────────────────────
 
-  void _showSignedResultDialog(String outputPath) {
+  void _showSignedResultDialog(
+    String outputPath, [
+    SignatureUpgradeResult? upgrade,
+  ]) {
     showDialog<void>(
       context: context,
       builder: (_) => SignedResultDialog(
@@ -525,6 +569,9 @@ class _SignPageState extends ConsumerState<SignPage> {
         tsaLabel: tsaDisplayName(
           ref.read(settingsProvider).tsaConfig.serverUrl,
         ),
+        timestamped: upgrade?.timestamped ?? false,
+        warning: upgrade?.warning,
+        warningDetail: upgrade?.detail,
       ),
     );
   }
@@ -704,6 +751,9 @@ class _SignPageState extends ConsumerState<SignPage> {
                         sigH: _options.height,
                         imageData: _options.imageData,
                         alignedFieldName: _options.alignedFieldName,
+                        includeDate: ref.watch(
+                          settingsProvider.select((s) => s.includeDate),
+                        ),
                         onChanged:
                             ({
                               required int page,
@@ -1144,8 +1194,11 @@ class _SignPageState extends ConsumerState<SignPage> {
             context,
             cs,
             label: l10n.signAddTimestamp,
-            enabled: true,
-            value: _options.addTimestamp,
+            enabled: _options.format.supportsTimestamp,
+            value: _options.timestampRequested,
+            subtitle: _options.format.supportsTimestamp
+                ? null
+                : l10n.signTimestampUnsupportedXades,
             onToggled: _onTimestampToggled,
           ),
           const SizedBox(height: 14),
@@ -1235,6 +1288,7 @@ class _SignPageState extends ConsumerState<SignPage> {
     required bool enabled,
     required bool value,
     required ValueChanged<bool> onToggled,
+    String? subtitle,
   }) {
     return Material(
       type: MaterialType.transparency,
@@ -1250,6 +1304,17 @@ class _SignPageState extends ConsumerState<SignPage> {
             fontSize: 14,
           ),
         ),
+        subtitle: subtitle == null
+            ? null
+            : Text(
+                subtitle,
+                key: const ValueKey('signToggleHint'),
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  color: cs.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
         value: value,
         onChanged: enabled ? onToggled : null,
       ),
@@ -1410,6 +1475,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                         sigH: _options.height,
                         imageData: _options.imageData,
                         alignedFieldName: _options.alignedFieldName,
+                        includeDate: settings.includeDate,
                         onChanged:
                             ({
                               required int page,
@@ -1482,7 +1548,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                           _OptionsRow(
                             icon: Icons.schedule_rounded,
                             label: l10n.signAddTimestamp,
-                            value: _options.addTimestamp
+                            value: _options.timestampRequested
                                 ? tsaDisplayName(settings.tsaConfig.serverUrl)
                                 : l10n.signTimestampOff,
                           ),
@@ -1523,8 +1589,11 @@ class _SignPageState extends ConsumerState<SignPage> {
                       context,
                       cs,
                       label: l10n.signAddTimestamp,
-                      enabled: true,
-                      value: _options.addTimestamp,
+                      enabled: _options.format.supportsTimestamp,
+                      value: _options.timestampRequested,
+                      subtitle: _options.format.supportsTimestamp
+                          ? null
+                          : l10n.signTimestampUnsupportedXades,
                       onToggled: _onTimestampToggled,
                     ),
 

@@ -262,7 +262,7 @@ class CadesSignedData {
 
     // Add new unsignedAttrs if not empty
     if (_unsignedAttrs.isNotEmpty) {
-      final unsignedAttrsSet = ASN1Set();
+      final attrs = <ASN1Object>[];
       for (final oid in _unsignedAttrs.keys) {
         final attrValueSetDer = _unsignedAttrs[oid]!;
         final attr = ASN1Sequence();
@@ -270,10 +270,12 @@ class CadesSignedData {
         // attrValues is already a SET, parse and add it
         final attrValuesSet = derDecode(attrValueSetDer);
         attr.add(attrValuesSet);
-        unsignedAttrsSet.add(attr);
+        attrs.add(attr);
       }
+      // SET OF must be in DER canonical order (X.690 §11.6): sort by the
+      // encoded Attribute, independent of insertion order.
       // Wrap as [1] IMPLICIT
-      newSignerInfo0.add(_wrapImplicit(1, unsignedAttrsSet));
+      newSignerInfo0.add(_wrapImplicit(1, derSortedSet(attrs)));
     }
 
     return derEncode(newSignerInfo0);
@@ -499,6 +501,23 @@ class CadesSignedData {
       }
     }
 
+    throw CadesException('SignerInfo[0] missing signature OCTET STRING');
+  }
+
+  /// The content octets of the SignerInfo `signature` OCTET STRING (no tag /
+  /// length). This is the value that a CAdES signature-time-stamp
+  /// (id-aa-signatureTimeStampToken) imprints (ETSI EN 319 122-1 §5.3).
+  Uint8List get signatureValueBytes {
+    if (_signerInfo0.elements == null) {
+      throw CadesException('SignerInfo[0] is empty');
+    }
+    for (final elem in _signerInfo0.elements!) {
+      if (elem is ASN1OctetString) {
+        final v = elem.octets ?? elem.valueBytes;
+        if (v == null) break;
+        return v;
+      }
+    }
     throw CadesException('SignerInfo[0] missing signature OCTET STRING');
   }
 

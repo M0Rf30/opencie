@@ -8,6 +8,9 @@ import '../models/signature_options.dart';
 import '../services/batch_sign/batch_sign_models.dart';
 import '../services/batch_sign/batch_sign_service.dart';
 import '../services/sign/output_path_resolver.dart';
+import '../services/sign/signature_upgrader.dart';
+import 'settings_provider.dart';
+import 'sign_backend_provider.dart';
 
 class BatchSignNotifier extends Notifier<BatchSignState> {
   late BatchSignService _service;
@@ -15,7 +18,7 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
 
   @override
   BatchSignState build() {
-    _service = BatchSignService();
+    _service = _newService();
     return const BatchSignState();
   }
 
@@ -41,10 +44,11 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
   Future<void> start({required String pin, required String pan}) async {
     _subscription?.cancel();
 
-    _service = BatchSignService();
+    _service = _newService();
     state = state.copyWith(isRunning: true);
 
     final items = state.items;
+    final settings = ref.read(settingsProvider);
     // Pre-resolve every output path asynchronously (via the shared
     // `resolveSignedOutputPath`, which uses package:path and knows about
     // Android's app-private documents directory) since the batch service's
@@ -69,6 +73,8 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
             );
             return resolved ?? inputPath;
           },
+          addTimestamp: settings.alwaysTimestamp,
+          upgradeSettings: SignatureUpgradeSettings.fromAppSettings(settings),
         )
         .listen(
           (newState) {
@@ -79,6 +85,11 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
           },
         );
   }
+
+  BatchSignService _newService() => BatchSignService(
+    backend: ref.read(signBackendProvider),
+    upgrader: ref.read(signatureUpgraderProvider),
+  );
 
   void cancel() {
     _service.cancel();

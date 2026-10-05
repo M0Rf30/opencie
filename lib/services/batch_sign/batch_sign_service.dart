@@ -1,28 +1,40 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'package:flutter/foundation.dart';
+
 import '../../models/signature_options.dart';
 import '../pin_throttle.dart';
 import '../sign/sign_backend.dart';
+import '../sign/signature_upgrader.dart';
 import 'batch_sign_models.dart';
 
 /// Service for batch signing operations.
 /// Streams BatchSignState updates as files are signed sequentially.
 class BatchSignService {
-  BatchSignService({SignBackend? backend})
-    : _backend = backend ?? Pkcs11SignBackend();
+  BatchSignService({SignBackend? backend, SignatureUpgrader? upgrader})
+    : _backend = backend ?? Pkcs11SignBackend(),
+      _upgrader = upgrader ?? LtvSignatureUpgrader();
 
   final SignBackend _backend;
+  final SignatureUpgrader _upgrader;
   bool _cancelled = false;
 
   /// Streams BatchSignState updates as the batch progresses.
   /// Cancellation is cooperative: caller calls cancel() and the loop stops
   /// after the currently-signing file completes.
+  ///
+  /// When [addTimestamp] is set, every successfully signed file whose format
+  /// supports it is upgraded (LTV + timestamp) using [upgradeSettings]. An
+  /// upgrade failure never fails the item: the signed file is kept and the
+  /// item records a [BatchSignItem.warning].
   Stream<BatchSignState> run({
     required List<BatchSignItem> items,
     required String pin,
     required String pan,
     required String Function(String inputPath, SignatureFormat fmt)
     outputPathBuilder,
+    bool addTimestamp = false,
+    SignatureUpgradeSettings upgradeSettings = const SignatureUpgradeSettings(),
   }) async* {
     _cancelled = false;
 
@@ -88,12 +100,28 @@ class BatchSignService {
             PinThrottle.reset();
           }
           // Success
+          var timestamped = false;
+          SignatureUpgradeWarning? warning;
+          String? warningDetail;
+          if (addTimestamp && item.format.supportsTimestamp) {
+            final upgrade = await _upgradeSafely(
+              outputPath,
+              item.format,
+              upgradeSettings,
+            );
+            timestamped = upgrade.timestamped;
+            warning = upgrade.warning;
+            warningDetail = upgrade.detail;
+          }
           updatedItems = [
             ...state.items.sublist(0, i),
             item.copyWith(
               status: BatchSignItemStatus.success,
               progress: 1.0,
               outputPath: outputPath,
+              timestamped: timestamped,
+              warning: warning,
+              warningDetail: warningDetail,
             ),
             ...state.items.sublist(i + 1),
           ];
@@ -164,6 +192,28 @@ class BatchSignService {
     // Final state: not running
     state = state.copyWith(isRunning: false, currentIndex: -1);
     yield state;
+  }
+
+  /// Runs the upgrade, turning any unexpected throw into a warning so a
+  /// signed file is never reported as failed because of its timestamp.
+  Future<SignatureUpgradeResult> _upgradeSafely(
+    String path,
+    SignatureFormat format,
+    SignatureUpgradeSettings settings,
+  ) async {
+    try {
+      return await _upgrader.upgrade(
+        path: path,
+        format: format,
+        settings: settings,
+      );
+    } catch (e) {
+      debugPrint('BatchSignService._upgradeSafely: $e');
+      return SignatureUpgradeResult(
+        warning: SignatureUpgradeWarning.timestampFailed,
+        detail: e.toString(),
+      );
+    }
   }
 
   /// Signal cooperative stop. The current file will complete, then remaining
