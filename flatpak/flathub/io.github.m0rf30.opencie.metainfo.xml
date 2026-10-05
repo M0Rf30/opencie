@@ -66,6 +66,18 @@ SPDX-License-Identifier: CC0-1.0
   </screenshots>
 
   <releases>
+    <release version="0.5.2" date="2026-10-05">
+      <description>
+        <p>Timestamped signatures and chip reading fixes, with native library opencie-pkcs11 1.3.3.</p>
+        <ul>
+          <li>The "Add timestamp" option now timestamps signed PDF and P7M files and embeds validation data for long-term verification.</li>
+          <li>Timestamping works through HTTP and SOCKS proxies and sends the configured TSA policy.</li>
+          <li>When the reader can't reset the card, the app asks to lift it and put it back instead of failing.</li>
+          <li>New language setting (system, Italian, English) and an "Always add timestamp" option.</li>
+          <li>Removed settings that had no effect.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-10-05">
       <description>
         <p>Chip reading fix, with native library opencie-pkcs11 1.3.2.</p>
