@@ -211,4 +211,81 @@ void main() {
       expect(m.crls, hasLength(1));
     });
   });
+
+  group('CollectedValidationMaterial.merge', () {
+    Uint8List b(List<int> v) => Uint8List.fromList(v);
+    CrlData crl(List<int> raw) => CrlData(
+      rawCrl: b(raw),
+      issuerDn: b([1]),
+      thisUpdate: DateTime.utc(2026),
+    );
+    OcspResponse ocsp(List<int> raw) => OcspResponse(
+      status: OcspResponseStatus.successful,
+      rawResponse: b(raw),
+    );
+
+    test('keeps this material first and drops duplicates by bytes', () {
+      final a = CollectedValidationMaterial(
+        certificates: [
+          b([1]),
+          b([2]),
+        ],
+        crls: [
+          crl([10]),
+        ],
+        ocspResponses: [
+          ocsp([20]),
+        ],
+      );
+      final other = CollectedValidationMaterial(
+        certificates: [
+          b([2]),
+          b([3]),
+        ],
+        crls: [
+          crl([10]),
+          crl([11]),
+        ],
+        ocspResponses: [
+          ocsp([20]),
+          ocsp([21]),
+        ],
+      );
+
+      final m = a.merge(other);
+
+      expect(m.certificates, [
+        b([1]),
+        b([2]),
+        b([3]),
+      ]);
+      expect(m.crls.map((c) => c.rawCrl).toList(), [
+        b([10]),
+        b([11]),
+      ]);
+      expect(m.ocspResponses.map((r) => r.rawResponse).toList(), [
+        b([20]),
+        b([21]),
+      ]);
+      expect(m.hasRevocationData, isTrue);
+      expect(m.isEmpty, isFalse);
+    });
+
+    test('merging empty material is a no-op', () {
+      const empty = CollectedValidationMaterial();
+      expect(empty.isEmpty, isTrue);
+      final a = CollectedValidationMaterial(
+        certificates: [
+          b([1]),
+        ],
+      );
+      expect(a.merge(empty).certificates, [
+        b([1]),
+      ]);
+      expect(empty.merge(a).certificates, [
+        b([1]),
+      ]);
+      expect(a.merge(empty).hasRevocationData, isFalse);
+    });
+  });
 }

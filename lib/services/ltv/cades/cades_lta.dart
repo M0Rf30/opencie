@@ -32,11 +32,15 @@ class CadesLtaUpgrader {
     required this.tspClient,
     required this.tspUrl,
     this.hashAlgorithmOid = Oid.sha256,
+    this.policyOid,
   });
 
   final TspClient tspClient;
   final Uri tspUrl;
   final String hashAlgorithmOid;
+
+  /// Optional TSA policy OID (RFC 3161 `reqPolicy`); blank means none.
+  final String? policyOid;
 
   /// Upgrades a CAdES C-LT (or higher) signature to C-LTA by adding an
   /// archive-time-stamp-v3 unsigned attribute.
@@ -58,7 +62,11 @@ class CadesLtaUpgrader {
       final unsignedAttrsDerList = unsignedAttrsForArchive
           .map((e) => e.value)
           .toList();
-      // Sort by full DER bytes ascending (DER-canonical order)
+      // Sort by full DER bytes ascending (DER-canonical order). This only
+      // normalises the imprint input: the attributes themselves stay in
+      // their original file order (CadesSignedData preserves it; ETSI
+      // EN 319 122-1 clause 5.5.3 requires existing unsigned attributes'
+      // encoding to be preserved when augmenting).
       unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
       final unsignedAttrsConcatenated = Uint8List.fromList(
         unsignedAttrsDerList.expand((bytes) => bytes).toList(),
@@ -78,6 +86,7 @@ class CadesLtaUpgrader {
         archiveTimestampInput,
         hashAlgorithmOid: hashAlgorithmOid,
         requestCert: true,
+        policyOid: policyOid,
       );
 
       // 6. Validate response

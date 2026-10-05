@@ -76,6 +76,40 @@ class CollectedValidationMaterial {
 
   /// Whether any revocation evidence (not just certificates) was found.
   bool get hasRevocationData => crls.isNotEmpty || ocspResponses.isNotEmpty;
+
+  /// Whether there is nothing at all (no certificates, no evidence).
+  bool get isEmpty =>
+      certificates.isEmpty && crls.isEmpty && ocspResponses.isEmpty;
+
+  /// This material followed by [other]'s, without duplicates (same
+  /// certificate bytes, same CRL bytes, same OCSP response bytes).
+  CollectedValidationMaterial merge(CollectedValidationMaterial other) {
+    final certs = <Uint8List>[...certificates];
+    for (final c in other.certificates) {
+      if (!certs.any((o) => bytesEqual(o, c))) certs.add(c);
+    }
+    final mergedCrls = <CrlData>[...crls];
+    for (final c in other.crls) {
+      if (!mergedCrls.any((o) => bytesEqual(o.rawCrl, c.rawCrl))) {
+        mergedCrls.add(c);
+      }
+    }
+    final mergedOcsp = <OcspResponse>[...ocspResponses];
+    for (final r in other.ocspResponses) {
+      final raw = r.rawResponse;
+      final dup = mergedOcsp.any((o) {
+        final oRaw = o.rawResponse;
+        if (raw == null || oRaw == null) return identical(o, r);
+        return bytesEqual(oRaw, raw);
+      });
+      if (!dup) mergedOcsp.add(r);
+    }
+    return CollectedValidationMaterial(
+      certificates: certs,
+      crls: mergedCrls,
+      ocspResponses: mergedOcsp,
+    );
+  }
 }
 
 /// Builds the signer's certificate chain and fetches revocation evidence

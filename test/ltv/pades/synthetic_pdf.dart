@@ -10,7 +10,13 @@ import 'dart:typed_data';
 /// - Page (obj 3)
 /// - Signature dict (obj 4)
 /// - xref + trailer
-Uint8List buildSyntheticSignedPdf({Uint8List? cmsContents}) {
+///
+/// [spacedKeys] writes `/ByteRange [` and `/Contents <` with a space, as
+/// real signers do; the default keeps the compact form.
+Uint8List buildSyntheticSignedPdf({
+  Uint8List? cmsContents,
+  bool spacedKeys = false,
+}) {
   cmsContents ??= Uint8List.fromList([
     0x30,
     0x80,
@@ -34,8 +40,9 @@ Uint8List buildSyntheticSignedPdf({Uint8List? cmsContents}) {
   final obj2 = '2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n';
   final obj3 =
       '3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>\nendobj\n';
+  final sp = spacedKeys ? ' ' : '';
   final obj4 =
-      '4 0 obj\n<</Type/Sig/Filter/Adobe.PPKLite/SubFilter/ETSI.CAdES.detached/Contents<$cmsHex>/ByteRange[0 100 200 50]>>\nendobj\n';
+      '4 0 obj\n<</Type/Sig/Filter/Adobe.PPKLite/SubFilter/ETSI.CAdES.detached/Contents$sp<$cmsHex>/ByteRange$sp[0 100 200 50]>>\nendobj\n';
 
   // Build xref
   final header = '%PDF-1.7\n%\xE2\xE3\xCF\xD3\n';

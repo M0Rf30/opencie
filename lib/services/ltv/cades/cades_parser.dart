@@ -23,8 +23,14 @@ class CadesSignedData {
   late ASN1Set _signerInfos;
   late ASN1Sequence _signerInfo0;
 
-  // Parsed unsigned attributes (OID -> attribute value SET DER)
-  late Map<String, Uint8List> _unsignedAttrs;
+  // Unsigned attributes of SignerInfo[0] in FILE ORDER. Attributes read from
+  // the input keep their original encoding (see [_UnsignedAttr.attrDer]).
+  late List<_UnsignedAttr> _unsignedAttrs;
+
+  // Set when the input's unsignedAttrs could not be split into Attributes.
+  // Reading still works, but [encode] refuses to rewrite such a signature
+  // (it would silently drop attributes).
+  bool _unsignedAttrsUnreadable = false;
 
   // Embedded certificates from SignedData.certificates [0]
   late List<Uint8List> _embeddedCerts;
@@ -150,7 +156,8 @@ class CadesSignedData {
   }
 
   void _parseSignerInfo0UnsignedAttrs() {
-    _unsignedAttrs = {};
+    _unsignedAttrs = [];
+    _unsignedAttrsUnreadable = false;
 
     // SignerInfo structure:
     // SEQUENCE {
@@ -168,42 +175,101 @@ class CadesSignedData {
     }
 
     // Find unsignedAttrs [1] IMPLICIT
-    for (int i = 0; i < _signerInfo0.elements!.length; i++) {
-      final elem = _signerInfo0.elements![i];
-      if (elem.tag == 0xA1) {
-        // Found unsignedAttrs [1]
-        // Parse as SET OF Attribute
+    for (final elem in _signerInfo0.elements!) {
+      if (elem.tag != 0xA1) continue;
+      try {
+        final content = elem.valueBytes ?? Uint8List(0);
+        List<Uint8List> attrs;
         try {
-          final unsignedAttrsSet = derDecode(elem.valueBytes ?? Uint8List(0));
-          if (unsignedAttrsSet is ASN1Set &&
-              unsignedAttrsSet.elements != null) {
-            for (final attrElem in unsignedAttrsSet.elements!) {
-              if (attrElem is ASN1Sequence &&
-                  attrElem.elements != null &&
-                  attrElem.elements!.length >= 2) {
-                final oidObj = attrElem.elements![0];
-                if (oidObj is ASN1ObjectIdentifier) {
-                  final oid = oidObj.objectIdentifierAsString ?? '';
-                  // attrValues is a SET OF (second element)
-                  final attrValuesObj = attrElem.elements![1];
-                  if (attrValuesObj is ASN1Set) {
-                    _unsignedAttrs[oid] = derEncode(attrValuesObj);
-                  }
-                }
-              }
-            }
+          attrs = _splitTlvs(content);
+          // Tolerate the legacy EXPLICIT shape [1] { SET OF Attribute } that
+          // older fixtures use: a lone SET (0x31) child is unwrapped.
+          if (attrs.length == 1 && attrs.first.first == 0x31) {
+            attrs = _splitTlvs(derDecode(attrs.first).valueBytes!);
           }
-        } catch (e) {
-          // ignore parsing errors
+        } on CadesException {
+          // Indefinite-length BER: no byte-exact slice is available, fall
+          // back to re-encoding each Attribute.
+          attrs = _parseImplicitSetOf(content).map(derEncode).toList();
         }
-        break;
+        for (final raw in attrs) {
+          final attr = derDecode(raw);
+          if (attr is! ASN1Sequence ||
+              attr.elements == null ||
+              attr.elements!.length < 2) {
+            throw CadesException('malformed unsigned attribute');
+          }
+          final oidObj = attr.elements![0];
+          final values = attr.elements![1];
+          if (oidObj is! ASN1ObjectIdentifier || values is! ASN1Set) {
+            throw CadesException('malformed unsigned attribute');
+          }
+          _unsignedAttrs.add(
+            _UnsignedAttr(
+              oidObj.objectIdentifierAsString ?? '',
+              derEncode(values),
+              raw,
+            ),
+          );
+        }
+      } catch (_) {
+        // Intentional: leave the signature readable but refuse to rewrite
+        // it ([encode]) rather than silently dropping attributes.
+        _unsignedAttrs = [];
+        _unsignedAttrsUnreadable = true;
       }
+      break;
     }
+  }
+
+  /// Splits [data] into its top-level TLVs, returning each one's exact bytes.
+  /// Throws [CadesException] on truncation or indefinite lengths.
+  static List<Uint8List> _splitTlvs(Uint8List data) {
+    final out = <Uint8List>[];
+    var pos = 0;
+    while (pos < data.length) {
+      final start = pos;
+      if ((data[pos++] & 0x1F) == 0x1F) {
+        // High-tag-number form: base-128 digits until the continuation bit
+        // clears.
+        while (pos < data.length && (data[pos] & 0x80) != 0) {
+          pos++;
+        }
+        pos++;
+      }
+      if (pos >= data.length) throw CadesException('truncated TLV');
+      final first = data[pos++];
+      int length;
+      if (first < 0x80) {
+        length = first;
+      } else if (first == 0x80) {
+        throw CadesException('indefinite length is not supported here');
+      } else {
+        final n = first & 0x7F;
+        if (n > 4 || pos + n > data.length) {
+          throw CadesException('bad TLV length');
+        }
+        length = 0;
+        for (var i = 0; i < n; i++) {
+          length = (length << 8) | data[pos++];
+        }
+      }
+      final end = pos + length;
+      if (end > data.length) throw CadesException('truncated TLV');
+      out.add(Uint8List.fromList(data.sublist(start, end)));
+      pos = end;
+    }
+    return out;
   }
 
   /// Returns the DER bytes of the SignedData ContentInfo.
   Uint8List encode() {
     try {
+      if (_unsignedAttrsUnreadable) {
+        throw CadesException(
+          'unsignedAttrs could not be parsed; refusing to rewrite',
+        );
+      }
       // Rebuild SignerInfo[0] with updated unsignedAttrs
       final newSignerInfo0Der = _rebuildSignerInfo0();
 
@@ -261,37 +327,40 @@ class CadesSignedData {
       }
     }
 
-    // Add new unsignedAttrs if not empty
+    // Unsigned attributes: RFC 5652 §5.3 types them as a plain
+    // `SET SIZE (1..MAX) OF Attribute` and, unlike signedAttrs (§5.4, DER
+    // because the signature covers them), does not require DER ordering.
+    // ETSI EN 319 122-1 clause 5.5.3 (archive-time-stamp-v3) goes further:
+    // "The augmentation shall preserve the binary encoding of already
+    // present unsigned attributes and any component contributing to the
+    // archive time-stamp's message imprint computation input."
+    // Re-sorting would move already-present attributes (and, for attributes
+    // read from BER input, re-encode them), so existing Attributes are
+    // emitted verbatim, in their original order, and new ones are appended.
+    // The ats-hash-index-v3 is order independent (its hash lists are sorted,
+    // see AtsHashIndexBuilder), so appending cannot invalidate it.
+    // [1] IMPLICIT: the Attributes follow the tag/length directly, with no
+    // inner SET header.
     if (_unsignedAttrs.isNotEmpty) {
-      final attrs = <ASN1Object>[];
-      for (final oid in _unsignedAttrs.keys) {
-        final attrValueSetDer = _unsignedAttrs[oid]!;
-        final attr = ASN1Sequence();
-        attr.add(ASN1ObjectIdentifier.fromIdentifierString(oid));
-        // attrValues is already a SET, parse and add it
-        final attrValuesSet = derDecode(attrValueSetDer);
-        attr.add(attrValuesSet);
-        attrs.add(attr);
+      final content = BytesBuilder();
+      for (final a in _unsignedAttrs) {
+        content.add(a.attrDer);
       }
-      // SET OF must be in DER canonical order (X.690 §11.6): sort by the
-      // encoded Attribute, independent of insertion order.
-      // Wrap as [1] IMPLICIT
-      newSignerInfo0.add(_wrapImplicit(1, derSortedSet(attrs)));
+      newSignerInfo0.add(_implicitConstructed(1, content.toBytes()));
     }
 
     return derEncode(newSignerInfo0);
   }
 
-  /// Wraps an ASN1Set with an implicit context-specific tag [n].
-  /// For [1] IMPLICIT, the tag is 0xA1 (constructed, context-specific).
-  ASN1Object _wrapImplicit(int tagNumber, ASN1Set innerSet) {
-    final encoded = derEncode(innerSet);
+  /// Builds a context-specific constructed object `[n]` around [content]
+  /// (already-encoded TLVs) without adding an inner header.
+  ASN1Object _implicitConstructed(int tagNumber, Uint8List content) {
     // Context-specific constructed: 0xA0 | tagNumber
     final tag = 0xA0 | tagNumber;
     final result = BytesBuilder();
     result.addByte(tag);
-    _encodeLength(result, encoded.length);
-    result.add(encoded);
+    _encodeLength(result, content.length);
+    result.add(content);
     return ASN1Parser(result.toBytes()).nextObject();
   }
 
@@ -310,16 +379,53 @@ class CadesSignedData {
     }
   }
 
-  /// Adds an unsigned attribute to the FIRST signer.
-  /// If an attribute with the same OID already exists, REPLACES it.
+  /// Sets an unsigned attribute on the FIRST signer. An existing attribute
+  /// with the same OID is REPLACED in place (its position is kept); a new
+  /// one is APPENDED after all existing attributes.
   void setUnsignedAttribute(String oid, Uint8List attributeValueSetDer) {
-    _unsignedAttrs[oid] = attributeValueSetDer;
+    final attr = ASN1Sequence()
+      ..add(ASN1ObjectIdentifier.fromIdentifierString(oid))
+      ..add(derDecode(attributeValueSetDer));
+    final entry = _UnsignedAttr(oid, attributeValueSetDer, derEncode(attr));
+    final i = _unsignedAttrs.indexWhere((a) => a.oid == oid);
+    if (i >= 0) {
+      _unsignedAttrs[i] = entry;
+    } else {
+      _unsignedAttrs.add(entry);
+    }
   }
 
   /// Returns the DER of an existing unsigned attr value (the SET OF AttributeValue),
   /// or null if not present.
   Uint8List? getUnsignedAttribute(String oid) {
-    return _unsignedAttrs[oid];
+    for (final a in _unsignedAttrs) {
+      if (a.oid == oid) return a.valueSetDer;
+    }
+    return null;
+  }
+
+  /// Certificates carried inside the signature-time-stamp token(s) (the
+  /// TSA's signing certificate and any chain the TSA included), de-duplicated.
+  /// Empty when there is no such attribute or a token cannot be parsed.
+  List<Uint8List> get signatureTimeStampCertificates {
+    final out = <Uint8List>[];
+    final set = getUnsignedAttribute(Oid.signatureTimeStampToken);
+    if (set == null) return out;
+    try {
+      final values = derDecode(set);
+      if (values is! ASN1Set) return out;
+      for (final token in values.elements ?? const <ASN1Object>[]) {
+        final certs = CadesSignedData.parse(
+          derEncode(token),
+        ).embeddedCertificates;
+        for (final c in certs) {
+          if (!out.any((o) => bytesEqual(o, c))) out.add(c);
+        }
+      }
+    } catch (_) {
+      // Intentional: an unreadable token simply yields no certificates.
+    }
+    return out;
   }
 
   /// All certificates currently embedded in SignedData.certificates [0].
@@ -335,7 +441,7 @@ class CadesSignedData {
   ///
   /// Returns an empty list if the attribute is absent or unparseable.
   List<CrlData> get embeddedCrls {
-    final attrValueSetDer = _unsignedAttrs[Oid.revocationValues];
+    final attrValueSetDer = getUnsignedAttribute(Oid.revocationValues);
     if (attrValueSetDer == null) return const [];
 
     try {
@@ -526,41 +632,22 @@ class CadesSignedData {
   /// except the archive-time-stamp-v3. Each entry is the complete SEQUENCE TLV,
   /// suitable for sorting and concatenation.
   List<MapEntry<String, Uint8List>> get unsignedAttributesForArchiveTimestamp {
-    final result = <MapEntry<String, Uint8List>>[];
-
-    if (_signerInfo0.elements == null) {
-      return result;
-    }
-
-    // Find unsignedAttrs [1] IMPLICIT
-    for (final elem in _signerInfo0.elements!) {
-      if (elem.tag == 0xA1) {
-        // Found unsignedAttrs [1]
-        try {
-          final attrs = _parseImplicitSetOf(elem.valueBytes ?? Uint8List(0));
-          for (final attrElem in attrs) {
-            if (attrElem is ASN1Sequence &&
-                attrElem.elements != null &&
-                attrElem.elements!.length >= 2) {
-              final oidObj = attrElem.elements![0];
-              if (oidObj is ASN1ObjectIdentifier) {
-                final oid = oidObj.objectIdentifierAsString ?? '';
-                // Skip archive-time-stamp-v3 itself
-                if (oid == Oid.archiveTimeStampV3) {
-                  continue;
-                }
-                // Store the full Attribute SEQUENCE TLV
-                result.add(MapEntry(oid, derEncode(attrElem)));
-              }
-            }
-          }
-        } catch (e) {
-          // ignore parsing errors
-        }
-        break;
-      }
-    }
-
-    return result;
+    return [
+      for (final a in _unsignedAttrs)
+        if (a.oid != Oid.archiveTimeStampV3) MapEntry(a.oid, a.attrDer),
+    ];
   }
+}
+
+class _UnsignedAttr {
+  _UnsignedAttr(this.oid, this.valueSetDer, this.attrDer);
+
+  final String oid;
+
+  /// DER of the `SET OF AttributeValue`.
+  final Uint8List valueSetDer;
+
+  /// The complete Attribute TLV: verbatim input bytes for attributes that
+  /// were already present, freshly DER-encoded for new ones.
+  final Uint8List attrDer;
 }

@@ -23,6 +23,7 @@ SignatureUpgradeSettings testUpgradeSettings({
   String fallbackUrl = 'https://fallback.tsa.test/tsr',
   String username = '',
   String password = '',
+  String policyOid = '',
 }) {
   return SignatureUpgradeSettings(
     tsa: TsaConfig(
@@ -30,21 +31,36 @@ SignatureUpgradeSettings testUpgradeSettings({
       fallbackUrl: fallbackUrl,
       username: username,
       password: password,
+      policyOid: policyOid,
     ),
     proxy: const ProxyConfig(),
     validationType: validationType,
   );
 }
 
+/// Distinguishable stand-in for a TSA signing certificate: structurally
+/// valid DER (SEQUENCE { INTEGER 0x7A }), not a real X.509.
+final Uint8List fakeTsaCertificate = Uint8List.fromList([
+  0x30,
+  0x03,
+  0x02,
+  0x01,
+  0x7A,
+]);
+
 /// A [MockClient] that behaves like an RFC 3161 TSA. [failHosts] answer 500,
 /// as does every request after the first [failAfter] successful ones.
 /// Requested URLs are appended to [requests], message-imprint hashes to
-/// [imprints].
+/// [imprints], and the `reqPolicy` OID of each request (null when the
+/// TimeStampReq has none) to [policies]. Tokens embed [tsaCertificates] in
+/// SignedData.certificates (pass an empty list for a certificate-less TSA).
 MockClient fakeTsaClient({
   List<Uri>? requests,
   Set<String> failHosts = const {},
   List<Map<String, String>>? requestHeaders,
   List<Uint8List>? imprints,
+  List<String?>? policies,
+  List<Uint8List>? tsaCertificates,
   int? failAfter,
 }) {
   var served = 0;
@@ -60,6 +76,12 @@ MockClient fakeTsaClient({
     final msgImprint = reqSeq.elements![1] as ASN1Sequence;
     final hash = (msgImprint.elements![1] as ASN1OctetString).octets!;
     imprints?.add(hash);
+    if (policies != null) {
+      final third = reqSeq.elements!.length > 2 ? reqSeq.elements![2] : null;
+      policies.add(
+        third is ASN1ObjectIdentifier ? third.objectIdentifierAsString : null,
+      );
+    }
     Uint8List? nonce;
     for (var i = 2; i < reqSeq.elements!.length; i++) {
       final el = reqSeq.elements![i];
@@ -74,7 +96,11 @@ MockClient fakeTsaClient({
         break;
       }
     }
-    final token = _buildTimeStampToken(hash, nonce);
+    final token = _buildTimeStampToken(
+      hash,
+      nonce,
+      tsaCertificates ?? [fakeTsaCertificate],
+    );
     final status = ASN1Sequence()..add(ASN1Integer(BigInt.zero));
     final resp = ASN1Sequence()
       ..add(status)
@@ -87,7 +113,11 @@ MockClient fakeTsaClient({
   });
 }
 
-Uint8List _buildTimeStampToken(Uint8List hash, Uint8List? nonce) {
+Uint8List _buildTimeStampToken(
+  Uint8List hash,
+  Uint8List? nonce,
+  List<Uint8List> certificates,
+) {
   final tstInfo = ASN1Sequence()
     ..add(ASN1Integer(BigInt.one))
     ..add(ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'));
@@ -115,8 +145,16 @@ Uint8List _buildTimeStampToken(Uint8List hash, Uint8List? nonce) {
   final signedData = ASN1Sequence()
     ..add(ASN1Integer(BigInt.from(3)))
     ..add(ASN1Set())
-    ..add(encap)
-    ..add(signerInfos);
+    ..add(encap);
+  if (certificates.isNotEmpty) {
+    // certificates [0] IMPLICIT: the certificate TLVs follow the tag directly.
+    final all = BytesBuilder();
+    for (final c in certificates) {
+      all.add(c);
+    }
+    signedData.add(_explicit(0, all.toBytes()));
+  }
+  signedData.add(signerInfos);
   final contentInfo = ASN1Sequence()
     ..add(ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7SignedData))
     ..add(_explicit(0, signedData.encode()));
@@ -155,10 +193,16 @@ ASN1Object _generalizedTime(DateTime dt) {
 }
 
 /// Collector stub returning fixed material, ignoring the signature's certs.
+/// Every call's input certificates are appended to [calls]; [resolver], when
+/// given, overrides the fixed material per call.
 class StubCollector extends ValidationMaterialCollector {
-  StubCollector(this.material) : super(revocation: NoRevocation());
+  StubCollector(this.material, {this.resolver})
+    : super(revocation: NoRevocation());
 
   final CollectedValidationMaterial material;
+  final CollectedValidationMaterial Function(List<Uint8List> embeddedCerts)?
+  resolver;
+  final List<List<Uint8List>> calls = [];
   ValidationType? lastType;
 
   @override
@@ -167,7 +211,8 @@ class StubCollector extends ValidationMaterialCollector {
     ValidationType type,
   ) async {
     lastType = type;
-    return material;
+    calls.add(embeddedCerts);
+    return resolver?.call(embeddedCerts) ?? material;
   }
 }
 

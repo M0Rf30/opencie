@@ -78,6 +78,10 @@ class TspClient {
     bool requestCert = false,
     String? policyOid,
   }) async {
+    // 0. Validate the optional TSA policy before touching the network: a
+    //    malformed OID would otherwise surface as an obscure ASN.1 error.
+    final policy = normalizeTsaPolicyOid(policyOid);
+
     // 1. Compute hash
     final hash = hashOf(data, hashAlgorithmOid);
 
@@ -90,7 +94,7 @@ class TspClient {
       hashAlgorithmOid: hashAlgorithmOid,
       nonce: nonce,
       reqCertReq: requestCert,
-      policyOid: policyOid,
+      policyOid: policy,
     );
 
     // 4. Send request
@@ -175,4 +179,28 @@ class TspException implements Exception {
 
   @override
   String toString() => 'TspException: $message';
+}
+
+final _dottedOid = RegExp(r'^[0-2](\.(0|[1-9][0-9]*))+$');
+
+/// Normalises a user-supplied TSA policy OID (RFC 3161 `reqPolicy`).
+///
+/// Returns null for null/blank input (no policy requested) and the trimmed
+/// dotted-decimal string otherwise. Throws [TspException] when the value is
+/// not a well-formed OID: at least two arcs, first arc 0..2, no leading
+/// zeros, and a second arc below 40 when the first is 0 or 1 (X.660).
+String? normalizeTsaPolicyOid(String? raw) {
+  final value = raw?.trim() ?? '';
+  if (value.isEmpty) return null;
+  final ok = _dottedOid.hasMatch(value);
+  if (ok) {
+    final arcs = value.split('.');
+    final first = int.parse(arcs[0]);
+    final second = BigInt.parse(arcs[1]);
+    if (first < 2 && second >= BigInt.from(40)) {
+      throw TspException('invalid TSA policy OID "$value"');
+    }
+    return value;
+  }
+  throw TspException('invalid TSA policy OID "$value"');
 }

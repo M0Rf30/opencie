@@ -30,12 +30,17 @@ import 'pdf_writer.dart';
 /// - Supports classic xref tables only (not PDF 1.5+ xref streams)
 /// - Single signature per PDF (uses the first /Type /Sig object found)
 /// - contentsReserveBytes must be large enough for the TST (default 16384 = 8 KB)
+///
+/// Can be applied repeatedly: each call appends one more DocTimeStamp, which
+/// is how the full baseline sequence (B-T stamp, DSS, B-LTA stamp) is built
+/// by `LtvSignatureUpgrader`. Earlier revisions are never modified.
 class PadesLtaUpgrader {
   PadesLtaUpgrader({
     required this.tspClient,
     required this.tspUrl,
     this.hashAlgorithmOid = '2.16.840.1.101.3.4.2.1', // SHA-256
     this.contentsReserveBytes = 16384,
+    this.policyOid,
   }) {
     if (contentsReserveBytes % 2 != 0) {
       throw PadesException(
@@ -51,6 +56,11 @@ class PadesLtaUpgrader {
   final Uri tspUrl;
   final String hashAlgorithmOid;
 
+  /// Optional TSA policy OID (RFC 3161 `reqPolicy`). Blank means "none";
+  /// a malformed value makes [upgrade] throw [TspException] before any
+  /// network access.
+  final String? policyOid;
+
   /// Number of hex characters reserved for /Contents. Must be even, must be
   /// large enough to hold the TST hex-encoded plus padding. Default 16384
   /// (= 8 KB of TST bytes).
@@ -63,7 +73,14 @@ class PadesLtaUpgrader {
   ///
   /// Throws [PadesException] on TSA rejection, oversized TST, or PDF parse
   /// failures.
-  Future<Uint8List> upgrade(Uint8List pdfBytes) async {
+  Future<Uint8List> upgrade(Uint8List pdfBytes) async =>
+      (await upgradeWithToken(pdfBytes)).bytes;
+
+  /// Like [upgrade], but also returns the DER TimeStampToken that was
+  /// embedded, so callers can inspect the TSA's certificate chain.
+  Future<({Uint8List bytes, Uint8List token})> upgradeWithToken(
+    Uint8List pdfBytes,
+  ) async {
     // Parse PDF
     final reader = PdfReader(pdfBytes);
     final trailer = reader.readTrailer();
@@ -150,14 +167,22 @@ class PadesLtaUpgrader {
     final candidateBytes = writer.finalize(rootRef: catalogRef);
 
     // Find the placeholder /ByteRange and /Contents in candidate bytes
-    final byteRangeMatch = _findPlaceholderByteRange(candidateBytes);
+    // Only search the appended revision: earlier revisions (the signature,
+    // or a previous DocTimeStamp) carry their own /ByteRange and /Contents.
+    final byteRangeMatch = _findPlaceholderByteRange(
+      candidateBytes,
+      from: pdfBytes.length,
+    );
     if (byteRangeMatch == null) {
       throw PadesException(
         'Could not find placeholder /ByteRange in candidate bytes',
       );
     }
 
-    final contentsMatch = _findPlaceholderContents(candidateBytes);
+    final contentsMatch = _findPlaceholderContents(
+      candidateBytes,
+      from: pdfBytes.length,
+    );
     if (contentsMatch == null) {
       throw PadesException(
         'Could not find placeholder /Contents in candidate bytes',
@@ -192,6 +217,7 @@ class PadesLtaUpgrader {
       hashInputBytes,
       hashAlgorithmOid: hashAlgorithmOid,
       requestCert: true,
+      policyOid: policyOid,
     );
 
     if (!tspResp.isSuccess) {
@@ -221,7 +247,7 @@ class PadesLtaUpgrader {
     // Patch /Contents with padded TST hex in the already-patched workBytes
     final patchedBytes = _patchContents(workBytes, contentsMatch, paddedTstHex);
 
-    return patchedBytes;
+    return (bytes: patchedBytes, token: tspResp.timeStampToken!);
   }
 
   /// Builds a placeholder DocTimeStamp dictionary with reserved /Contents and /ByteRange.
@@ -251,13 +277,16 @@ class PadesLtaUpgrader {
 
   /// Finds the placeholder /ByteRange [0 0000000000 0000000000 0000000000] in bytes.
   /// Returns {start, end} where start is the position of '[' and end is after ']'.
-  ({int start, int end})? _findPlaceholderByteRange(Uint8List bytes) {
+  ({int start, int end})? _findPlaceholderByteRange(
+    Uint8List bytes, {
+    int from = 0,
+  }) {
     // The placeholder is: /ByteRange [0 0000000000 0000000000 0000000000]
     // We search for the pattern starting with /ByteRange
     const prefix = '/ByteRange [';
     final prefixBytes = prefix.codeUnits;
 
-    for (int i = 0; i <= bytes.length - prefixBytes.length; i++) {
+    for (int i = from; i <= bytes.length - prefixBytes.length; i++) {
       bool match = true;
       for (int j = 0; j < prefixBytes.length; j++) {
         if (bytes[i + j] != prefixBytes[j]) {
@@ -287,12 +316,15 @@ class PadesLtaUpgrader {
 
   /// Finds the placeholder /Contents <000...000> in bytes.
   /// Returns {start, end} where start is the position of '<' and end is after '>'.
-  ({int start, int end})? _findPlaceholderContents(Uint8List bytes) {
+  ({int start, int end})? _findPlaceholderContents(
+    Uint8List bytes, {
+    int from = 0,
+  }) {
     // Look for /Contents < followed by zeros and >
     const prefix = '/Contents <';
     final prefixBytes = prefix.codeUnits;
 
-    for (int i = 0; i <= bytes.length - prefixBytes.length; i++) {
+    for (int i = from; i <= bytes.length - prefixBytes.length; i++) {
       bool match = true;
       for (int j = 0; j < prefixBytes.length; j++) {
         if (bytes[i + j] != prefixBytes[j]) {

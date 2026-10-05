@@ -26,11 +26,15 @@ class CadesTUpgrader {
     required this.tspClient,
     required this.tspUrl,
     this.hashAlgorithmOid = Oid.sha256,
+    this.policyOid,
   });
 
   final TspClient tspClient;
   final Uri tspUrl;
   final String hashAlgorithmOid;
+
+  /// Optional TSA policy OID (RFC 3161 `reqPolicy`); blank means none.
+  final String? policyOid;
 
   /// Throws [CadesException] if the input cannot be parsed or the TSA
   /// rejects the request / returns no token.
@@ -46,6 +50,7 @@ class CadesTUpgrader {
         sd.signatureValueBytes,
         hashAlgorithmOid: hashAlgorithmOid,
         requestCert: true,
+        policyOid: policyOid,
       );
       final token = response.timeStampToken;
       if (!response.isSuccess || token == null || token.isEmpty) {

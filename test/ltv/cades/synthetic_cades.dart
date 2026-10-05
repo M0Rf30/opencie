@@ -37,9 +37,17 @@ void encodeLength(BytesBuilder builder, int length) {
 }
 
 /// Builds a synthetic CAdES-BES SignedData blob for testing.
+///
+/// [unsignedAttrs] (OID → SET OF value DER) is written in the legacy shape
+/// `[1] { SET OF Attribute }`. [rawUnsignedAttrs] are complete Attribute
+/// TLVs emitted verbatim, in the given order, as a true `[1] IMPLICIT`
+/// (the Attributes directly under the tag, no inner SET) — this is how real
+/// signers write them, and lets tests use deliberately non-DER ordering or
+/// encodings.
 Uint8List buildSyntheticCadesBes({
   List<Uint8List> embeddedCerts = const [],
   Map<String, Uint8List> unsignedAttrs = const {},
+  List<Uint8List> rawUnsignedAttrs = const [],
 }) {
   // Build SignerInfo
   final signerInfo = ASN1Sequence();
@@ -98,6 +106,17 @@ Uint8List buildSyntheticCadesBes({
     }
     signerInfo.add(wrapImplicit(1, unsignedAttrsSet));
   }
+  if (rawUnsignedAttrs.isNotEmpty) {
+    final content = BytesBuilder();
+    for (final a in rawUnsignedAttrs) {
+      content.add(a);
+    }
+    final body = content.toBytes();
+    final tlv = BytesBuilder()..addByte(0xA1);
+    encodeLength(tlv, body.length);
+    tlv.add(body);
+    signerInfo.add(ASN1Parser(tlv.toBytes()).nextObject());
+  }
 
   // Build SignerInfos SET
   final signerInfos = ASN1Set();
@@ -150,11 +169,30 @@ Uint8List buildSyntheticCrl() {
   return derEncode(crl);
 }
 
-/// Builds a synthetic OCSPResponse wrapping a BasicOCSPResponse.
-Uint8List buildSyntheticOcspResponse() {
+/// A complete Attribute TLV `SEQUENCE { OID, SET OF INTEGER }` whose SET
+/// elements are written in the given (possibly non-DER) order. Values must
+/// be 0..127. For [buildSyntheticCadesBes]'s `rawUnsignedAttrs`.
+Uint8List buildSyntheticAttribute(String oid, List<int> ints) {
+  final oidTlv = ASN1ObjectIdentifier.fromIdentifierString(oid).encode();
+  final values = [
+    for (final v in ints) ...[0x02, 0x01, v],
+  ];
+  final set = [0x31, values.length, ...values];
+  return Uint8List.fromList([
+    0x30,
+    oidTlv.length + set.length,
+    ...oidTlv,
+    ...set,
+  ]);
+}
+
+/// Builds a synthetic OCSPResponse wrapping a BasicOCSPResponse. [marker]
+/// makes the response distinguishable (the BasicOCSPResponse is
+/// `SEQUENCE { INTEGER marker }`).
+Uint8List buildSyntheticOcspResponse({int marker = 1}) {
   // Build a minimal BasicOCSPResponse (just a SEQUENCE with dummy content)
   final basicOcspResponse = ASN1Sequence();
-  basicOcspResponse.add(ASN1Integer(BigInt.from(1))); // dummy content
+  basicOcspResponse.add(ASN1Integer(BigInt.from(marker))); // dummy content
 
   final basicOcspResponseDer = derEncode(basicOcspResponse);
 
