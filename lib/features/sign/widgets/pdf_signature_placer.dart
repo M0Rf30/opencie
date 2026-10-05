@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show compute;
@@ -16,10 +17,8 @@ import '../../../services/ltv/pades/pdf_reader.dart';
 import '../../../widgets/oc_radio_card.dart';
 import '../../../widgets/oc_section_label.dart';
 import '../utils/signature_image_generator.dart';
-
-/// Teal highlight color for the signature-placement preview.
-const _kSignatureHighlightFill = Color.fromRGBO(0, 196, 201, 0.5);
-const _kSignatureHighlightBorder = Color.fromRGBO(0, 196, 201, 0.9);
+import 'signature_box_geometry.dart';
+import 'signature_box_overlay.dart';
 
 /// Amber outline for existing AcroForm signature fields the user can
 /// align to — distinct from the active placement's teal highlight.
@@ -76,9 +75,8 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   String? _error;
   int _pageIndex = 0;
 
-  Rect? _screenRect;
-  bool _moving = false;
-  Offset? _moveOffset;
+  bool _lockAspect = true;
+  double? _imageAspect;
 
   Uint8List? _defaultImageData;
   bool _generatingDefault = false;
@@ -92,11 +90,15 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
     _load();
     _ensureDefaultImage();
     _loadSigFields();
+    _resolveImageAspect();
   }
 
   @override
   void didUpdateWidget(PdfSignaturePlacer old) {
     super.didUpdateWidget(old);
+    if (old.page != widget.page && widget.page != _pageIndex) {
+      _pageIndex = widget.page;
+    }
     if (old.pdfPath != widget.pdfPath) {
       _doc?.dispose();
       _doc = null;
@@ -104,6 +106,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       _sigFields = const [];
       _loadSigFields();
     }
+    _resolveImageAspect();
   }
 
   @override
@@ -145,6 +148,7 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
           _defaultImageData = bytes;
           _generatingDefault = false;
         });
+        _resolveImageAspect();
         if (widget.imageData == null) {
           widget.onChanged(
             page: _pageIndex,
@@ -198,37 +202,26 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
     return Size(p.width, p.height);
   }
 
-  Rect _fractionToScreen(Rect frac, Size containerSize, Size pageSize) {
-    final scale = _scale(containerSize, pageSize);
-    final offset = _renderOffset(containerSize, pageSize, scale);
-    return Rect.fromLTWH(
-      frac.left * pageSize.width * scale + offset.dx,
-      (1.0 - frac.top - frac.height) * pageSize.height * scale + offset.dy,
-      frac.width * pageSize.width * scale,
-      frac.height * pageSize.height * scale,
-    );
+  Uint8List? _aspectFor;
+
+  /// Resolves the signature image aspect (w / h) for the aspect lock.
+  Future<void> _resolveImageAspect() async {
+    final bytes = _effectiveImageData;
+    if (bytes == null || identical(bytes, _aspectFor)) return;
+    _aspectFor = bytes;
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final a = frame.image.width / frame.image.height;
+      frame.image.dispose();
+      codec.dispose();
+      if (mounted && identical(bytes, _aspectFor)) {
+        setState(() => _imageAspect = a);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _imageAspect = null);
+    }
   }
-
-  Rect _screenToFraction(Rect screenRect, Size containerSize, Size pageSize) {
-    final scale = _scale(containerSize, pageSize);
-    final offset = _renderOffset(containerSize, pageSize, scale);
-    final fW = (screenRect.width / scale / pageSize.width).clamp(0.0, 1.0);
-    final fH = (screenRect.height / scale / pageSize.height).clamp(0.0, 1.0);
-    final fLeft = ((screenRect.left - offset.dx) / scale / pageSize.width)
-        .clamp(0.0, 1.0 - fW);
-    final fBottom =
-        (1.0 - (screenRect.top - offset.dy) / scale / pageSize.height - fH)
-            .clamp(0.0, 1.0 - fH);
-    return Rect.fromLTWH(fLeft, fBottom, fW, fH);
-  }
-
-  double _scale(Size container, Size page) =>
-      min(container.width / page.width, container.height / page.height);
-
-  Offset _renderOffset(Size container, Size page, double scale) => Offset(
-    (container.width - page.width * scale) / 2,
-    (container.height - page.height * scale) / 2,
-  );
 
   Rect _sigAsFractionRect() =>
       Rect.fromLTWH(widget.sigX, widget.sigY, widget.sigW, widget.sigH);
@@ -260,8 +253,17 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
     );
   }
 
+  Widget _pageButton(IconData icon, String tooltip, VoidCallback? onPressed) =>
+      IconButton(
+        icon: Icon(icon),
+        tooltip: tooltip,
+        onPressed: onPressed,
+        iconSize: 20,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      );
+
   void _resetSigBox() {
-    setState(() => _screenRect = null);
     widget.onChanged(
       page: _pageIndex,
       x: 0.02,
@@ -429,60 +431,90 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
                     ],
                   ),
                 ),
+                Flexible(
+                  flex: 3,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Page navigation
+                      if (_pageCount > 1) ...[
+                        _pageButton(
+                          Icons.first_page_rounded,
+                          l10n.signPlacerFirstPage,
+                          _pageIndex > 0 ? () => _notifyPage(0) : null,
+                        ),
+                        _pageButton(
+                          Icons.chevron_left_rounded,
+                          l10n.signPlacerPreviousPage,
+                          _pageIndex > 0
+                              ? () => _notifyPage(_pageIndex - 1)
+                              : null,
+                        ),
+                        _pageButton(
+                          Icons.chevron_right_rounded,
+                          l10n.signPlacerNextPage,
+                          _pageIndex < _pageCount - 1
+                              ? () => _notifyPage(_pageIndex + 1)
+                              : null,
+                        ),
+                        _pageButton(
+                          Icons.last_page_rounded,
+                          l10n.signPlacerLastPage,
+                          _pageIndex < _pageCount - 1
+                              ? () => _notifyPage(_pageCount - 1)
+                              : null,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
 
-                // Page navigation
-                if (_pageCount > 1) ...[
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left_rounded),
-                    tooltip: l10n.signPlacerPreviousPage,
-                    onPressed: _pageIndex > 0
-                        ? () => _notifyPage(_pageIndex - 1)
-                        : null,
-                    iconSize: 20,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right_rounded),
-                    tooltip: l10n.signPlacerNextPage,
-                    onPressed: _pageIndex < _pageCount - 1
-                        ? () => _notifyPage(_pageIndex + 1)
-                        : null,
-                    iconSize: 20,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
+                      // Aspect-ratio lock (corner resize)
+                      IconButton(
+                        icon: Icon(
+                          _lockAspect
+                              ? Icons.lock_rounded
+                              : Icons.lock_open_rounded,
+                        ),
+                        isSelected: _lockAspect,
+                        tooltip: _lockAspect
+                            ? l10n.signPlacerAspectLockedTooltip
+                            : l10n.signPlacerAspectFreeTooltip,
+                        onPressed: () =>
+                            setState(() => _lockAspect = !_lockAspect),
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
 
-                // Image control
-                _buildImageControl(cs),
+                      // Image control
+                      _buildImageControl(cs),
 
-                const SizedBox(width: 8),
+                      const SizedBox(width: 8),
 
-                // Reset pill
-                GestureDetector(
-                  onTap: _resetSigBox,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: cs.outlineVariant),
-                      color: cs.surfaceContainerHigh,
-                    ),
-                    child: Text(
-                      l10n.signPlacerReset,
-                      style: AppTheme.monoCaption(cs),
-                    ),
+                      // Reset (real, focusable button)
+                      OutlinedButton(
+                        onPressed: _resetSigBox,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          minimumSize: const Size(0, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: const StadiumBorder(),
+                          side: BorderSide(color: cs.outlineVariant),
+                          backgroundColor: cs.surfaceContainerHigh,
+                          foregroundColor: cs.onSurface,
+                        ),
+                        child: Text(
+                          l10n.signPlacerReset,
+                          style: AppTheme.monoCaption(cs),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -532,15 +564,10 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
   /// Non-interactive amber outline for an existing AcroForm signature
   /// field's rectangle, so the user can see where a form expects a
   /// signature before choosing to align the new signature to it.
-  Widget _buildFieldMarker(
-    PdfSignatureFieldInfo field,
-    Size containerSize,
-    Size pageSize,
-  ) {
-    final rect = _fractionToScreen(
+  Widget _buildFieldMarker(PdfSignatureFieldInfo field, Size page) {
+    final rect = SignatureBoxGeometry.fractionToScreen(
       Rect.fromLTWH(field.x, field.y, field.width, field.height),
-      containerSize,
-      pageSize,
+      page,
     );
     return Positioned(
       left: rect.left,
@@ -585,285 +612,76 @@ class _PdfSignaturePlacerState extends State<PdfSignaturePlacer> {
       );
     }
 
-    final aspectRatio = pageSize.width / pageSize.height;
+    // Fit the WHOLE page in the visible area: bounded by the available width
+    // and by roughly the viewport height minus the surrounding chrome.
+    final maxH = max(240.0, MediaQuery.sizeOf(context).height - 260);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final containerW = constraints.maxWidth;
-        final containerH = containerW / aspectRatio;
+        final scale = min(
+          constraints.maxWidth / pageSize.width,
+          maxH / pageSize.height,
+        );
+        final display = Size(pageSize.width * scale, pageSize.height * scale);
+        final doc = _doc!;
+        final pageNumber = _pageIndex + 1;
 
-        return Container(
-          width: containerW,
-          height: containerH,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.20),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Builder(
-            builder: (context) {
-              final containerSize = Size(containerW, containerH);
-              final currentScreenRect =
-                  _screenRect ??
-                  _fractionToScreen(
-                    _sigAsFractionRect(),
-                    containerSize,
-                    pageSize,
-                  );
-              final imgBytes = _effectiveImageData;
-
-              return Stack(
-                children: [
-                  // PDF page
-                  Positioned.fill(
+        return Center(
+          child: Container(
+            width: display.width,
+            height: display.height,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.20),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                // PDF page (not rebuilt by pointer moves: the overlay keeps
+                // its live state in its own subtree).
+                Positioned.fill(
+                  child: RepaintBoundary(
                     child: PdfPageView(
-                      document: _doc!,
-                      pageNumber: _pageIndex + 1,
+                      document: doc,
+                      pageNumber: pageNumber,
                       alignment: Alignment.center,
                     ),
                   ),
+                ),
 
-                  // Existing AcroForm signature field rectangles: purely
-                  // informational, never intercepts pointer events (see
-                  // _buildFieldMarker) so drag/resize on the active
-                  // placement keeps receiving every pointer event.
-                  for (final field in _sigFields)
-                    if (field.pageIndex == _pageIndex)
-                      _buildFieldMarker(field, containerSize, pageSize),
+                // Existing AcroForm signature field rectangles: purely
+                // informational, never intercept pointer events.
+                for (final field in _sigFields)
+                  if (field.pageIndex == _pageIndex)
+                    _buildFieldMarker(field, display),
 
-                  // Signature placement highlight, tracks the
-                  // same rect as the interactive overlay; never intercepts
-                  // pointer events so drag/resize keeps working untouched.
-                  if (currentScreenRect.width > 4 &&
-                      currentScreenRect.height > 4)
-                    Positioned(
-                      left: currentScreenRect.left,
-                      top: currentScreenRect.top,
-                      width: currentScreenRect.width,
-                      height: currentScreenRect.height,
-                      child: IgnorePointer(
-                        child: Semantics(
-                          label: l10n.signPlacerAreaSemanticsLabel,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: _kSignatureHighlightFill,
-                              border: Border.all(
-                                color: _kSignatureHighlightBorder,
-                                width: 2.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Signature image preview
-                  if (imgBytes != null &&
-                      currentScreenRect.width > 4 &&
-                      currentScreenRect.height > 4)
-                    Positioned(
-                      left: currentScreenRect.left,
-                      top: currentScreenRect.top,
-                      width: currentScreenRect.width,
-                      height: currentScreenRect.height,
-                      child: Image.memory(
-                        imgBytes,
-                        fit: BoxFit.fill,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
-                    ),
-
-                  // Overlay: border + fill + handles (via CustomPainter)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onPanStart: (d) {
-                        if (currentScreenRect.contains(d.localPosition)) {
-                          setState(() {
-                            _moving = true;
-                            _moveOffset =
-                                d.localPosition - currentScreenRect.topLeft;
-                            _screenRect = currentScreenRect;
-                          });
-                        } else {
-                          setState(() {
-                            _moving = false;
-                            _screenRect = Rect.fromLTWH(
-                              d.localPosition.dx,
-                              d.localPosition.dy,
-                              1,
-                              1,
-                            );
-                          });
-                        }
-                      },
-                      onPanUpdate: (d) {
-                        final scale = _scale(containerSize, pageSize);
-                        final offset = _renderOffset(
-                          containerSize,
-                          pageSize,
-                          scale,
-                        );
-                        final bounds = Rect.fromLTWH(
-                          offset.dx,
-                          offset.dy,
-                          pageSize.width * scale,
-                          pageSize.height * scale,
-                        );
-
-                        setState(() {
-                          if (_moving &&
-                              _screenRect != null &&
-                              _moveOffset != null) {
-                            final newTopLeft = d.localPosition - _moveOffset!;
-                            final clamped = Offset(
-                              newTopLeft.dx.clamp(
-                                bounds.left,
-                                bounds.right - _screenRect!.width,
-                              ),
-                              newTopLeft.dy.clamp(
-                                bounds.top,
-                                bounds.bottom - _screenRect!.height,
-                              ),
-                            );
-                            _screenRect = Rect.fromLTWH(
-                              clamped.dx,
-                              clamped.dy,
-                              _screenRect!.width,
-                              _screenRect!.height,
-                            );
-                          } else if (_screenRect != null) {
-                            final raw = Rect.fromPoints(
-                              _screenRect!.topLeft,
-                              d.localPosition,
-                            );
-                            final clamped = raw.intersect(bounds);
-                            if (clamped.width > 4 && clamped.height > 4) {
-                              _screenRect = clamped;
-                            }
-                          }
-                        });
-                      },
-                      onPanEnd: (_) {
-                        if (_screenRect == null) return;
-                        final fracRect = _screenToFraction(
-                          _screenRect!,
-                          containerSize,
-                          pageSize,
-                        );
-                        setState(() => _moving = false);
-                        _notify(fracRect);
-                      },
-                      child: CustomPaint(
-                        painter: _SignatureOverlayPainter(
-                          screenRect: currentScreenRect,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ),
+                // Interactive placement box.
+                Positioned.fill(
+                  child: SignatureBoxOverlay(
+                    pageSize: display,
+                    fraction: _sigAsFractionRect(),
+                    imageData: _effectiveImageData,
+                    imageAspect: _imageAspect,
+                    lockAspect: _lockAspect,
+                    onCommit: _notify,
+                    semanticsLabel: l10n.signPlacerAreaSemanticsLabel,
+                    signHereLabel: l10n.signPlacerSignHere,
                   ),
-
-                  // "FIRMA QUI" label centered in sig box
-                  if (imgBytes == null &&
-                      currentScreenRect.width > 32 &&
-                      currentScreenRect.height > 18)
-                    Positioned(
-                      left: currentScreenRect.left,
-                      top: currentScreenRect.top,
-                      width: currentScreenRect.width,
-                      height: currentScreenRect.height,
-                      child: IgnorePointer(
-                        child: Center(
-                          child: Text(
-                            l10n.signPlacerSignHere,
-                            style: TextStyle(
-                              fontFamily: 'JetBrainsMono',
-                              color: cs.primary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
-}
-
-class _SignatureOverlayPainter extends CustomPainter {
-  const _SignatureOverlayPainter({
-    required this.screenRect,
-    required this.color,
-  });
-
-  final Rect screenRect;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (screenRect.width < 4 || screenRect.height < 4) return;
-
-    // Fill: primary 14%
-    canvas.drawRect(
-      screenRect,
-      Paint()
-        ..color = color.withValues(alpha: 0.14)
-        ..style = PaintingStyle.fill,
-    );
-
-    // Border: 2px solid primary
-    canvas.drawRect(
-      screenRect,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
-    );
-
-    // Corner handles: 10×10 white circle with 2px primary border
-    const r = 5.0;
-    for (final corner in [
-      screenRect.topLeft,
-      screenRect.topRight,
-      screenRect.bottomLeft,
-      screenRect.bottomRight,
-    ]) {
-      // White fill
-      canvas.drawCircle(
-        corner,
-        r,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.fill,
-      );
-      // Primary border
-      canvas.drawCircle(
-        corner,
-        r,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SignatureOverlayPainter old) =>
-      old.screenRect != screenRect || old.color != color;
 }
 
 enum _ImageAction { pick, reset }
