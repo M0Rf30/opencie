@@ -98,7 +98,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 #### **CAdES-C-LTA (Long-Term Archive)**
 - ✅ All C-LT requirements
-- ✅ Unsigned attribute: **`archive-time-stamp-v3`** (OID 1.2.840.113549.1.9.16.2.48)
+- ✅ Unsigned attribute: **`archive-time-stamp-v3`** (OID 0.4.0.1733.2.4)
   - RFC 3161 TimeStampToken
   - **Critical**: Input to hash is **DER-encoded concatenation** of:
     - `encapContentInfo` from original SignedData
@@ -232,7 +232,7 @@ startxref
    - `ocspVals`: DER-encoded OCSP responses
    - Include revocation data for: signing cert, intermediates, TSA cert, OCSP responder cert
 
-4. **`archive-time-stamp-v3`** (OID 1.2.840.113549.1.9.16.2.48) — **CRITICAL**
+4. **`archive-time-stamp-v3`** (OID 0.4.0.1733.2.4) — **CRITICAL**
    ```asn1
    ArchiveTimeStampV3 ::= TimeStampToken
    ```
@@ -254,7 +254,7 @@ startxref
 | signature-time-stamp | 1.2.840.113549.1.9.16.2.14 | Unsigned |
 | certificate-values | 1.2.840.113549.1.9.16.2.23 | Unsigned |
 | revocation-values | 1.2.840.113549.1.9.16.2.24 | Unsigned |
-| archive-time-stamp-v3 | 1.2.840.113549.1.9.16.2.48 | Unsigned |
+| archive-time-stamp-v3 | 0.4.0.1733.2.4 | Unsigned |
 | signing-certificate-v2 | 1.2.840.113549.1.9.16.2.47 | Signed |
 | content-type | 1.2.840.113549.1.9.3 | Signed |
 | message-digest | 1.2.840.113549.1.9.4 | Signed |
@@ -653,7 +653,7 @@ final archiveTimestamp = await TspClient.timestamp(
 
 // 9. Add archive-time-stamp-v3
 cms.addUnsignedAttribute(
-  oid: '1.2.840.113549.1.9.16.2.48',  // archive-time-stamp-v3
+  oid: '0.4.0.1733.2.4',  // archive-time-stamp-v3
   value: archiveTimestamp,
 );
 

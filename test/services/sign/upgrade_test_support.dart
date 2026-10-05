@@ -54,6 +54,8 @@ final Uint8List fakeTsaCertificate = Uint8List.fromList([
 /// [imprints], and the `reqPolicy` OID of each request (null when the
 /// TimeStampReq has none) to [policies]. Tokens embed [tsaCertificates] in
 /// SignedData.certificates (pass an empty list for a certificate-less TSA).
+/// The hash algorithm OID of each request is appended to [hashOids] and
+/// echoed in the token's messageImprint.
 MockClient fakeTsaClient({
   List<Uri>? requests,
   Set<String> failHosts = const {},
@@ -61,6 +63,7 @@ MockClient fakeTsaClient({
   List<Uint8List>? imprints,
   List<String?>? policies,
   List<Uint8List>? tsaCertificates,
+  List<String>? hashOids,
   int? failAfter,
 }) {
   var served = 0;
@@ -76,6 +79,11 @@ MockClient fakeTsaClient({
     final msgImprint = reqSeq.elements![1] as ASN1Sequence;
     final hash = (msgImprint.elements![1] as ASN1OctetString).octets!;
     imprints?.add(hash);
+    final hashOid =
+        ((msgImprint.elements![0] as ASN1Sequence).elements![0]
+                as ASN1ObjectIdentifier)
+            .objectIdentifierAsString!;
+    hashOids?.add(hashOid);
     if (policies != null) {
       final third = reqSeq.elements!.length > 2 ? reqSeq.elements![2] : null;
       policies.add(
@@ -100,6 +108,7 @@ MockClient fakeTsaClient({
       hash,
       nonce,
       tsaCertificates ?? [fakeTsaCertificate],
+      hashOid,
     );
     final status = ASN1Sequence()..add(ASN1Integer(BigInt.zero));
     final resp = ASN1Sequence()
@@ -117,12 +126,13 @@ Uint8List _buildTimeStampToken(
   Uint8List hash,
   Uint8List? nonce,
   List<Uint8List> certificates,
+  String hashOid,
 ) {
   final tstInfo = ASN1Sequence()
     ..add(ASN1Integer(BigInt.one))
     ..add(ASN1ObjectIdentifier.fromIdentifierString('1.3.6.1.4.1.601.10.3.1'));
   final imprint = ASN1Sequence()
-    ..add(algorithmIdentifier(Oid.sha256))
+    ..add(algorithmIdentifier(hashOid))
     ..add(ASN1OctetString(octets: hash));
   tstInfo
     ..add(imprint)

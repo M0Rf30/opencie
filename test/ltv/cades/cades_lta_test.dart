@@ -17,6 +17,7 @@ import 'package:pointycastle/asn1.dart';
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
+import 'ats_v3_reference.dart';
 import 'synthetic_cades.dart';
 
 /// Helper to build a minimal TSTInfo token for testing.
@@ -345,7 +346,7 @@ void main() {
       expect(() => ltaUpgrader.upgrade(clt), throwsA(isA<CadesException>()));
     });
 
-    test('multi-upgrade replaces archive-time-stamp-v3', () async {
+    test('multi-upgrade appends archive-time-stamp-v3 attributes', () async {
       // Arrange
       final originalBes = buildSyntheticCadesBes();
       final ltUpgrader = CadesLtUpgrader();
@@ -365,18 +366,16 @@ void main() {
       );
       final lta1 = await ltaUpgrader.upgrade(clt);
 
-      // Second upgrade (should replace)
+      // Second upgrade (renewal) appends
       final lta2 = await ltaUpgrader.upgrade(lta1);
 
-      // Assert: Only one archive-time-stamp-v3 present
-      final sd = CadesSignedData.parse(lta2);
-      final atsAttr = sd.getUnsignedAttribute(Oid.archiveTimeStampV3);
-      expect(atsAttr, isNotNull);
-
-      // Verify it's a SET OF with exactly one element
-      final atsSet = derDecode(atsAttr!) as ASN1Set;
-      expect(atsSet.elements, isNotNull);
-      expect(atsSet.elements!.length, equals(1));
+      // Assert: two separate archive-time-stamp-v3 attributes, the first
+      // one byte-identical to what lta1 carried.
+      final tokens1 = CadesSignedData.parse(lta1).archiveTimeStampTokens;
+      final tokens2 = CadesSignedData.parse(lta2).archiveTimeStampTokens;
+      expect(tokens1, hasLength(1));
+      expect(tokens2, hasLength(2));
+      expect(tokens2.first, tokens1.single);
     });
 
     test('preserves prior unsigned attributes after upgrade', () async {
@@ -504,29 +503,10 @@ void main() {
       );
       await ltaUpgrader.upgrade(clt);
 
-      // Assert: Recompute the expected hash manually
-      final sd = CadesSignedData.parse(clt);
-      final encapContentInfoDer = sd.encapContentInfoForAtsV3;
-      final signedAttrsDer = sd.signedAttrsDer;
-      final signatureValueDer = sd.signatureValueDer;
-      final unsignedAttrsForArchive = sd.unsignedAttributesForArchiveTimestamp;
-      final unsignedAttrsDerList = unsignedAttrsForArchive
-          .map((e) => e.value)
-          .toList();
-      unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
-      final unsignedAttrsConcatenated = Uint8List.fromList(
-        unsignedAttrsDerList.expand((bytes) => bytes).toList(),
-      );
-
-      final expectedInput = Uint8List.fromList([
-        ...encapContentInfoDer,
-        ...signedAttrsDer,
-        ...signatureValueDer,
-        ...unsignedAttrsConcatenated,
-      ]);
-
-      final expectedHash = sha256Of(expectedInput);
-
+      // Assert: recompute the imprint independently from the spec steps
+      // (ETSI EN 319 122-1 §5.5.3) on the raw bytes of the input, without
+      // any production CAdES helper.
+      final expectedHash = sha256Of(referenceArchiveImprintInput(clt));
       expect(capturedHash, equals(expectedHash));
     });
 
@@ -735,14 +715,4 @@ void main() {
       await server.close(force: true);
     });
   });
-}
-
-/// Lexicographic comparison of byte arrays (unsigned).
-int _lexCompare(Uint8List a, Uint8List b) {
-  final minLen = a.length < b.length ? a.length : b.length;
-  for (int i = 0; i < minLen; i++) {
-    final cmp = (a[i] & 0xFF).compareTo(b[i] & 0xFF);
-    if (cmp != 0) return cmp;
-  }
-  return a.length.compareTo(b.length);
 }

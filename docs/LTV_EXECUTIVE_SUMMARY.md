@@ -71,8 +71,8 @@ Upgrade PAdES-B-B and CAdES-B-B signatures (produced by OpenCiePkcs11) to **PAdE
 - **Gotcha**: Off-by-one byte range = Adobe rejects signature
 
 ### 3. CAdES Archive-Time-Stamp-v3
-- **OID**: `1.2.840.113549.1.9.16.2.48`
-- **Input**: DER(encapContentInfo) || DER(signedAttrs) || DER(unsignedAttrs_so_far)
+- **OID**: `0.4.0.1733.2.4`
+- **Input** (EN 319 122-1 §5.5.3): eContentType || hash of the signed data || SignerInfo fields (version, sid, digestAlgorithm, signedAttrs, signatureAlgorithm, signature) || DER(ATSHashIndexV3, OID 0.4.0.19122.1.5)
 - **NOT**: The original document
 - **Gotcha**: Wrong input = timestamp validates but archive-timestamp fails
 

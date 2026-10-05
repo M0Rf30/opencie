@@ -10,29 +10,49 @@ import 'ats_hash_index.dart';
 import 'cades_models.dart';
 import 'cades_parser.dart';
 
+/// Supplies certificates and revocation evidence for the TSAs that signed the
+/// archive time-stamps already present in a signature. Receives every
+/// certificate found in those tokens; may return null when nothing could be
+/// obtained.
+typedef PreviousTimestampValidation =
+    Future<ValidationMaterial?> Function(List<Uint8List> previousTsaCerts);
+
 /// Upgrades a CAdES C-LT (or higher) signature to CAdES C-LTA by adding an
-/// archive-time-stamp-v3 unsigned attribute.
+/// archive-time-stamp-v3 unsigned attribute (ETSI EN 319 122-1 §5.5.3).
 ///
-/// Per ETSI EN 319 122-1 §5.5.3, the archive-time-stamp-v3 is computed over
-/// the concatenation of:
-/// 1. DER(encapContentInfo)
-/// 2. DER(signedAttrs) — canonical SET OF Attribute
-/// 3. DER(signature OCTET STRING)
-/// 4. DER-concatenation of all remaining unsigned attributes in DER-canonical order
+/// The message imprint of the time-stamp is the hash of the concatenation of:
+/// 1. `SignedData.encapContentInfo.eContentType`, as encoded (TLV);
+/// 2. the hash of the signed data (content octets of `eContent`; for a
+///    detached signature the `message-digest` signed attribute, provided it
+///    uses the same algorithm as the time-stamp);
+/// 3. `version, sid, digestAlgorithm, signedAttrs, signatureAlgorithm,
+///    signature` of the SignerInfo, as encoded (TLVs, signedAttrs keeping its
+///    `[0]` tag);
+/// 4. the DER `ATSHashIndexV3` that is also placed, as an
+///    ats-hash-index-v3 unsigned attribute, in the returned TimeStampToken
+///    (§5.5.2).
 ///
-/// The TimeStampToken returned by the TSA is then augmented with an ats-hash-index-v3
-/// unsigned attribute (per ETSI EN 319 122-1 §5.5.2) before being embedded in the
-/// outer CAdES signature.
+/// `ATSHashIndexV3` hashes (all with the time-stamp's hash algorithm):
+/// each `CertificateChoices` of `SignedData.certificates`, each
+/// `RevocationInfoChoice` of `SignedData.crls`, and for every
+/// `AttributeValue` of every unsigned attribute the `attrType` TLV
+/// concatenated with the value TLV. Earlier archive-time-stamp-v3 attributes
+/// are unsigned attributes too, so every new stamp covers the previous ones.
 ///
-/// **MVP Limitation**: Multiple calls to upgrade() REPLACE the existing
-/// archive-time-stamp-v3 (per setUnsignedAttribute semantics). Production-grade
-/// C-LTA appends multiple archive timestamps for periodic renewal.
+/// Calling [upgrade] on a signature that already has archive time-stamps
+/// APPENDS another attribute (renewal); existing ones are never replaced or
+/// altered. Before that, validation material for the TSAs of the previous
+/// stamps is added to `SignedData.certificates` / `SignedData.crls` when
+/// [previousTimestampValidation] provides it (§5.5.3: the root SignedData is
+/// extended before a new archive-time-stamp-v3 as long as no ATSv2 or older
+/// archive form is present).
 class CadesLtaUpgrader {
   CadesLtaUpgrader({
     required this.tspClient,
     required this.tspUrl,
     this.hashAlgorithmOid = Oid.sha256,
     this.policyOid,
+    this.previousTimestampValidation,
   });
 
   final TspClient tspClient;
@@ -42,45 +62,46 @@ class CadesLtaUpgrader {
   /// Optional TSA policy OID (RFC 3161 `reqPolicy`); blank means none.
   final String? policyOid;
 
-  /// Upgrades a CAdES C-LT (or higher) signature to C-LTA by adding an
-  /// archive-time-stamp-v3 unsigned attribute.
-  ///
+  /// Validation material for the TSAs of already present archive
+  /// time-stamps. Only consulted when there are any.
+  final PreviousTimestampValidation? previousTimestampValidation;
+
   /// Throws [CadesException] if the TSA rejects the request, returns no
   /// timestamp token, or the input cannot be parsed.
   Future<Uint8List> upgrade(Uint8List cadesClt) async {
     try {
-      // 1. Parse the input
       final sd = CadesSignedData.parse(cadesClt);
 
-      // 2. Extract the four byte segments for the archive timestamp input
-      final encapContentInfoDer = sd.encapContentInfoForAtsV3;
-      final signedAttrsDer = sd.signedAttrsDer;
-      final signatureValueDer = sd.signatureValueDer;
+      // 1. Renewal: validation data for the previous stamps' TSAs goes into
+      //    the root SignedData before the new stamp is requested.
+      final previous = sd.archiveTimeStampTokens;
+      if (previous.isNotEmpty) {
+        await _addPreviousChainValidation(sd, previous);
+      }
 
-      // 3. Build the concatenation of remaining unsigned attributes in DER-canonical order
-      final unsignedAttrsForArchive = sd.unsignedAttributesForArchiveTimestamp;
-      final unsignedAttrsDerList = unsignedAttrsForArchive
-          .map((e) => e.value)
-          .toList();
-      // Sort by full DER bytes ascending (DER-canonical order). This only
-      // normalises the imprint input: the attributes themselves stay in
-      // their original file order (CadesSignedData preserves it; ETSI
-      // EN 319 122-1 clause 5.5.3 requires existing unsigned attributes'
-      // encoding to be preserved when augmenting).
-      unsignedAttrsDerList.sort((a, b) => _lexCompare(a, b));
-      final unsignedAttrsConcatenated = Uint8List.fromList(
-        unsignedAttrsDerList.expand((bytes) => bytes).toList(),
-      );
+      // 2. ATSHashIndexV3 over everything present right now.
+      final atsHashIndexDer =
+          AtsHashIndexBuilder(hashAlgorithmOid: hashAlgorithmOid).build(
+            certificates: sd.signedDataCertificateTlvs,
+            crls: sd.signedDataCrlTlvs,
+            unsignedAttrValues: [
+              for (final p in sd.unsignedAttributeParts)
+                for (final v in p.valueTlvs)
+                  Uint8List.fromList([...p.typeTlv, ...v]),
+            ],
+          );
 
-      // 4. Concatenate all four segments
+      // 3. Message imprint input (§5.5.3 items 1-4).
       final archiveTimestampInput = Uint8List.fromList([
-        ...encapContentInfoDer,
-        ...signedAttrsDer,
-        ...signatureValueDer,
-        ...unsignedAttrsConcatenated,
+        ...sd.eContentTypeTlv,
+        ..._signedDataHash(sd),
+        ...sd.signerInfoFieldsForAtsV3,
+        ...atsHashIndexDer,
       ]);
 
-      // 5. Request timestamp from TSA
+      // 4. Request the time-stamp. TspClient verifies that the token echoes
+      //    our hash and hash algorithm, so the token's messageImprint
+      //    algorithm equals hashAlgorithmOid, and so does hashIndAlgorithm.
       final tspResponse = await tspClient.timestampData(
         tspUrl,
         archiveTimestampInput,
@@ -88,78 +109,44 @@ class CadesLtaUpgrader {
         requestCert: true,
         policyOid: policyOid,
       );
-
-      // 6. Validate response
       if (!tspResponse.isSuccess || tspResponse.timeStampToken == null) {
         throw CadesException(
           'Archive timestamp request rejected: ${tspResponse.status.name}',
         );
       }
-
-      // 7. Parse the TimeStampToken and add ats-hash-index-v3 to its inner SignerInfo
-      var tstToken = tspResponse.timeStampToken!;
-      try {
-        final tstSd = CadesSignedData.parse(tstToken);
-
-        // Build ats-hash-index-v3 using outer CAdES content
-        final builder = AtsHashIndexBuilder(hashAlgorithmOid: hashAlgorithmOid);
-
-        // Collect unsigned attribute values from outer CAdES (excluding archive-time-stamp-v3)
-        final unsignedAttrValues = <Uint8List>[];
-        for (final entry in sd.unsignedAttributesForArchiveTimestamp) {
-          // Each entry is (OID, full Attribute SEQUENCE DER)
-          // We need to extract the attrValue(s) from the Attribute SEQUENCE
-          final attrSeqDer = entry.value;
-          final attrSeq = derDecode(attrSeqDer) as ASN1Sequence;
-          if (attrSeq.elements != null && attrSeq.elements!.length >= 2) {
-            final attrValuesSet = attrSeq.elements![1];
-            if (attrValuesSet is ASN1Set && attrValuesSet.elements != null) {
-              // Add each value in the SET
-              for (final val in attrValuesSet.elements!) {
-                unsignedAttrValues.add(derEncode(val));
-              }
-            }
-          }
-        }
-
-        final atsHashIndexDer = builder.build(
-          certificates: sd.embeddedCertificates,
-          crls: sd.embeddedCrls.map((c) => c.rawCrl).toList(),
-          unsignedAttrValues: unsignedAttrValues,
+      // §5.5.2: hashIndAlgorithm must be the algorithm of the time-stamp's
+      // message imprint. TspClient already rejects a mismatching reply; keep
+      // the invariant explicit here because the hash index is built before
+      // the request.
+      if (tspResponse.messageImprintHashOid != hashAlgorithmOid) {
+        throw CadesException(
+          'Archive timestamp uses ${tspResponse.messageImprintHashOid}, '
+          'expected $hashAlgorithmOid',
         );
+      }
 
-        // Add ats-hash-index-v3 as an unsigned attribute to the inner TST's SignerInfo
-        final atsHashIndexSet = ASN1Set();
-        atsHashIndexSet.add(derDecode(atsHashIndexDer));
+      // 5. The ats-hash-index-v3 travels as an unsigned attribute of the
+      //    token's own SignerInfo.
+      Uint8List tstToken;
+      try {
+        final tstSd = CadesSignedData.parse(tspResponse.timeStampToken!);
         tstSd.setUnsignedAttribute(
           Oid.atsHashIndexV3,
-          derEncode(atsHashIndexSet),
+          derEncode(ASN1Set()..add(derDecode(atsHashIndexDer))),
         );
-
-        // Re-encode the modified TST
         tstToken = tstSd.encode();
       } catch (e) {
-        // ats-hash-index-v3 protects the antecedent unsigned attributes
-        // (including prior timestamps) — an archive timestamp without it
-        // is not ETSI EN 319 122-1 §5.5.2 conformant. Previously this
-        // silently fell back to the unaugmented TST with no signal to
-        // the caller; fail the whole upgrade instead so callers don't
-        // ship a non-conformant C-LTA believing it succeeded.
+        // An archive timestamp without its hash index protects nothing.
         throw CadesException(
           'Failed to build ats-hash-index-v3 for archive timestamp: $e',
         );
       }
 
-      // 8. Build the archive-time-stamp-v3 unsigned attribute
-      // Attribute ::= SEQUENCE { attrType OID, attrValues SET OF AttributeValue }
-      // For archive-time-stamp-v3, attrValues is SET OF TimeStampToken
-      final attrValuesSet = ASN1Set();
-      attrValuesSet.add(derDecode(tstToken));
-
-      // 9. Add the archive-time-stamp-v3 unsigned attribute
-      sd.setUnsignedAttribute(Oid.archiveTimeStampV3, derEncode(attrValuesSet));
-
-      // 10. Return the upgraded signature
+      // 6. Append (never replace) the archive-time-stamp-v3 attribute.
+      sd.appendUnsignedAttribute(
+        Oid.archiveTimeStampV3,
+        derEncode(ASN1Set()..add(derDecode(tstToken))),
+      );
       return sd.encode();
     } catch (e) {
       if (e is CadesException) rethrow;
@@ -167,13 +154,61 @@ class CadesLtaUpgrader {
     }
   }
 
-  /// Lexicographic comparison of byte arrays (unsigned).
-  static int _lexCompare(Uint8List a, Uint8List b) {
-    final minLen = a.length < b.length ? a.length : b.length;
-    for (int i = 0; i < minLen; i++) {
-      final cmp = (a[i] & 0xFF).compareTo(b[i] & 0xFF);
-      if (cmp != 0) return cmp;
+  /// §5.5.3 item 2: hash of the signed data with [hashAlgorithmOid].
+  Uint8List _signedDataHash(CadesSignedData sd) {
+    final content = sd.eContentOctets;
+    if (content != null) return hashOf(content, hashAlgorithmOid);
+
+    // Detached: the data is not available, but the signature commits to its
+    // hash in the message-digest attribute.
+    final md = sd.messageDigestAttributeValue;
+    if (md != null && sd.signerDigestAlgorithmOid == hashAlgorithmOid) {
+      return md;
     }
-    return a.length.compareTo(b.length);
+    throw CadesException(
+      'detached signature: the hash of the signed data is only known with '
+      '${sd.signerDigestAlgorithmOid}, not $hashAlgorithmOid',
+    );
+  }
+
+  Future<void> _addPreviousChainValidation(
+    CadesSignedData sd,
+    List<Uint8List> previousTokens,
+  ) async {
+    final provider = previousTimestampValidation;
+    if (provider == null) return;
+
+    final certs = <Uint8List>[];
+    for (final token in previousTokens) {
+      try {
+        for (final c in CadesSignedData.parse(token).embeddedCertificates) {
+          if (!certs.any((o) => bytesEqual(o, c))) certs.add(c);
+        }
+      } catch (_) {
+        // Intentional: an unreadable previous token just contributes nothing.
+      }
+    }
+    if (certs.isEmpty) return;
+
+    ValidationMaterial? material;
+    try {
+      material = await provider(certs);
+    } catch (_) {
+      // Intentional: extra validation data is best effort; the new stamp is
+      // still worth adding without it.
+      return;
+    }
+    if (material == null) return;
+
+    for (final c in material.certificates) {
+      sd.addSignedDataCertificate(c);
+    }
+    for (final crl in material.crls) {
+      sd.addSignedDataCrl(crl.rawCrl);
+    }
+    for (final ocsp in material.ocspResponses) {
+      final raw = ocsp.rawResponse;
+      if (raw != null) sd.addSignedDataOcspResponse(raw);
+    }
   }
 }

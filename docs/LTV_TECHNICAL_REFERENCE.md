@@ -12,7 +12,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 const String OID_SIGNATURE_TIME_STAMP = '1.2.840.113549.1.9.16.2.14';
 const String OID_CERTIFICATE_VALUES = '1.2.840.113549.1.9.16.2.23';
 const String OID_REVOCATION_VALUES = '1.2.840.113549.1.9.16.2.24';
-const String OID_ARCHIVE_TIME_STAMP_V3 = '1.2.840.113549.1.9.16.2.48';
+const String OID_ARCHIVE_TIME_STAMP_V3 = '0.4.0.1733.2.4';
 
 // Hash Algorithms
 const String OID_SHA256 = '2.16.840.1.101.3.4.2.1';

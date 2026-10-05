@@ -8,6 +8,10 @@ import '../asn1/oids.dart';
 import '../crl/crl_models.dart';
 import 'cades_models.dart';
 
+/// id-ri-ocsp-response (RFC 5940): `OtherRevocationInfoFormat` carrying an
+/// OCSPResponse inside `SignedData.crls`.
+const _idRiOcspResponse = '1.3.6.1.5.5.7.16.2';
+
 /// Parses and manipulates a CAdES SignedData blob (CMS ContentInfo).
 ///
 /// Strategy: Use byte-range preservation for robustness.
@@ -34,6 +38,14 @@ class CadesSignedData {
 
   // Embedded certificates from SignedData.certificates [0]
   late List<Uint8List> _embeddedCerts;
+
+  // The SignedData TLV exactly as found in the input, for byte-exact slicing.
+  late Uint8List _signedDataDer;
+
+  // `SignedData.certificates` / `crls` as extended through
+  // [addSignedDataCertificate] & co. Null means "unchanged from the input".
+  List<Uint8List>? _certTlvsOverride;
+  List<Uint8List>? _crlTlvsOverride;
 
   /// Parses a CAdES `.p7m` (or detached CMS) DER blob.
   /// Throws CadesException on parse failure.
@@ -85,8 +97,8 @@ class CadesSignedData {
         throw CadesException('ContentInfo.content is not [0] EXPLICIT');
       }
 
-      _signedData =
-          derDecode(contentObj.valueBytes ?? Uint8List(0)) as ASN1Sequence;
+      _signedDataDer = contentObj.valueBytes ?? Uint8List(0);
+      _signedData = derDecode(_signedDataDer) as ASN1Sequence;
       if (_signedData.elements == null || _signedData.elements!.isEmpty) {
         throw CadesException('Invalid SignedData structure');
       }
@@ -283,18 +295,24 @@ class CadesSignedData {
         }
       }
 
-      // Rebuild SignedData with the new SignerInfos
+      // Rebuild SignedData with the new SignerInfos (and, when validation
+      // data was added, the extended certificates [0] / crls [1]).
+      final elems = <ASN1Object>[...?_signedData.elements];
+      if (_certTlvsOverride != null) {
+        _putSignedDataSet(elems, 0xA0, _certTlvsOverride!);
+      }
+      if (_crlTlvsOverride != null) {
+        _putSignedDataSet(elems, 0xA1, _crlTlvsOverride!);
+      }
       final newSignedDataSeq = ASN1Sequence();
-      if (_signedData.elements != null) {
-        for (int i = 0; i < _signedData.elements!.length; i++) {
-          final elem = _signedData.elements![i];
-          if (elem is ASN1Set && i == _signedData.elements!.length - 1) {
-            // This is the SignerInfos SET, replace it
-            newSignedDataSeq.add(newSignerInfosSet);
-          } else {
-            // Keep other elements as-is
-            newSignedDataSeq.add(elem);
-          }
+      for (int i = 0; i < elems.length; i++) {
+        final elem = elems[i];
+        if (elem is ASN1Set && i == elems.length - 1) {
+          // This is the SignerInfos SET, replace it
+          newSignedDataSeq.add(newSignerInfosSet);
+        } else {
+          // Keep other elements as-is
+          newSignedDataSeq.add(elem);
         }
       }
 
@@ -310,6 +328,38 @@ class CadesSignedData {
     } catch (e) {
       throw CadesException('Encode error: $e');
     }
+  }
+
+  /// Replaces (or inserts) the `[0]` certificates / `[1]` crls element of
+  /// SignedData in [elems] with [tlvs] written flat under the tag.
+  void _putSignedDataSet(
+    List<ASN1Object> elems,
+    int tag,
+    List<Uint8List> tlvs,
+  ) {
+    final content = BytesBuilder();
+    for (final t in tlvs) {
+      content.add(t);
+    }
+    final obj = _implicitConstructed(tag & 0x1F, content.toBytes());
+    // Fixed fields: version, digestAlgorithms, encapContentInfo; the last
+    // element is signerInfos.
+    for (var i = 3; i < elems.length - 1; i++) {
+      if (elems[i].tag == tag) {
+        elems[i] = obj;
+        return;
+      }
+    }
+    var at = elems.length - 1;
+    if (tag == 0xA0) {
+      for (var i = 3; i < elems.length - 1; i++) {
+        if (elems[i].tag == 0xA1) {
+          at = i;
+          break;
+        }
+      }
+    }
+    elems.insert(at, obj);
   }
 
   Uint8List _rebuildSignerInfo0() {
@@ -402,6 +452,19 @@ class CadesSignedData {
       if (a.oid == oid) return a.valueSetDer;
     }
     return null;
+  }
+
+  /// Appends a new unsigned attribute, keeping any existing attribute of the
+  /// same type. Needed for archive-time-stamp-v3: each renewal adds another
+  /// attribute and earlier ones must stay byte-identical (ETSI EN 319 122-1
+  /// §5.5.3, NOTE 4 of §5.5.2).
+  void appendUnsignedAttribute(String oid, Uint8List attributeValueSetDer) {
+    final attr = ASN1Sequence()
+      ..add(ASN1ObjectIdentifier.fromIdentifierString(oid))
+      ..add(derDecode(attributeValueSetDer));
+    _unsignedAttrs.add(
+      _UnsignedAttr(oid, attributeValueSetDer, derEncode(attr)),
+    );
   }
 
   /// Certificates carried inside the signature-time-stamp token(s) (the
@@ -521,6 +584,221 @@ class CadesSignedData {
     } catch (_) {
       return const [];
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Byte-exact views used by the archive-time-stamp-v3 (ETSI EN 319 122-1
+  // clauses 5.5.2 / 5.5.3). They slice the ORIGINAL encoding instead of
+  // re-encoding parsed objects, because the standard requires the fields "in
+  // their binary encoded form without any modification".
+  // ---------------------------------------------------------------------
+
+  List<Uint8List> get _signedDataChildren {
+    final children = _splitTlvs(_tlvValue(_signedDataDer));
+    if (children.length < 4) {
+      throw CadesException('SignedData has too few fields');
+    }
+    return children;
+  }
+
+  List<Uint8List> get _encapChildren =>
+      _splitTlvs(_tlvValue(_signedDataChildren[2]));
+
+  /// The exact SignerInfo[0] fields, in order: version, sid, digestAlgorithm,
+  /// [signedAttrs], signatureAlgorithm, signature and (if present) the
+  /// trailing unsignedAttrs.
+  List<Uint8List> get _signerInfoFields {
+    final infos = _splitTlvs(_tlvValue(_signedDataChildren.last));
+    if (infos.isEmpty) throw CadesException('SignerInfos is empty');
+    return _splitTlvs(_tlvValue(infos.first));
+  }
+
+  /// `SignedData.encapContentInfo.eContentType` as encoded in the input
+  /// (tag, length and value). ETSI EN 319 122-1 §5.5.3 input item 1.
+  Uint8List get eContentTypeTlv {
+    final eci = _encapChildren;
+    if (eci.isEmpty) throw CadesException('encapContentInfo is empty');
+    return eci.first;
+  }
+
+  /// Content octets of the signed data (the OCTET STRING inside
+  /// `eContent [0] EXPLICIT`), or null for a detached signature.
+  Uint8List? get eContentOctets {
+    final eci = _encapChildren;
+    if (eci.length < 2 || eci[1][0] != 0xA0) return null;
+    final inner = _splitTlvs(_tlvValue(eci[1]));
+    if (inner.length != 1) throw CadesException('malformed eContent');
+    return _octetStringContent(inner.first);
+  }
+
+  static Uint8List _octetStringContent(Uint8List tlv) {
+    if (tlv[0] == 0x04) return _tlvValue(tlv);
+    if (tlv[0] == 0x24) {
+      // BER constructed OCTET STRING: the content is the concatenation of
+      // its segments.
+      final out = BytesBuilder();
+      for (final seg in _splitTlvs(_tlvValue(tlv))) {
+        out.add(_octetStringContent(seg));
+      }
+      return out.toBytes();
+    }
+    throw CadesException('eContent is not an OCTET STRING');
+  }
+
+  /// OID of SignerInfo[0].digestAlgorithm.
+  String? get signerDigestAlgorithmOid {
+    final fields = _signerInfoFields;
+    if (fields.length < 3) return null;
+    final alg = derDecode(fields[2]);
+    if (alg is! ASN1Sequence || alg.elements == null || alg.elements!.isEmpty) {
+      return null;
+    }
+    final oid = alg.elements!.first;
+    return oid is ASN1ObjectIdentifier ? oid.objectIdentifierAsString : null;
+  }
+
+  /// Value of the `message-digest` signed attribute, or null.
+  Uint8List? get messageDigestAttributeValue {
+    for (final f in _signerInfoFields) {
+      if (f[0] != 0xA0) continue; // signedAttrs [0] IMPLICIT
+      var attrs = _splitTlvs(_tlvValue(f));
+      // Old fixtures wrap the attributes in one extra SET under the tag.
+      if (attrs.length == 1 && attrs.first[0] == 0x31) {
+        attrs = _splitTlvs(_tlvValue(attrs.first));
+      }
+      for (final a in attrs) {
+        final attr = derDecode(a);
+        if (attr is! ASN1Sequence || (attr.elements?.length ?? 0) < 2) continue;
+        final type = attr.elements![0];
+        if (type is! ASN1ObjectIdentifier ||
+            type.objectIdentifierAsString != Oid.messageDigest) {
+          continue;
+        }
+        final values = attr.elements![1];
+        if (values is ASN1Set &&
+            values.elements != null &&
+            values.elements!.isNotEmpty &&
+            values.elements!.first is ASN1OctetString) {
+          return (values.elements!.first as ASN1OctetString).octets;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// `version, sid, digestAlgorithm, signedAttrs, signatureAlgorithm,
+  /// signature` of SignerInfo[0], concatenated exactly as they appear in
+  /// the input (tag, length and value octets; signedAttrs keeps its
+  /// `[0] IMPLICIT` tag). ETSI EN 319 122-1 §5.5.3 input item 3.
+  Uint8List get signerInfoFieldsForAtsV3 {
+    final fields = _signerInfoFields;
+    final out = BytesBuilder();
+    for (var i = 0; i < fields.length; i++) {
+      // The trailing [1] is unsignedAttrs: not part of the imprint.
+      if (i == fields.length - 1 && fields[i][0] == 0xA1) break;
+      out.add(fields[i]);
+    }
+    return out.toBytes();
+  }
+
+  /// Every unsigned attribute (including archive-time-stamp-v3 ones) split
+  /// into its attrType TLV and its AttributeValue TLVs, in file order.
+  List<UnsignedAttributeParts> get unsignedAttributeParts {
+    final out = <UnsignedAttributeParts>[];
+    for (final a in _unsignedAttrs) {
+      final children = _splitTlvs(_tlvValue(a.attrDer));
+      out.add(
+        UnsignedAttributeParts(
+          a.oid,
+          children[0],
+          _splitTlvs(_tlvValue(children[1])),
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// The TimeStampToken of every archive-time-stamp-v3 attribute, oldest
+  /// first.
+  List<Uint8List> get archiveTimeStampTokens => [
+    for (final p in unsignedAttributeParts)
+      if (p.oid == Oid.archiveTimeStampV3) ...p.valueTlvs,
+  ];
+
+  /// `SignedData.certificates` CertificateChoices, byte-exact, in order.
+  List<Uint8List> get signedDataCertificateTlvs =>
+      _certTlvsOverride ?? _readSignedDataSet(0xA0, legacyContainer: true);
+
+  /// `SignedData.crls` RevocationInfoChoices, byte-exact, in order.
+  List<Uint8List> get signedDataCrlTlvs =>
+      _crlTlvsOverride ?? _readSignedDataSet(0xA1);
+
+  List<Uint8List> _readSignedDataSet(int tag, {bool legacyContainer = false}) {
+    final children = _signedDataChildren;
+    for (var i = 3; i < children.length - 1; i++) {
+      if (children[i][0] != tag) continue;
+      final tlvs = _splitTlvs(_tlvValue(children[i]));
+      if (legacyContainer && tlvs.length == 1 && tlvs.first[0] == 0x30) {
+        // Old fixtures wrap the certificates in one extra SEQUENCE.
+        final inner = _splitTlvs(_tlvValue(tlvs.first));
+        if (inner.isNotEmpty && inner.every((t) => t[0] == 0x30)) return inner;
+      }
+      return tlvs;
+    }
+    return const [];
+  }
+
+  /// Adds [certDer] to `SignedData.certificates` unless already there.
+  /// Returns whether it was added. ETSI EN 319 122-1 §5.5.3: validation data
+  /// needed before a new archive-time-stamp-v3 goes into the root SignedData.
+  bool addSignedDataCertificate(Uint8List certDer) {
+    final current = signedDataCertificateTlvs;
+    if (current.any((c) => bytesEqual(c, certDer))) return false;
+    _certTlvsOverride = [...current, certDer];
+    return true;
+  }
+
+  /// Adds a CRL (DER CertificateList) to `SignedData.crls` unless present.
+  bool addSignedDataCrl(Uint8List crlDer) => _addRevocationInfo(crlDer);
+
+  /// Adds a full DER OCSPResponse to `SignedData.crls` as
+  /// `[1] IMPLICIT OtherRevocationInfoFormat { id-ri-ocsp-response,
+  /// OCSPResponse }` (RFC 5940, ETSI EN 319 122-1 §5.4.2.2).
+  bool addSignedDataOcspResponse(Uint8List ocspResponseDer) {
+    final oid = ASN1ObjectIdentifier.fromIdentifierString(
+      _idRiOcspResponse,
+    ).encode();
+    final content = Uint8List.fromList([...oid, ...ocspResponseDer]);
+    final tlv = BytesBuilder()..addByte(0xA1);
+    _encodeLength(tlv, content.length);
+    tlv.add(content);
+    return _addRevocationInfo(tlv.toBytes());
+  }
+
+  bool _addRevocationInfo(Uint8List tlv) {
+    final current = signedDataCrlTlvs;
+    if (current.any((c) => bytesEqual(c, tlv))) return false;
+    _crlTlvsOverride = [...current, tlv];
+    return true;
+  }
+
+  /// Content octets of [tlv] (header stripped).
+  static Uint8List _tlvValue(Uint8List tlv) {
+    var pos = 0;
+    if ((tlv[pos++] & 0x1F) == 0x1F) {
+      while (pos < tlv.length && (tlv[pos] & 0x80) != 0) {
+        pos++;
+      }
+      pos++;
+    }
+    if (pos >= tlv.length) throw CadesException('truncated TLV');
+    final first = tlv[pos++];
+    if (first == 0x80) {
+      throw CadesException('indefinite length is not supported here');
+    }
+    if (first >= 0x80) pos += first & 0x7F;
+    if (pos > tlv.length) throw CadesException('truncated TLV');
+    return Uint8List.sublistView(tlv, pos);
   }
 
   /// Returns the DER encoding of the EncapsulatedContentInfo SEQUENCE.
@@ -650,4 +928,18 @@ class _UnsignedAttr {
   /// The complete Attribute TLV: verbatim input bytes for attributes that
   /// were already present, freshly DER-encoded for new ones.
   final Uint8List attrDer;
+}
+
+/// An unsigned attribute split into its raw `attrType` TLV and the raw TLV of
+/// each `AttributeValue`, exactly as encoded.
+class UnsignedAttributeParts {
+  UnsignedAttributeParts(this.oid, this.typeTlv, this.valueTlvs);
+
+  final String oid;
+
+  /// `attrType` OBJECT IDENTIFIER, tag + length + value.
+  final Uint8List typeTlv;
+
+  /// Each `AttributeValue`, tag + length + value.
+  final List<Uint8List> valueTlvs;
 }

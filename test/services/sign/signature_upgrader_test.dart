@@ -19,6 +19,7 @@ import 'package:opencie/services/sign/signature_upgrader.dart';
 import 'package:opencie/services/sign/validation_material_collector.dart';
 import 'package:pointycastle/asn1.dart';
 
+import '../../ltv/cades/ats_v3_reference.dart';
 import '../../ltv/cades/synthetic_cades.dart'
     show
         buildSyntheticAttribute,
@@ -867,6 +868,123 @@ void main() {
       expect(result.detail, contains('invalid TSA policy OID'));
       expect(requests, isEmpty);
       expect(await file.readAsBytes(), original);
+    });
+
+    test('the archive time-stamp imprint follows EN 319 122-1 §5.5.3 end to '
+        'end (independent reference over the pre-stamp signature)', () async {
+      final file = await writeFile('doc.p7m', buildSyntheticCadesBes());
+      final imprints = <Uint8List>[];
+      final upgrader = LtvSignatureUpgrader(
+        httpClientFactory: (_) => fakeTsaClient(imprints: imprints),
+        collectorFactory: (_) => _tsaAwareCollector(),
+      );
+
+      final result = await upgrader.upgrade(
+        path: file.path,
+        format: SignatureFormat.cades,
+        settings: testUpgradeSettings(),
+      );
+
+      expect(result.timestamped, isTrue);
+      final finished = await file.readAsBytes();
+      final before = refWithoutLastUnsignedAttribute(finished);
+      expect(imprints, hasLength(2)); // signature-time-stamp, archive stamp
+      expect(
+        imprints.last,
+        refDigest(Oid.sha256, referenceArchiveImprintInput(before)),
+      );
+      // The ATS token carries the matching hash index.
+      final token = CadesSignedData.parse(
+        CadesSignedData.parse(finished).archiveTimeStampTokens.single,
+      );
+      expect(
+        token.getUnsignedAttribute(Oid.atsHashIndexV3),
+        refTlv(0x31, referenceAtsHashIndex(before)),
+      );
+    });
+
+    test('upgrading an already archived p7m appends a second archive '
+        'time-stamp, keeps the first, and embeds validation data for the '
+        'first stamp TSA in SignedData', () async {
+      final file = await writeFile('doc.p7m', buildSyntheticCadesBes());
+      final requests = <Uri>[];
+      final collector = _tsaAwareCollector();
+      final upgrader = LtvSignatureUpgrader(
+        httpClientFactory: (_) => fakeTsaClient(requests: requests),
+        collectorFactory: (_) => collector,
+      );
+      await upgrader.upgrade(
+        path: file.path,
+        format: SignatureFormat.cades,
+        settings: testUpgradeSettings(),
+      );
+      final first = await file.readAsBytes();
+      final firstParts = CadesSignedData.parse(first).unsignedAttributeParts;
+      requests.clear();
+      collector.calls.clear();
+
+      final result = await upgrader.upgrade(
+        path: file.path,
+        format: SignatureFormat.cades,
+        settings: testUpgradeSettings(),
+      );
+
+      expect(result.timestamped, isTrue);
+      expect(result.warning, isNull);
+      // Renewal needs one TSA request only (no new B-T / LT). The collector
+      // is asked about the signer, then about the previous stamp's TSA.
+      expect(requests, hasLength(1));
+      expect(collector.calls, hasLength(2));
+      expect(
+        collector.calls.last.any((c) => bytesEqual(c, fakeTsaCertificate)),
+        isTrue,
+      );
+
+      final second = await file.readAsBytes();
+      final sd = CadesSignedData.parse(second);
+      final parts = sd.unsignedAttributeParts;
+      expect(parts, hasLength(firstParts.length + 1));
+      for (var i = 0; i < firstParts.length; i++) {
+        expect(parts[i].typeTlv, firstParts[i].typeTlv, reason: 'attr $i');
+        expect(parts[i].valueTlvs, firstParts[i].valueTlvs, reason: 'attr $i');
+      }
+      expect(sd.archiveTimeStampTokens, hasLength(2));
+      // Validation data for the previous TSA went into SignedData.
+      expect(
+        sd.signedDataCertificateTlvs.any(
+          (c) => bytesEqual(c, fakeTsaCertificate),
+        ),
+        isTrue,
+      );
+      expect(sd.signedDataCertificateTlvs, contains(equals(_tsaIssuerCert)));
+      expect(sd.signedDataCrlTlvs, hasLength(1));
+    });
+
+    test('renewal with no revocation evidence for the previous TSA warns '
+        'but still appends the stamp', () async {
+      final file = await writeFile('doc.p7m', buildSyntheticCadesBes());
+      final upgrader = LtvSignatureUpgrader(
+        httpClientFactory: (_) => fakeTsaClient(),
+        collectorFactory: (_) => _tsaAwareCollector(tsaRevocation: false),
+      );
+      await upgrader.upgrade(
+        path: file.path,
+        format: SignatureFormat.cades,
+        settings: testUpgradeSettings(),
+      );
+
+      final result = await upgrader.upgrade(
+        path: file.path,
+        format: SignatureFormat.cades,
+        settings: testUpgradeSettings(),
+      );
+
+      expect(result.timestamped, isTrue);
+      expect(result.warning, SignatureUpgradeWarning.revocationUnavailable);
+      expect(
+        CadesSignedData.parse(await file.readAsBytes()).archiveTimeStampTokens,
+        hasLength(2),
+      );
     });
   });
 

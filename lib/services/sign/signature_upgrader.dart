@@ -13,6 +13,7 @@ import '../../models/tsa_config.dart';
 import '../../providers/settings_provider.dart'
     show AppSettings, ValidationType;
 import '../ltv/asn1/der.dart' show bytesEqual;
+import '../ltv/asn1/oids.dart' show Oid;
 import '../ltv/cades/cades_lt.dart';
 import '../ltv/cades/cades_lta.dart';
 import '../ltv/cades/cades_models.dart';
@@ -404,61 +405,95 @@ class LtvSignatureUpgrader implements SignatureUpgrader {
     ValidationMaterialCollector? collector,
     CollectedValidationMaterial? signerMaterial,
   ) async {
-    // B-T: signature-time-stamp over the signature value.
-    var current = await CadesTUpgrader(
-      tspClient: tsp,
-      tspUrl: url,
-      policyOid: policyOid,
-    ).upgrade(original);
+    // A signature that already carries archive time-stamps is being renewed:
+    // its existing unsigned attributes are covered by those stamps and must
+    // stay byte-identical, so neither B-T nor LT touches it again.
+    final renewal = CadesSignedData.parse(
+      original,
+    ).archiveTimeStampTokens.isNotEmpty;
 
-    // LT: certificate-values / revocation-values for the signer AND the TSA
-    // that issued the signature-time-stamp (whose certificates live inside
-    // the token, not in SignedData.certificates).
-    final tsaCerts = CadesSignedData.parse(
-      current,
-    ).signatureTimeStampCertificates;
-    final tsa = await _collectTsaChain(collector, tsaCerts, validationType);
-    final merged = (signerMaterial ?? const CollectedValidationMaterial())
-        .merge(tsa.material);
-
+    var current = original;
     var signerEmbedded = false;
     String? problem;
-    try {
-      final outer = CadesSignedData.parse(current).embeddedCertificates;
-      // certificate-values omits what SignedData.certificates already has;
-      // skip the step when nothing new would be written.
-      final hasNewCerts = merged.certificates.any(
-        (c) => !outer.any((o) => bytesEqual(o, c)),
-      );
-      if (merged.hasRevocationData || hasNewCerts) {
-        current = CadesLtUpgrader().upgrade(
-          current,
-          ValidationMaterial(
-            certificates: merged.certificates,
-            crls: merged.crls,
-            ocspResponses: merged.ocspResponses,
-          ),
+    String? timestampProblem;
+
+    if (!renewal) {
+      // B-T: signature-time-stamp over the signature value.
+      current = await CadesTUpgrader(
+        tspClient: tsp,
+        tspUrl: url,
+        policyOid: policyOid,
+      ).upgrade(current);
+
+      // LT: certificate-values / revocation-values for the signer AND the
+      // TSA that issued the signature-time-stamp (whose certificates live
+      // inside the token, not in SignedData.certificates).
+      final tsaCerts = CadesSignedData.parse(
+        current,
+      ).signatureTimeStampCertificates;
+      final tsa = await _collectTsaChain(collector, tsaCerts, validationType);
+      timestampProblem = tsa.problem;
+      final merged = (signerMaterial ?? const CollectedValidationMaterial())
+          .merge(tsa.material);
+
+      try {
+        final outer = CadesSignedData.parse(current).embeddedCertificates;
+        // certificate-values omits what SignedData.certificates already has;
+        // skip the step when nothing new would be written.
+        final hasNewCerts = merged.certificates.any(
+          (c) => !outer.any((o) => bytesEqual(o, c)),
         );
-        signerEmbedded = signerMaterial?.hasRevocationData ?? false;
+        if (merged.hasRevocationData || hasNewCerts) {
+          current = CadesLtUpgrader().upgrade(
+            current,
+            ValidationMaterial(
+              certificates: merged.certificates,
+              crls: merged.crls,
+              ocspResponses: merged.ocspResponses,
+            ),
+          );
+          signerEmbedded = signerMaterial?.hasRevocationData ?? false;
+        }
+      } catch (e) {
+        debugPrint('LtvSignatureUpgrader: validation data not embedded ($e)');
+        problem = e.toString();
       }
-    } catch (e) {
-      debugPrint('LtvSignatureUpgrader: validation data not embedded ($e)');
-      problem = e.toString();
+    } else {
+      // The earlier run already embedded what it could for the signer.
+      final existing = CadesSignedData.parse(original);
+      signerEmbedded =
+          existing.getUnsignedAttribute(Oid.revocationValues) != null ||
+          existing.signedDataCrlTlvs.isNotEmpty;
     }
 
-    // LTA: archive-time-stamp-v3 over everything above. A TSA failure here
-    // throws and discards the whole attempt.
+    // LTA: archive-time-stamp-v3 (ETSI EN 319 122-1 §5.5.3) over everything
+    // above; on renewal it is appended after the existing ones, preceded by
+    // validation data for their TSAs. A TSA failure here throws and discards
+    // the whole attempt.
     current = await CadesLtaUpgrader(
       tspClient: tsp,
       tspUrl: url,
       policyOid: policyOid,
+      previousTimestampValidation: (previousTsaCerts) async {
+        final chain = await _collectTsaChain(
+          collector,
+          previousTsaCerts,
+          validationType,
+        );
+        timestampProblem ??= chain.problem;
+        return ValidationMaterial(
+          certificates: chain.material.certificates,
+          crls: chain.material.crls,
+          ocspResponses: chain.material.ocspResponses,
+        );
+      },
     ).upgrade(current);
 
     return _UpgradeOutcome(
       current,
       signerRevocationEmbedded: signerEmbedded,
       problem: problem,
-      timestampProblem: tsa.problem,
+      timestampProblem: timestampProblem,
     );
   }
 

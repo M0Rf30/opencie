@@ -36,6 +36,15 @@ void encodeLength(BytesBuilder builder, int length) {
   }
 }
 
+/// `[tagNumber]` constructed context-specific object whose content is
+/// [content] verbatim.
+ASN1Object _flatContext(int tagNumber, Uint8List content) {
+  final out = BytesBuilder()..addByte(0xA0 | tagNumber);
+  encodeLength(out, content.length);
+  out.add(content);
+  return ASN1Parser(out.toBytes()).nextObject();
+}
+
 /// Builds a synthetic CAdES-BES SignedData blob for testing.
 ///
 /// [unsignedAttrs] (OID → SET OF value DER) is written in the legacy shape
@@ -43,11 +52,17 @@ void encodeLength(BytesBuilder builder, int length) {
 /// TLVs emitted verbatim, in the given order, as a true `[1] IMPLICIT`
 /// (the Attributes directly under the tag, no inner SET) — this is how real
 /// signers write them, and lets tests use deliberately non-DER ordering or
-/// encodings.
+/// encodings. [trueImplicit] writes signedAttrs and certificates the same
+/// way (by default they use the legacy `[0] { SET }` shape the parser also
+/// accepts). [eContent] makes the signature attached; its message-digest is
+/// then the real hash.
 Uint8List buildSyntheticCadesBes({
   List<Uint8List> embeddedCerts = const [],
   Map<String, Uint8List> unsignedAttrs = const {},
   List<Uint8List> rawUnsignedAttrs = const [],
+  Uint8List? eContent,
+  String digestAlgorithmOid = Oid.sha256,
+  bool trueImplicit = false,
 }) {
   // Build SignerInfo
   final signerInfo = ASN1Sequence();
@@ -61,7 +76,7 @@ Uint8List buildSyntheticCadesBes({
   signerInfo.add(sid);
 
   // digestAlgorithm
-  signerInfo.add(algorithmIdentifier(Oid.sha256));
+  signerInfo.add(algorithmIdentifier(digestAlgorithmOid));
 
   // signedAttrs [0] IMPLICIT
   final signedAttrs = ASN1Set();
@@ -81,11 +96,28 @@ Uint8List buildSyntheticCadesBes({
     ASN1ObjectIdentifier.fromIdentifierString(Oid.messageDigest),
   );
   final messageDigestAttrValues = ASN1Set();
-  messageDigestAttrValues.add(ASN1OctetString(octets: Uint8List(32)));
+  messageDigestAttrValues.add(
+    ASN1OctetString(
+      octets: eContent != null
+          ? hashOf(eContent, digestAlgorithmOid)
+          : Uint8List(digestAlgorithmOid == Oid.sha384 ? 48 : 32),
+    ),
+  );
   messageDigestAttr.add(messageDigestAttrValues);
   signedAttrs.add(messageDigestAttr);
 
-  signerInfo.add(wrapImplicit(0, signedAttrs));
+  if (trueImplicit) {
+    // [0] IMPLICIT SET OF Attribute in DER order, attributes directly under
+    // the tag (what real signers emit and what OpenSSL expects).
+    final sorted = derSortedSet(signedAttrs.elements!);
+    final flat = BytesBuilder();
+    for (final a in sorted.elements!) {
+      flat.add(derEncode(a));
+    }
+    signerInfo.add(_flatContext(0, flat.toBytes()));
+  } else {
+    signerInfo.add(wrapImplicit(0, signedAttrs));
+  }
 
   // signatureAlgorithm
   signerInfo.add(algorithmIdentifier(Oid.sha256WithRSA));
@@ -128,7 +160,7 @@ Uint8List buildSyntheticCadesBes({
 
   // digestAlgorithms SET OF
   final digestAlgorithms = ASN1Set();
-  digestAlgorithms.add(algorithmIdentifier(Oid.sha256));
+  digestAlgorithms.add(algorithmIdentifier(digestAlgorithmOid));
   signedData.add(digestAlgorithms);
 
   // encapContentInfo
@@ -136,6 +168,10 @@ Uint8List buildSyntheticCadesBes({
   encapContentInfo.add(
     ASN1ObjectIdentifier.fromIdentifierString(Oid.pkcs7Data),
   );
+  if (eContent != null) {
+    // eContent [0] EXPLICIT OCTET STRING
+    encapContentInfo.add(explicit(0, ASN1OctetString(octets: eContent)));
+  }
   signedData.add(encapContentInfo);
 
   // certificates [0] IMPLICIT (optional)
@@ -144,7 +180,16 @@ Uint8List buildSyntheticCadesBes({
     for (final certDer in embeddedCerts) {
       certsSeq.add(derDecode(certDer));
     }
-    signedData.add(wrapImplicit(0, certsSeq));
+    if (trueImplicit) {
+      // [0] IMPLICIT CertificateSet: the certificates directly under the tag.
+      final flat = BytesBuilder();
+      for (final certDer in embeddedCerts) {
+        flat.add(certDer);
+      }
+      signedData.add(_flatContext(0, flat.toBytes()));
+    } else {
+      signedData.add(wrapImplicit(0, certsSeq));
+    }
   }
 
   // signerInfos SET OF

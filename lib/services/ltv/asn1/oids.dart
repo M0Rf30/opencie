@@ -38,9 +38,14 @@ abstract class Oid {
       '1.2.840.113549.1.9.16.2.23'; // id-aa-ets-certValues
   static const revocationValues =
       '1.2.840.113549.1.9.16.2.24'; // id-aa-ets-revocationValues
+  // ETSI EN 319 122-1 Annex A: id-aa-ets-archiveTimestampV3 is
+  // { itu-t(0) identified-organization(4) etsi(0) electronic-signature-
+  // standard(1733) attributes(2) 4 }, and id-aa-ATSHashIndex-v3 is
+  // { ... etsi(0) cades(19122) attributes(1) 5 }. (1.2.840.113549.1.9.16.2.48
+  // is archiveTimestampV2 and 0.4.0.19122.1.4 is ATSHashIndex-v2.)
   static const archiveTimeStampV3 =
-      '1.2.840.113549.1.9.16.2.48'; // id-aa-ets-archiveTimestampV3
-  static const atsHashIndexV3 = '0.4.0.19122.1.4'; // ETSI ats-hash-index-v3
+      '0.4.0.1733.2.4'; // id-aa-ets-archiveTimestampV3
+  static const atsHashIndexV3 = '0.4.0.19122.1.5'; // id-aa-ATSHashIndex-v3
 
   // X.509 v3 extensions (RFC 5280)
   static const subjectKeyIdentifier = '2.5.29.14';
