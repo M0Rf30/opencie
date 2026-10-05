@@ -9,6 +9,7 @@ import 'package:http/io_client.dart';
 
 import '../../models/proxy_config.dart';
 import '../../models/tsa_config.dart';
+import '../net/socks_connector.dart';
 
 /// Thrown when the configured proxy cannot be honoured. The caller must
 /// fail the network step instead of silently going direct, which would
@@ -53,7 +54,9 @@ class BasicAuthClient extends http.BaseClient {
 /// - `none`: always direct.
 /// - `system`: dart:io default (`http_proxy`/`https_proxy`/`no_proxy`).
 /// - `manual` + HTTP: `PROXY host:port`, with Basic proxy credentials.
-/// - `manual` + SOCKS4/5: not supported by dart:io → [UpgradeProxyException].
+/// - `manual` + SOCKS4(a)/5: tunnelled through `HttpClient.connectionFactory`
+///   (see `socks_connector.dart`), with remote DNS and, for SOCKS5, optional
+///   username/password. Handshake failures surface as request errors.
 HttpClient buildProxiedHttpClient(ProxyConfig proxy) {
   final client = HttpClient();
   switch (proxy.mode) {
@@ -66,15 +69,25 @@ HttpClient buildProxiedHttpClient(ProxyConfig proxy) {
         client.findProxy = (_) => 'DIRECT';
         break;
       }
-      if (proxy.type != ProxyType.http) {
-        client.close(force: true);
-        throw UpgradeProxyException(
-          '${proxy.type.name} proxies are not supported for timestamping',
-        );
-      }
       if (proxy.port <= 0 || proxy.port > 65535) {
         client.close(force: true);
         throw UpgradeProxyException('invalid proxy port ${proxy.port}');
+      }
+      if (proxy.type != ProxyType.http) {
+        // The factory must see direct connections only (no env proxies).
+        client.findProxy = (_) => 'DIRECT';
+        client.connectionFactory = socksConnectionFactory(
+          SocksProxy(
+            version: proxy.type == ProxyType.socks4
+                ? SocksVersion.socks4
+                : SocksVersion.socks5,
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            password: proxy.password,
+          ),
+        );
+        break;
       }
       client.findProxy = (_) => 'PROXY ${proxy.host}:${proxy.port}';
       if (proxy.username.isNotEmpty) {
