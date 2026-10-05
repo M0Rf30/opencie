@@ -119,7 +119,7 @@ void main() {
     test('defaults to null (follow system) and ignores legacy keys', () async {
       SharedPreferences.setMockInitialValues({
         'opencie_settings': jsonEncode({
-          'locale': 'en',
+          'locale': 'it',
           'logLevel': 'debug',
           'includeLocation': true,
           'includeReason': true,
@@ -138,6 +138,30 @@ void main() {
       expect(state.languageCode, isNull);
       expect(state.includeDate, isFalse);
     });
+
+    test(
+      'a non-default legacy locale carries over; languageCode wins',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'opencie_settings': jsonEncode({'locale': 'en'}),
+        });
+        var container = ProviderContainer();
+        addTearDown(container.dispose);
+        await container.read(settingsProvider.notifier).load();
+        expect(container.read(settingsProvider).languageCode, 'en');
+
+        SharedPreferences.setMockInitialValues({
+          'opencie_settings': jsonEncode({
+            'locale': 'en',
+            'languageCode': null,
+          }),
+        });
+        container = ProviderContainer();
+        addTearDown(container.dispose);
+        await container.read(settingsProvider.notifier).load();
+        expect(container.read(settingsProvider).languageCode, isNull);
+      },
+    );
 
     test(
       'set and clear persist across reloads; legacy keys not rewritten',
@@ -178,7 +202,8 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(container.read(settingsProvider).languageCode, isNull);
         raw = await _rawSettings();
-        expect(raw.containsKey('languageCode'), isFalse);
+        expect(raw.containsKey('languageCode'), isTrue);
+        expect(raw['languageCode'], isNull);
       },
     );
 

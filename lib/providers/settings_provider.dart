@@ -171,6 +171,18 @@ enum ValidationType { ocspOnly, ocspFirst, crlOnly, crlFirst }
 String? _parseLanguageCode(Object? raw) =>
     (raw is String && supportedLanguageCodes.contains(raw)) ? raw : null;
 
+/// Reads the UI language from a stored settings map. The current key is
+/// `languageCode`. Older versions stored `locale`, which defaulted to `'it'`
+/// and was never applied, so only a non-default value there can be a real
+/// choice: legacy `'en'` carries over, legacy `'it'` follows the system.
+String? _loadLanguageCode(Map<String, dynamic> map) {
+  if (map.containsKey('languageCode')) {
+    return _parseLanguageCode(map['languageCode']);
+  }
+  final legacy = _parseLanguageCode(map['locale']);
+  return legacy == 'it' ? null : legacy;
+}
+
 /// Language codes selectable in Settings (besides "follow system").
 const supportedLanguageCodes = ['it', 'en'];
 
@@ -354,7 +366,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         );
 
         state = AppSettings(
-          languageCode: _parseLanguageCode(map['languageCode']),
+          languageCode: _loadLanguageCode(map),
           defaultPdfFormat: SignatureFormat.values.byName(
             map['defaultPdfFormat'] as String? ?? 'pades',
           ),
@@ -431,7 +443,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'validationType': state.validationType.name,
       'uiScale': state.uiScale,
       'themeMode': state.themeMode.name,
-      if (state.languageCode != null) 'languageCode': state.languageCode,
+      // Always written (null = system) so a legacy `locale` key can't win.
+      'languageCode': state.languageCode,
     };
 
     // Lazily-parsed snapshot of whatever is already on disk, reused as a
