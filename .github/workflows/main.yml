@@ -1017,9 +1017,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     needs: [linux, linux-arm64, android, windows, macos, flatpak]
     steps:
       - uses: actions/checkout@v7
+
+      # pubspec.lock is gitignored, so resolve the dependency tree first; syft
+      # reads the resulting lockfile. Done before the artifacts are downloaded
+      # so the scan sees only the source tree, not the release binaries.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Prepare release directory
+        run: mkdir -p release
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: release/opencie-${{ github.ref_name }}.cdx.json
+          # The release is created below by `gh release create`.
+          upload-artifact: false
+          upload-release-assets: false
 
       - name: Download linux artifact
         uses: actions/download-artifact@v8
@@ -1088,6 +1114,11 @@ jobs:
               "release/opencie-${TAG}-${arch}.flatpak"
           done
           ls -lh release/
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*
 
       - name: Create GitHub release
         env:
