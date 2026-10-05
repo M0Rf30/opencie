@@ -69,6 +69,16 @@ SPDX-License-Identifier: CC0-1.0
   </screenshots>
 
   <releases>
+    <release version="0.5.3" date="2026-10-05">
+      <description>
+        <p>Android and layout fixes.</p>
+        <ul>
+          <li>The Android launcher icon fills the full icon shape instead of sitting on a white plate.</li>
+          <li>On phones in landscape the navigation moves to a compact side rail that fits the screen.</li>
+          <li>The desktop entry is translated into Italian.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.2" date="2026-10-05">
       <description>
         <p>Timestamped signatures and chip reading fixes, with native library opencie-pkcs11 1.3.3.</p>
