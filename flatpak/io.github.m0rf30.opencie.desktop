@@ -4,11 +4,14 @@
 [Desktop Entry]
 Name=OpenCIE
 GenericName=CIE Signing Tool
+GenericName[it]=Strumento di firma CIE
 Comment=Sign, verify and manage the Italian Electronic Identity Card
+Comment[it]=Firma, verifica e gestisci la Carta d'Identità Elettronica
 Exec=opencie
 Icon=io.github.m0rf30.opencie
 Terminal=false
 Type=Application
 Categories=Utility;Security;
 Keywords=CIE;smartcard;eID;signature;firma;eIDAS;PAdES;CAdES;XAdES;
+Keywords[it]=CIE;smartcard;eID;firma;firma digitale;carta d'identità;eIDAS;PAdES;CAdES;XAdES;
 StartupWMClass=io.github.m0rf30.opencie
