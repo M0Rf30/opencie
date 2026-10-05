@@ -135,16 +135,25 @@ class _ShellPageState extends ConsumerState<ShellPage> {
       if (next.loaded && !next.locked) _maybeCheckUpdates();
     });
     final lockEnabled = ref.watch(appLockProvider.select((s) => s.enabled));
-    final width = MediaQuery.sizeOf(context).width;
-    final isExpanded = width >= AppConstants.expandedBreakpoint;
-    final isMedium = width >= AppConstants.mediumBreakpoint;
+    final size = MediaQuery.sizeOf(context);
+    final width = size.width;
+    // Phones in landscape: the bottom bar would eat a quarter of the height,
+    // so switch to the rail as soon as the window is wider than tall.
+    final isLandscape = width > size.height;
+    final useRail =
+        width >= AppConstants.mediumBreakpoint ||
+        (isLandscape && width >= AppConstants.compactBreakpoint);
+    // Short windows (phone landscape) get a compact rail: no logo, no
+    // extended labels, so the five destinations fit without overflowing.
+    final isShort = size.height < 500;
+    final isExpanded = width >= AppConstants.expandedBreakpoint && !isShort;
 
     final l10n = AppLocalizations.of(context);
     final destinations = _destinations(l10n);
     final cs = Theme.of(context).colorScheme;
 
     // Mobile: bottom navigation bar
-    if (!isMedium) {
+    if (!useRail) {
       return Scaffold(
         body: SafeArea(bottom: false, child: navigationShell),
         bottomNavigationBar: DecoratedBox(
@@ -168,67 +177,79 @@ class _ShellPageState extends ConsumerState<ShellPage> {
     }
 
     // Desktop / tablet: navigation rail
+    final lockButton = IconButton(
+      key: const ValueKey('shell-lock-now'),
+      tooltip: l10n.appLockLockNow,
+      icon: const Icon(Icons.lock_outline),
+      onPressed: () => ref.read(appLockProvider.notifier).lock(),
+    );
     return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            extended: isExpanded,
-            labelType: isExpanded ? null : NavigationRailLabelType.all,
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: _onDestinationSelected,
-            minWidth: 80,
-            minExtendedWidth: 220,
-            leading: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isExpanded ? 18 : 0,
-                20,
-                isExpanded ? 18 : 0,
-                12,
-              ),
-              child: isExpanded
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const OcMark(size: 30),
-                        const SizedBox(width: 12),
-                        Text(
-                          'OpenCIE',
-                          style: AppTheme.headlineBold(
-                            cs,
-                          ).copyWith(fontSize: 18, letterSpacing: -0.2),
-                        ),
-                      ],
-                    )
-                  : const OcMark(size: 30),
-            ),
-            trailing: lockEnabled
-                ? Expanded(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: IconButton(
-                          key: const ValueKey('shell-lock-now'),
-                          tooltip: l10n.appLockLockNow,
-                          icon: const Icon(Icons.lock_outline),
-                          onPressed: () =>
-                              ref.read(appLockProvider.notifier).lock(),
+      // Keeps the rail and content clear of notches/cutouts in landscape.
+      body: SafeArea(
+        child: Row(
+          children: [
+            NavigationRail(
+              extended: isExpanded,
+              labelType: isExpanded
+                  ? null
+                  : isShort
+                  ? NavigationRailLabelType.selected
+                  : NavigationRailLabelType.all,
+              groupAlignment: isShort ? 0 : -1,
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: _onDestinationSelected,
+              minWidth: isShort ? 72 : 80,
+              minExtendedWidth: 220,
+              leading: isShort
+                  ? null
+                  : Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isExpanded ? 18 : 0,
+                        20,
+                        isExpanded ? 18 : 0,
+                        12,
+                      ),
+                      child: isExpanded
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const OcMark(size: 30),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'OpenCIE',
+                                  style: AppTheme.headlineBold(
+                                    cs,
+                                  ).copyWith(fontSize: 18, letterSpacing: -0.2),
+                                ),
+                              ],
+                            )
+                          : const OcMark(size: 30),
+                    ),
+              trailing: !lockEnabled
+                  ? null
+                  : isShort
+                  ? lockButton
+                  : Expanded(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: lockButton,
                         ),
                       ),
                     ),
-                  )
-                : null,
-            destinations: destinations.map((d) {
-              return NavigationRailDestination(
-                icon: Icon(d.icon),
-                selectedIcon: Icon(d.selectedIcon),
-                label: Text(d.label),
-              );
-            }).toList(),
-          ),
-          VerticalDivider(thickness: 1, width: 1, color: cs.outlineVariant),
-          Expanded(child: navigationShell),
-        ],
+              destinations: destinations.map((d) {
+                return NavigationRailDestination(
+                  icon: Icon(d.icon),
+                  selectedIcon: Icon(d.selectedIcon),
+                  label: Text(d.label),
+                );
+              }).toList(),
+            ),
+            VerticalDivider(thickness: 1, width: 1, color: cs.outlineVariant),
+            Expanded(child: navigationShell),
+          ],
+        ),
       ),
     );
   }
