@@ -492,7 +492,7 @@ jobs:
 
           # Extract the largest frame from the multi-resolution .ico (256×256)
           # so we can scale it down cleanly with high quality filtering.
-          magick "$ICON_SRC[0]" -resize 256x256 "$OUT/_logo.png"
+          magick "${ICON_SRC}[0]" -resize 256x256 "$OUT/_logo.png"
 
           # ── Large left panel (164×314, 24-bit BMP) ────────────────────────
           # Vertical gradient #181A21 → #0F1115, logo 88×88 centered at top,
@@ -1094,9 +1094,9 @@ jobs:
           TAG=${GITHUB_REF_NAME}
           mkdir -p release
           # Linux bundle tarball
-          tar -czf release/opencie-${TAG}-linux-x86_64.tar.gz \
+          tar -czf "release/opencie-${TAG}-linux-x86_64.tar.gz" \
             -C dist/linux-x86_64 .
-          tar -czf release/opencie-${TAG}-linux-aarch64.tar.gz \
+          tar -czf "release/opencie-${TAG}-linux-aarch64.tar.gz" \
             -C dist/linux-aarch64 .
           # Android APKs (one per ABI, already named with tag in the android job) + AAB
           cp dist/android/*.apk release/ 2>/dev/null || true
