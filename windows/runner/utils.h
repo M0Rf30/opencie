@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: 2026 Gianluca Boiano
- * SPDX-License-Identifier: GPL-3.0-or-later
+ * SPDX-FileCopyrightText: 2014 The Flutter Authors
+ * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #ifndef RUNNER_UTILS_H_

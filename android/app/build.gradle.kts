@@ -1,5 +1,6 @@
+// SPDX-FileCopyrightText: 2014 The Flutter Authors
 // SPDX-FileCopyrightText: 2026 Gianluca Boiano
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: BSD-3-Clause AND GPL-3.0-or-later
 
 import java.util.Properties
 import java.io.FileInputStream
