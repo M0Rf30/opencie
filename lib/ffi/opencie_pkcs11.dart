@@ -651,6 +651,83 @@ class OpenCiePkcs11 {
     });
   }
 
+  /// Read both DG1 (MRZ) and DG2 (photo) in a single PACE session (PIN fallback).
+  ///
+  /// Returns a [CieReadDgsResult]: `mrzBytes`/`photoBytes` are set on
+  /// success (either may still be null if that DG was empty). On failure
+  /// `returnValue` is non-zero and `statusWord`/`nativeErrorKind` carry the
+  /// `cie_last_error` detail (when the loaded library exports it) so the
+  /// caller can classify the failure with [classifyCieError] instead of
+  /// swallowing it. Runs in a background isolate. Requires the card PIN and
+  /// is only a fallback for readers that cannot use [readDgsCan]; the PIN is
+  /// wiped after the call and never stored. If the loaded library lacks
+  /// `cie_read_dgs`, returns `CKR_FUNCTION_NOT_SUPPORTED` instead of
+  /// throwing.
+  Future<CieReadDgsResult> readDgs({
+    required String pin,
+    ValueChanged<CieProgress>? onProgress,
+  }) async {
+    return _withProgress(onProgress, (progressPort) async {
+      return await Isolate.run(() {
+        _activeProgressPort = progressPort;
+        final lib = _openLib();
+        if (!lib.providesSymbol('cie_read_dgs')) {
+          _activeProgressPort = null;
+          return const CieReadDgsResult(
+            returnValue: AppConstants.ckrFunctionNotSupported,
+          );
+        }
+        final fn = lib.lookupFunction<CieReadDgsNative, CieReadDgsDart>(
+          'cie_read_dgs',
+        );
+
+        const mrzBufLen = 4096;
+        const photoBufLen = 524288; // 512 KiB
+        final pinPtr = pin.toNativeUtf8();
+        final mrzPtr = calloc<Uint8>(mrzBufLen);
+        final mrzLenPtr = calloc<Size>();
+        final photoPtr = calloc<Uint8>(photoBufLen);
+        final photoLenPtr = calloc<Size>();
+        mrzLenPtr.value = mrzBufLen;
+        photoLenPtr.value = photoBufLen;
+
+        try {
+          final rv = fn(pinPtr, mrzPtr, mrzLenPtr, photoPtr, photoLenPtr);
+          if (rv != 0) {
+            final err = lastNativeError();
+            return CieReadDgsResult(
+              returnValue: rv,
+              statusWord: err?.statusWord,
+              nativeErrorKind: err?.kind,
+            );
+          }
+
+          final mrzLen = mrzLenPtr.value;
+          final photoLen = photoLenPtr.value;
+          final mrzBytes = mrzLen > 0
+              ? Uint8List.fromList(mrzPtr.asTypedList(mrzLen))
+              : null;
+          final photoBytes = photoLen > 0
+              ? Uint8List.fromList(photoPtr.asTypedList(photoLen))
+              : null;
+          return CieReadDgsResult(
+            returnValue: rv,
+            mrzBytes: mrzBytes,
+            photoBytes: photoBytes,
+          );
+        } finally {
+          _wipeUtf8(pinPtr);
+          calloc.free(pinPtr);
+          calloc.free(mrzPtr);
+          calloc.free(mrzLenPtr);
+          calloc.free(photoPtr);
+          calloc.free(photoLenPtr);
+          _activeProgressPort = null;
+        }
+      });
+    });
+  }
+
   /// Read both DG1 (MRZ) and DG2 (photo) in a single PACE-CAN session.
   ///
   /// Returns a [CieReadDgsResult]: `mrzBytes`/`photoBytes` are set on

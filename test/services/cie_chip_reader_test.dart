@@ -152,6 +152,67 @@ void main() {
     });
 
     test(
+      'CAN path, reader without extended APDUs (kind 7): '
+      'extendedApduNotSupported, so the UI can offer the PIN fallback',
+      () async {
+        final outcome = await CieChipReader.readAndEnrich(
+          card: _card,
+          can: '123456',
+          readDgs: ({required can, onProgress}) async => const CieReadDgsResult(
+            returnValue: AppConstants.ckrDeviceError,
+            nativeErrorKind: 7,
+          ),
+        );
+        expect(outcome.errorKind, CieErrorKind.extendedApduNotSupported);
+      },
+    );
+
+    test('PIN fallback: complete read enriches the card', () async {
+      final outcome = await CieChipReader.readAndEnrichWithPin(
+        card: _card,
+        pin: '12345678',
+        readDgs: ({required pin, onProgress}) async => CieReadDgsResult(
+          returnValue: AppConstants.ckrOk,
+          mrzBytes: _buildDg1(_td1Mrz),
+          photoBytes: _pngBytes,
+        ),
+      );
+      expect(outcome.isComplete, isTrue);
+      expect(outcome.errorKind, isNull);
+    });
+
+    test(
+      'PIN fallback: wrong PIN stays wrongPin (not remapped to wrongCan)',
+      () async {
+        final outcome = await CieChipReader.readAndEnrichWithPin(
+          card: _card,
+          pin: '00000000',
+          readDgs: ({required pin, onProgress}) async => const CieReadDgsResult(
+            returnValue: AppConstants.ckrPinIncorrect,
+            nativeErrorKind: 1,
+          ),
+        );
+        expect(outcome.errorKind, CieErrorKind.wrongPin);
+      },
+    );
+
+    test(
+      'PIN fallback: SW 6A82 (file not found) -> chipDataUnavailable',
+      () async {
+        final outcome = await CieChipReader.readAndEnrichWithPin(
+          card: _card,
+          pin: '12345678',
+          readDgs: ({required pin, onProgress}) async => const CieReadDgsResult(
+            returnValue: AppConstants.ckrDeviceError,
+            statusWord: 0x6A82,
+            nativeErrorKind: 5,
+          ),
+        );
+        expect(outcome.errorKind, CieErrorKind.chipDataUnavailable);
+      },
+    );
+
+    test(
       'native call throws: swallowed, reported as cardCommunicationError',
       () async {
         final outcome = await CieChipReader.readAndEnrich(

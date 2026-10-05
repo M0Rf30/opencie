@@ -544,6 +544,8 @@
   "cieCanLabel": "CAN (6 digits)",
   "cieCanMust6Digits": "The CAN must be exactly 6 digits",
   "cieCanReadButton": "Read",
+  "cieReadReaderNoCan": "This reader can't use the CAN. Read with the PIN instead?",
+  "cieReadWithPinButton": "Use PIN",
   "cieCanSkipButton": "Skip",
   "cieReadChipAction": "Read chip data",
   "cieReadChipActionHint": "Photo and personal data from the chip are missing. Reading them needs the CAN printed on the card (no PIN).",
