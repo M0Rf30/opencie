@@ -87,14 +87,14 @@ modules:
     sources:
       - type: archive
         only-arches: [x86_64]
-        url: https://github.com/M0Rf30/opencie/releases/download/v0.5.0/opencie-v0.5.0-linux-x86_64.tar.gz
-        sha256: ff271b4a7691771c3283e3b2cf4d05c4297222de5c6d2d8604a62e7b25c3c695
+        url: https://github.com/M0Rf30/opencie/releases/download/v0.5.1/opencie-v0.5.1-linux-x86_64.tar.gz
+        sha256: ff8cb3c4ea9dce87a5714ac623b93a5e419d687cba307a9fbbb61127eb10b3f2
         dest: bundle
         strip-components: 0
       - type: archive
         only-arches: [aarch64]
-        url: https://github.com/M0Rf30/opencie/releases/download/v0.5.0/opencie-v0.5.0-linux-aarch64.tar.gz
-        sha256: b0c2b3e9b5e092e4badc2956672157cdc025de13b07cc87c7e3eb35f89b51777
+        url: https://github.com/M0Rf30/opencie/releases/download/v0.5.1/opencie-v0.5.1-linux-aarch64.tar.gz
+        sha256: eccead22d99c3cd8d2f110081b78feabc18b4da959e51e25d090a94d9bd5f927
         dest: bundle
         strip-components: 0
       - type: file
