@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Signing on a computer with your phone's NFC
 
 OpenCIE can use an NFC phone as the card reader for a signature started on a

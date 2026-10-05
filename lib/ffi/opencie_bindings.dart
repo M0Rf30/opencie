@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // ignore_for_file: non_constant_identifier_names, camel_case_types

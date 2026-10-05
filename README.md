@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 <p align="center">
   <img src="assets/branding/icon.svg" width="112" alt="OpenCIE logo">
 </p>

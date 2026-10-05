@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # sync-jnilibs.sh — Download pre-built libopencie-pkcs11.so for all Android
 # ABIs from the latest opencie-pkcs11 GitHub release into jniLibs/.
 #

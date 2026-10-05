@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>

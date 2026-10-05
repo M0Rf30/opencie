@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Gianluca Boiano
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef RUNNER_FLUTTER_WINDOW_H_
 #define RUNNER_FLUTTER_WINDOW_H_
 

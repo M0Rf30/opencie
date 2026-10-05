@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # LTV Implementation — Executive Summary
 
 ## What You Need to Know

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Gianluca Boiano
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef FLUTTER_MY_APPLICATION_H_
 #define FLUTTER_MY_APPLICATION_H_
 

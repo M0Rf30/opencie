@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # SPID/CIE OpenID Connect Federation - Quick Reference Card
 **For Flutter/Dart RP & Mock IdP Implementation**
 

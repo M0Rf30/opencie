@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # render_icons.sh — Rasterize assets/branding/icon.svg into every platform
 # launcher icon (macOS appiconset, Android mipmaps, Linux runner, Windows .ico).
 #

@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Session-level protocol tests (OC-18): both sessions are wired together

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 arb-dir: lib/core/l10n
 template-arb-file: intl_en.arb
 output-localization-file: app_localizations.dart

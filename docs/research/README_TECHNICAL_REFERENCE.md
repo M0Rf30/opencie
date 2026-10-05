@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # EU Digital Identity & CSC API Technical Reference
 
 **Complete 2025/2026 specifications for EUDI Wallet and CSC API v2 remote signing**

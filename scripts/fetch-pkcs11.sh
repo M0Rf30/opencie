@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # fetch-pkcs11.sh — Download one asset from an opencie-pkcs11 release and
 # verify it against the release's SHA256SUMS before it is used by a build.
 #

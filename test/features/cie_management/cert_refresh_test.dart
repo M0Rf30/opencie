@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/features/cie_management/cert_refresh.dart';

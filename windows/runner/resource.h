@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Gianluca Boiano
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
 // Used by Runner.rc

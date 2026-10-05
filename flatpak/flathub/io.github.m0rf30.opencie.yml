@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 app-id: io.github.m0rf30.opencie
 runtime: org.freedesktop.Platform
 runtime-version: '25.08'

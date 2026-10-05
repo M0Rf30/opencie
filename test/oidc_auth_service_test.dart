@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 import 'package:http/http.dart' as http;
 import 'package:opencie/services/oidc/as/server.dart';

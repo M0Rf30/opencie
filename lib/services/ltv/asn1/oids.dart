@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 /// RFC 3161, RFC 5280, RFC 5652, ETSI EN 319 122/142 OIDs used by LTV.

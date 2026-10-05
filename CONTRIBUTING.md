@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Contributing to opencie
 
 Thank you for your interest in contributing! All contributions to this project are licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).

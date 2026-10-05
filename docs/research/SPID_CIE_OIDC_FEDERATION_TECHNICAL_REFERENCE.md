@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # SPID/CIE OpenID Connect Federation 1.0 - Technical Reference
 **Italy 2025/2026 | AGID/IPZS Specifications**
 

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # SPID/CIE OIDC Federation - Implementation Roadmap for OpenCIE
 **Mapping to RP-9, AS-3, AS-4 Components**
 

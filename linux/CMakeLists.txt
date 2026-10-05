@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
 project(runner LANGUAGES CXX)

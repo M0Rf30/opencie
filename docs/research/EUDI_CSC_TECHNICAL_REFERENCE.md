@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Gianluca Boiano
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # EU Digital Identity & CSC API v2 - Technical Reference (2025/2026)
 
 **Last Updated:** May 2026  

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # flatpak-build.sh — Build and install the OpenCIE Flatpak locally for testing.
 #
 # Stages the host libraries that the Freedesktop 25.08 runtime does not ship
