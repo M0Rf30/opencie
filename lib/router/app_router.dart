@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/auth/login_page.dart';
-import '../features/auth/profile_page.dart';
 import '../features/cie_management/cie_management_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/sign/sign_page.dart';
@@ -24,23 +22,10 @@ class AppRouter {
     (_) => GlobalKey<NavigatorState>(),
   );
 
-  static GoRouter create({
-    String initialLocation = '/sign',
-    String issuer = 'https://idp.example/',
-    String clientId = 'opencie-client',
-  }) => GoRouter(
+  static GoRouter create({String initialLocation = '/sign'}) => GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: initialLocation,
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) =>
-            LoginPage(issuer: issuer, clientId: clientId),
-      ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfilePage(),
-      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return ShellPage(navigationShell: navigationShell);

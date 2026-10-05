@@ -19,6 +19,9 @@ VisualDensity _densityFor(double scale) {
   return VisualDensity.standard;
 }
 
+Locale? _localeFor(String? languageCode) =>
+    languageCode == null ? null : Locale(languageCode);
+
 class OpenCieApp extends ConsumerStatefulWidget {
   const OpenCieApp({super.key});
 
@@ -44,8 +47,6 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
     if (_router == null && settings.isLoaded) {
       _router = AppRouter.create(
         initialLocation: settings.enrolledCards.isEmpty ? '/cie' : '/sign',
-        issuer: settings.oidcIssuer,
-        clientId: settings.oidcClientId,
       );
     }
 
@@ -59,6 +60,14 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
           visualDensity: _densityFor(settings.uiScale),
         ),
         themeMode: settings.themeMode,
+        locale: _localeFor(settings.languageCode),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
@@ -73,6 +82,7 @@ class _OpenCieAppState extends ConsumerState<OpenCieApp> {
         visualDensity: _densityFor(settings.uiScale),
       ),
       themeMode: settings.themeMode,
+      locale: _localeFor(settings.languageCode),
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         // Compose the OS accessibility scale with the in-app scale.

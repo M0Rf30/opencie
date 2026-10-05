@@ -19,14 +19,11 @@ const _unset = Object();
 /// Application settings state.
 class AppSettings {
   const AppSettings({
-    this.locale = 'it',
+    this.languageCode,
     this.defaultPdfFormat = SignatureFormat.pades,
     this.defaultXmlFormat = SignatureFormat.xades,
     this.graphicPades = false,
     this.includeDate = true,
-    this.includeLocation = false,
-    this.includeReason = false,
-    this.preservePdfA = false,
     this.alwaysTimestamp = false,
     this.openFolderAfterSign = true,
     this.checkForUpdates = false,
@@ -35,25 +32,20 @@ class AppSettings {
     this.tsaConfig = const TsaConfig(),
     this.proxyConfig = const ProxyConfig(),
     this.validationType = ValidationType.ocspFirst,
-    this.logLevel = LogLevel.off,
     this.enrolledCards = const [],
     this.selectedCardPan,
     this.uiScale = 1.0,
     this.themeMode = ThemeMode.system,
-    this.oidcIssuer = 'https://idp.example/',
-    this.oidcClientId = 'opencie-client',
     this.isLoaded = false,
     this.secureStorageUnavailable = false,
   });
 
-  final String locale;
+  /// UI language override (`'it'`/`'en'`); null follows the system locale.
+  final String? languageCode;
   final SignatureFormat defaultPdfFormat;
   final SignatureFormat defaultXmlFormat;
   final bool graphicPades;
   final bool includeDate;
-  final bool includeLocation;
-  final bool includeReason;
-  final bool preservePdfA;
   final bool alwaysTimestamp;
   final bool openFolderAfterSign;
 
@@ -67,7 +59,6 @@ class AppSettings {
   final TsaConfig tsaConfig;
   final ProxyConfig proxyConfig;
   final ValidationType validationType;
-  final LogLevel logLevel;
 
   final List<EnrolledCard> enrolledCards;
 
@@ -80,8 +71,6 @@ class AppSettings {
 
   final double uiScale;
   final ThemeMode themeMode;
-  final String oidcIssuer;
-  final String oidcClientId;
 
   final bool isLoaded;
 
@@ -117,14 +106,12 @@ class AppSettings {
   String get signPan => '';
 
   AppSettings copyWith({
-    String? locale,
+    // [_unset] clears back to null (follow system locale).
+    Object? languageCode = _unset,
     SignatureFormat? defaultPdfFormat,
     SignatureFormat? defaultXmlFormat,
     bool? graphicPades,
     bool? includeDate,
-    bool? includeLocation,
-    bool? includeReason,
-    bool? preservePdfA,
     bool? alwaysTimestamp,
     bool? openFolderAfterSign,
     bool? checkForUpdates,
@@ -137,25 +124,21 @@ class AppSettings {
     TsaConfig? tsaConfig,
     ProxyConfig? proxyConfig,
     ValidationType? validationType,
-    LogLevel? logLevel,
     List<EnrolledCard>? enrolledCards,
     Object? selectedCardPan = _unset,
     double? uiScale,
     ThemeMode? themeMode,
-    String? oidcIssuer,
-    String? oidcClientId,
     bool? isLoaded,
     bool? secureStorageUnavailable,
   }) {
     return AppSettings(
-      locale: locale ?? this.locale,
+      languageCode: identical(languageCode, _unset)
+          ? this.languageCode
+          : languageCode as String?,
       defaultPdfFormat: defaultPdfFormat ?? this.defaultPdfFormat,
       defaultXmlFormat: defaultXmlFormat ?? this.defaultXmlFormat,
       graphicPades: graphicPades ?? this.graphicPades,
       includeDate: includeDate ?? this.includeDate,
-      includeLocation: includeLocation ?? this.includeLocation,
-      includeReason: includeReason ?? this.includeReason,
-      preservePdfA: preservePdfA ?? this.preservePdfA,
       alwaysTimestamp: alwaysTimestamp ?? this.alwaysTimestamp,
       openFolderAfterSign: openFolderAfterSign ?? this.openFolderAfterSign,
       checkForUpdates: checkForUpdates ?? this.checkForUpdates,
@@ -167,15 +150,12 @@ class AppSettings {
       tsaConfig: tsaConfig ?? this.tsaConfig,
       proxyConfig: proxyConfig ?? this.proxyConfig,
       validationType: validationType ?? this.validationType,
-      logLevel: logLevel ?? this.logLevel,
       enrolledCards: enrolledCards ?? this.enrolledCards,
       selectedCardPan: identical(selectedCardPan, _unset)
           ? this.selectedCardPan
           : selectedCardPan as String?,
       uiScale: uiScale ?? this.uiScale,
       themeMode: themeMode ?? this.themeMode,
-      oidcIssuer: oidcIssuer ?? this.oidcIssuer,
-      oidcClientId: oidcClientId ?? this.oidcClientId,
       isLoaded: isLoaded ?? this.isLoaded,
       secureStorageUnavailable:
           secureStorageUnavailable ?? this.secureStorageUnavailable,
@@ -185,7 +165,13 @@ class AppSettings {
 
 enum ValidationType { ocspOnly, ocspFirst, crlOnly, crlFirst }
 
-enum LogLevel { off, standard, debug }
+/// Accepts only the supported UI language codes; anything else (including
+/// absence) means "follow the system locale".
+String? _parseLanguageCode(Object? raw) =>
+    (raw is String && supportedLanguageCodes.contains(raw)) ? raw : null;
+
+/// Language codes selectable in Settings (besides "follow system").
+const supportedLanguageCodes = ['it', 'en'];
 
 /// Resolves a requested selected-card PAN against [cards]: null when no
 /// card is enrolled or no explicit choice exists, [pan] when it is still
@@ -367,7 +353,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
         );
 
         state = AppSettings(
-          locale: map['locale'] as String? ?? 'it',
+          languageCode: _parseLanguageCode(map['languageCode']),
           defaultPdfFormat: SignatureFormat.values.byName(
             map['defaultPdfFormat'] as String? ?? 'pades',
           ),
@@ -376,9 +362,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
           ),
           graphicPades: map['graphicPades'] as bool? ?? false,
           includeDate: map['includeDate'] as bool? ?? true,
-          includeLocation: map['includeLocation'] as bool? ?? false,
-          includeReason: map['includeReason'] as bool? ?? false,
-          preservePdfA: map['preservePdfA'] as bool? ?? false,
           alwaysTimestamp: map['alwaysTimestamp'] as bool? ?? false,
           openFolderAfterSign: map['openFolderAfterSign'] as bool? ?? true,
           checkForUpdates: map['checkForUpdates'] as bool? ?? false,
@@ -398,7 +381,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
           validationType: ValidationType.values.byName(
             map['validationType'] as String? ?? 'ocspFirst',
           ),
-          logLevel: LogLevel.values.byName(map['logLevel'] as String? ?? 'off'),
           enrolledCards: cards.list,
           selectedCardPan: normalizeSelectedCardPan(
             cards.list,
@@ -406,8 +388,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
           ),
           uiScale: parsedUiScale,
           themeMode: parsedThemeMode,
-          oidcIssuer: map['oidcIssuer'] as String? ?? 'https://idp.example/',
-          oidcClientId: map['oidcClientId'] as String? ?? 'opencie-client',
           isLoaded: true,
           secureStorageUnavailable:
               cards.unavailable ||
@@ -436,14 +416,10 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     final map = <String, dynamic>{
-      'locale': state.locale,
       'defaultPdfFormat': state.defaultPdfFormat.name,
       'defaultXmlFormat': state.defaultXmlFormat.name,
       'graphicPades': state.graphicPades,
       'includeDate': state.includeDate,
-      'includeLocation': state.includeLocation,
-      'includeReason': state.includeReason,
-      'preservePdfA': state.preservePdfA,
       'alwaysTimestamp': state.alwaysTimestamp,
       'openFolderAfterSign': state.openFolderAfterSign,
       'checkForUpdates': state.checkForUpdates,
@@ -452,11 +428,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'tsaConfig': state.tsaConfig.toJson(),
       'proxyConfig': state.proxyConfig.toJson(),
       'validationType': state.validationType.name,
-      'logLevel': state.logLevel.name,
       'uiScale': state.uiScale,
       'themeMode': state.themeMode.name,
-      'oidcIssuer': state.oidcIssuer,
-      'oidcClientId': state.oidcClientId,
+      if (state.languageCode != null) 'languageCode': state.languageCode,
     };
 
     // Lazily-parsed snapshot of whatever is already on disk, reused as a

@@ -114,6 +114,84 @@ void main() {
     );
   });
 
+  group('SettingsNotifier / languageCode', () {
+    test('defaults to null (follow system) and ignores legacy keys', () async {
+      SharedPreferences.setMockInitialValues({
+        'opencie_settings': jsonEncode({
+          'locale': 'en',
+          'logLevel': 'debug',
+          'includeLocation': true,
+          'includeReason': true,
+          'preservePdfA': true,
+          'oidcIssuer': 'https://old.example/',
+          'oidcClientId': 'old-client',
+          'includeDate': false,
+        }),
+      });
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await container.read(settingsProvider.notifier).load();
+
+      final state = container.read(settingsProvider);
+      expect(state.isLoaded, isTrue);
+      expect(state.languageCode, isNull);
+      expect(state.includeDate, isFalse);
+    });
+
+    test(
+      'set and clear persist across reloads; legacy keys not rewritten',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'opencie_settings': jsonEncode({'locale': 'it', 'logLevel': 'debug'}),
+        });
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(settingsProvider.notifier);
+        await notifier.load();
+
+        notifier.update((s) => s.copyWith(languageCode: 'en'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        var raw = await _rawSettings();
+        expect(raw['languageCode'], 'en');
+        for (final k in [
+          'locale',
+          'logLevel',
+          'includeLocation',
+          'includeReason',
+          'preservePdfA',
+          'oidcIssuer',
+          'oidcClientId',
+        ]) {
+          expect(raw.containsKey(k), isFalse, reason: k);
+        }
+
+        final container2 = ProviderContainer();
+        addTearDown(container2.dispose);
+        await container2.read(settingsProvider.notifier).load();
+        expect(container2.read(settingsProvider).languageCode, 'en');
+
+        // Omitting the argument keeps the value; explicit null clears it.
+        notifier.update((s) => s.copyWith(uiScale: 1.15));
+        expect(container.read(settingsProvider).languageCode, 'en');
+        notifier.update((s) => s.copyWith(languageCode: null));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(container.read(settingsProvider).languageCode, isNull);
+        raw = await _rawSettings();
+        expect(raw.containsKey('languageCode'), isFalse);
+      },
+    );
+
+    test('unsupported stored language code is treated as system', () async {
+      SharedPreferences.setMockInitialValues({
+        'opencie_settings': jsonEncode({'languageCode': 'xx'}),
+      });
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await container.read(settingsProvider.notifier).load();
+      expect(container.read(settingsProvider).languageCode, isNull);
+    });
+  });
+
   group('SettingsNotifier / SecureStore availability', () {
     test('normal path: enrolling a card round-trips through a healthy secure '
         'store, and the legacy prefs blob never carries it', () async {

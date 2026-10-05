@@ -40,10 +40,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _proxyUser = TextEditingController();
   final _proxyPass = TextEditingController();
 
-  // OIDC text controllers
-  final _oidcIssuer = TextEditingController();
-  final _oidcClientId = TextEditingController();
-
   // App version string, sourced from the platform bundle (populated from
   // pubspec.yaml at build time). Falls back to the license-only label until
   // the async lookup completes.
@@ -59,8 +55,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         : settings.proxyConfig.port.toString();
     _proxyUser.text = settings.proxyConfig.username;
     _proxyPass.text = settings.proxyConfig.password;
-    _oidcIssuer.text = settings.oidcIssuer;
-    _oidcClientId.text = settings.oidcClientId;
     _loadVersion();
   }
 
@@ -78,8 +72,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _proxyPort.dispose();
     _proxyUser.dispose();
     _proxyPass.dispose();
-    _oidcIssuer.dispose();
-    _oidcClientId.dispose();
     super.dispose();
   }
 
@@ -101,18 +93,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         proxyUser: _proxyUser,
         proxyPass: _proxyPass,
       ),
-    );
-  }
-
-  void _showOidcDialog() {
-    final settings = ref.read(settingsProvider);
-    _oidcIssuer.text = settings.oidcIssuer;
-    _oidcClientId.text = settings.oidcClientId;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) =>
-          _OidcDialog(oidcIssuer: _oidcIssuer, oidcClientId: _oidcClientId),
     );
   }
 
@@ -223,6 +203,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: l10n.settingsThemeTitle,
                       subtitle: _getThemeModeLabel(settings.themeMode, l10n),
                       onTap: () => _showThemeDialog(context, ref, l10n),
+                    ),
+                    // Language row
+                    OcActionRow(
+                      leadingIcon: Icons.language_outlined,
+                      title: l10n.settingsLanguageTitle,
+                      subtitle: _languageLabel(settings.languageCode, l10n),
+                      onTap: () => _showLanguageDialog(context, ref, l10n),
                     ),
                     // UI Scale row
                     OcActionRow(
@@ -367,9 +354,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             .update((s) => s.copyWith(graphicPades: v)),
                       ),
                     ),
+                    OcActionRow(
+                      title: l10n.settingsAlwaysTimestamp,
+                      trailing: Switch.adaptive(
+                        value: settings.alwaysTimestamp,
+                        onChanged: (v) => ref
+                            .read(settingsProvider.notifier)
+                            .update((s) => s.copyWith(alwaysTimestamp: v)),
+                      ),
+                    ),
                     if (settings.graphicPades) ...[
                       OcActionRow(
                         title: l10n.settingsEnableDate,
+                        subtitle: l10n.settingsEnableDateSubtitle,
                         trailing: Switch.adaptive(
                           value: settings.includeDate,
                           onChanged: (v) => ref
@@ -377,34 +374,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               .update((s) => s.copyWith(includeDate: v)),
                         ),
                       ),
-                      OcActionRow(
-                        title: l10n.settingsEnableLocation,
-                        trailing: Switch.adaptive(
-                          value: settings.includeLocation,
-                          onChanged: (v) => ref
-                              .read(settingsProvider.notifier)
-                              .update((s) => s.copyWith(includeLocation: v)),
-                        ),
-                      ),
-                      OcActionRow(
-                        title: l10n.settingsEnableReason,
-                        trailing: Switch.adaptive(
-                          value: settings.includeReason,
-                          onChanged: (v) => ref
-                              .read(settingsProvider.notifier)
-                              .update((s) => s.copyWith(includeReason: v)),
-                        ),
-                      ),
                     ],
-                    OcActionRow(
-                      title: l10n.settingsPreservePdfA,
-                      trailing: Switch.adaptive(
-                        value: settings.preservePdfA,
-                        onChanged: (v) => ref
-                            .read(settingsProvider.notifier)
-                            .update((s) => s.copyWith(preservePdfA: v)),
-                      ),
-                    ),
                   ],
                 ),
 
@@ -501,51 +471,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           settings.proxyConfig.mode == ProxyMode.manual,
                       onTap: _showProxyDialog,
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // ── 6. OIDC / AUTENTICAZIONE ──────────────────────────────
-                OcSectionLabel(l10n.settingsOidc),
-                const SizedBox(height: 8),
-                OcGroupCard(
-                  children: [
-                    OcActionRow(
-                      leadingIcon: Icons.security_outlined,
-                      title: l10n.settingsOidcIssuer,
-                      subtitle: settings.oidcIssuer,
-                      subtitleMono: true,
-                      onTap: _showOidcDialog,
-                    ),
-                    OcActionRow(
-                      leadingIcon: Icons.vpn_key_outlined,
-                      title: l10n.settingsOidcClientId,
-                      subtitle: settings.oidcClientId,
-                      subtitleMono: true,
-                      onTap: _showOidcDialog,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // ── 7. LOG LEVEL ──────────────────────────────────────────
-                OcSectionLabel(l10n.settingsLogLevel),
-                const SizedBox(height: 8),
-                OcGroupCard(
-                  children: [
-                    ...LogLevel.values.map((level) {
-                      final isSelected = settings.logLevel == level;
-                      return OcActionRow(
-                        leading: _RadioDot(selected: isSelected, cs: cs),
-                        selected: isSelected,
-                        title: _logLevelLabel(level, l10n),
-                        onTap: () => ref
-                            .read(settingsProvider.notifier)
-                            .update((s) => s.copyWith(logLevel: level)),
-                      );
-                    }),
                   ],
                 ),
 
@@ -697,17 +622,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  String _logLevelLabel(LogLevel level, AppLocalizations l10n) {
-    switch (level) {
-      case LogLevel.off:
-        return l10n.settingsLogOff;
-      case LogLevel.standard:
-        return l10n.settingsLogStandard;
-      case LogLevel.debug:
-        return l10n.settingsLogDebug;
-    }
-  }
-
   String _getThemeModeLabel(ThemeMode mode, AppLocalizations l10n) {
     switch (mode) {
       case ThemeMode.system:
@@ -765,6 +679,63 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  String _languageLabel(String? code, AppLocalizations l10n) {
+    switch (code) {
+      case 'it':
+        return 'Italiano';
+      case 'en':
+        return 'English';
+      default:
+        return l10n.settingsLanguageSystem;
+    }
+  }
+
+  void _showLanguageDialog(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) {
+    const systemValue = 'system';
+    final settings = ref.read(settingsProvider);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.settingsLanguageTitle),
+        content: RadioGroup<String>(
+          groupValue: settings.languageCode ?? systemValue,
+          onChanged: (value) {
+            if (value == null) return;
+            ref
+                .read(settingsProvider.notifier)
+                .update(
+                  (s) => s.copyWith(
+                    languageCode: value == systemValue ? null : value,
+                  ),
+                );
+            Navigator.pop(ctx);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: Text(l10n.settingsLanguageSystem),
+                value: systemValue,
+              ),
+              const RadioListTile<String>(title: Text('Italiano'), value: 'it'),
+              const RadioListTile<String>(title: Text('English'), value: 'en'),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.commonClose),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showScaleDialog(
     BuildContext context,
     WidgetRef ref,
@@ -803,56 +774,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// OIDC dialog
-// ---------------------------------------------------------------------------
-
-class _OidcDialog extends ConsumerWidget {
-  const _OidcDialog({required this.oidcIssuer, required this.oidcClientId});
-
-  final TextEditingController oidcIssuer;
-  final TextEditingController oidcClientId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-
-    return AlertDialog(
-      icon: const Icon(Icons.security_outlined),
-      title: Text(l10n.settingsOidc),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: oidcIssuer,
-              decoration: InputDecoration(labelText: l10n.settingsOidcIssuer),
-              onChanged: (v) => ref
-                  .read(settingsProvider.notifier)
-                  .update((s) => s.copyWith(oidcIssuer: v)),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: oidcClientId,
-              decoration: InputDecoration(labelText: l10n.settingsOidcClientId),
-              onChanged: (v) => ref
-                  .read(settingsProvider.notifier)
-                  .update((s) => s.copyWith(oidcClientId: v)),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.settingsOidcSave),
-        ),
-      ],
     );
   }
 }
