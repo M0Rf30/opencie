@@ -534,7 +534,7 @@
      "cieReadFailed": "Impossibile leggere i dati del chip — riprovare",
      "cieReadIncompletePcsc": "La lettura del chip non è terminata — la carta si è spostata sul lettore. Tieni ferma la carta sul lettore per circa 20 secondi e riprova.",
      "cieReadIncompleteNfc": "La lettura del chip non è terminata. Tieni ferma la carta contro il retro del telefono, vicino all'antenna NFC, per circa 20 secondi, e riprova.",
-     "cieReadChipDataUnavailable": "Questa carta non consente a OpenCIE di leggere la foto e i dati personali dal chip. La tua carta è registrata e puoi firmare. Segnala il modello della tua carta così potremo aggiungere il supporto.",
+     "cieReadChipDataUnavailable": "La lettura della foto e dei dati personali non è ancora supportata su questo chip. La tua carta è registrata e la firma funziona.",
      "cieReadContinueWithout": "Continua senza",
      "cieReadKeepStill": "Tieni ferma la carta — l'operazione può richiedere fino a 20 secondi.",
      "cieReadChipAction": "Leggi dati chip",

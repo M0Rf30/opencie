@@ -535,7 +535,7 @@
    "cieReadFailed": "Could not read chip data — try again",
    "cieReadIncompletePcsc": "The chip read didn't finish — the card moved on the reader. Keep the card still on the reader for about 20 seconds and try again.",
    "cieReadIncompleteNfc": "The chip read didn't finish. Keep the card against the back of your phone, near the NFC antenna, without moving it for about 20 seconds, and try again.",
-   "cieReadChipDataUnavailable": "This card doesn't let OpenCIE read the photo and personal data from the chip. Your card is enrolled and you can sign. Please report your card model so we can add support.",
+   "cieReadChipDataUnavailable": "Reading the photo and personal data isn't supported on this chip yet. Your card is enrolled and signing works.",
    "cieReadContinueWithout": "Continue without",
    "cieReadKeepStill": "Keep the card still — this can take up to 20 seconds.",
    "cieReadChipAction": "Read chip data",
