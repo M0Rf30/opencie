@@ -20,6 +20,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/ltv/asn1/x509_cert.dart';
 import '../../services/nfc_service.dart';
 import '../../widgets/nfc_card_dialog.dart';
+import '../../widgets/pin_entry_dialog.dart';
 import 'widgets/cie_can_dialog.dart';
 import '../../widgets/oc_card_avatar.dart';
 import '../../widgets/oc_pulse_rings.dart';
@@ -69,14 +70,23 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
 /// rather than an exception, so callers can offer a retry instead of
 /// silently saving a partial card.
 Future<ChipReadOutcome> _readChip(
-  EnrolledCard card,
-  String can, {
+  EnrolledCard card, {
+  String? can,
+  String? pin,
   ValueChanged<CieProgress>? onProgress,
 }) async {
+  assert((can == null) != (pin == null), 'exactly one of can/pin');
   try {
+    if (pin != null) {
+      return await CieChipReader.readAndEnrichWithPin(
+        card: card,
+        pin: pin,
+        onProgress: onProgress,
+      );
+    }
     return await CieChipReader.readAndEnrich(
       card: card,
-      can: can,
+      can: can!,
       onProgress: onProgress,
     );
   } catch (e) {
@@ -409,15 +419,19 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     );
   }
 
-  /// Reads MRZ + photo with the CAN, retrying (bounded, transport failures
-  /// only — see [ChipReadOutcome.errorKind]) until the read is complete or
-  /// the user picks "Continue without". A wrong CAN is never retried here:
-  /// the outcome is returned as-is so the caller can ask for a new CAN.
-  /// Each attempt is a full fresh PACE session via [_withNfc] (re-tap on
-  /// Android, same reader session on desktop).
+  /// Reads MRZ + photo with the CAN (or, for the reader fallback, the
+  /// PIN), retrying (bounded, transport failures only — see
+  /// [ChipReadOutcome.errorKind]) until the read is complete or the user
+  /// picks "Continue without". A wrong CAN/PIN is never retried here: the
+  /// outcome is returned as-is. On the CAN path an
+  /// [CieErrorKind.extendedApduNotSupported] outcome is also returned as-is
+  /// so the caller can offer the PIN fallback. Each attempt is a full fresh
+  /// PACE session via [_withNfc] (re-tap on Android, same reader session on
+  /// desktop).
   Future<ChipReadOutcome> _readChipWithRetry({
     required EnrolledCard card,
-    required String can,
+    String? can,
+    String? pin,
     required String processingTitle,
   }) async {
     const maxRetries = 2;
@@ -426,12 +440,21 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       await _withNfc(processingTitle, (onProgress) async {
         outcome = await _readChip(
           outcome.card,
-          can,
+          can: can,
+          pin: pin,
           onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
       });
-      if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
+      if (outcome.isComplete || !mounted) break;
       if (outcome.errorKind == CieErrorKind.wrongCan) break;
+      if (can != null &&
+          outcome.errorKind == CieErrorKind.extendedApduNotSupported) {
+        break;
+      }
+      if (pin != null && outcome.errorKind == CieErrorKind.wrongPin) {
+        PinThrottle.recordFailure();
+      }
+      if (attempt >= maxRetries && chipReadRetryable(outcome.errorKind)) break;
       final l10n = AppLocalizations.of(context);
       final message = chipReadFailureMessage(
         l10n,
@@ -448,11 +471,49 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     return outcome;
   }
 
+  /// Asks whether to read with the PIN because the reader cannot use the
+  /// CAN, then prompts for the PIN and reads once. The PIN lives only in
+  /// this call; a wrong PIN is surfaced (and counted by [PinThrottle]) but
+  /// never retried automatically.
+  Future<ChipReadOutcome?> _pinFallbackRead(ChipReadOutcome previous) async {
+    final l10n = AppLocalizations.of(context);
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        key: const ValueKey('pinFallbackDialog'),
+        icon: const Icon(Icons.usb_outlined),
+        content: Text(l10n.cieReadReaderNoCan),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.cieReadWithPinButton),
+          ),
+        ],
+      ),
+    );
+    if (accept != true || !mounted) return null;
+    final pin = await PinEntryDialog.show(
+      context,
+      title: l10n.cieReadChipAction,
+    );
+    if (pin == null || !mounted) return null;
+    return _readChipWithRetry(
+      card: previous.card,
+      pin: pin,
+      processingTitle: l10n.cieReadingChip,
+    );
+  }
+
   /// Chip-read flow shared by enrolment (optional, skippable) and the card
   /// page. Always prompts for the CAN (never stored: it lives only in this
   /// call's local variable). A wrong CAN is never resent: the dialog is
-  /// shown again with an error so the user retypes it. Returns null when
-  /// the user dismissed the prompt.
+  /// shown again with an error so the user retypes it. If the reader cannot
+  /// send extended APDUs, offers a one-off PIN read instead. Returns null
+  /// when the user dismissed the prompt.
   Future<ChipReadOutcome?> _chipReadFlow(
     EnrolledCard card, {
     bool optional = false,
@@ -473,13 +534,18 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         processingTitle: l10n.cieReadingChip,
       );
       if (!mounted) return outcome;
+      if (outcome.errorKind == CieErrorKind.extendedApduNotSupported) {
+        return await _pinFallbackRead(outcome) ?? outcome;
+      }
       if (outcome.errorKind != CieErrorKind.wrongCan) return outcome;
       canError = cieErrorMessage(l10n, CieErrorKind.wrongCan);
     }
   }
 
   /// Card-page "Read chip data" action for an enrolled card missing
-  /// MRZ/photo: prompts for the CAN every time, reads the chip with PACE, and upserts the result by PAN.
+  /// MRZ/photo: prompts for the CAN every time, reads the chip with PACE
+  /// (PIN fallback when the reader cannot use the CAN), and upserts the
+  /// result by PAN.
   Future<void> _readChipForCard(EnrolledCard card) async {
     if (_isProcessing) return;
     final l10n = AppLocalizations.of(context);

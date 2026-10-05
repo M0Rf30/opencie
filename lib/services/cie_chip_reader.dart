@@ -341,15 +341,54 @@ class CieChipReader {
       ValueChanged<CieProgress>? onProgress,
     })?
     readDgs,
-  }) async {
+  }) {
     final read = readDgs ?? OpenCiePkcs11.instance.readDgsCan;
+    return _run(
+      card,
+      () => read(can: can, onProgress: onProgress),
+      // No PIN is ever sent on this path: a "wrong PIN" classification
+      // (e.g. a library without native kind 11) is really a wrong CAN.
+      secretIsCan: true,
+    );
+  }
 
+  /// Fallback for readers that cannot send the extended APDUs PACE-CAN
+  /// needs ([CieErrorKind.extendedApduNotSupported] from
+  /// [readAndEnrich]): reads the same data through the PIN-authenticated
+  /// `cie_read_dgs`. A wrong PIN is reported as [CieErrorKind.wrongPin] and
+  /// must never be retried by the caller; SW 6A82 comes back as
+  /// [CieErrorKind.chipDataUnavailable].
+  static Future<ChipReadOutcome> readAndEnrichWithPin({
+    required EnrolledCard card,
+    required String pin,
+    ValueChanged<CieProgress>? onProgress,
+
+    /// Injectable for tests. Defaults to [OpenCiePkcs11.instance.readDgs].
+    Future<CieReadDgsResult> Function({
+      required String pin,
+      ValueChanged<CieProgress>? onProgress,
+    })?
+    readDgs,
+  }) {
+    final read = readDgs ?? OpenCiePkcs11.instance.readDgs;
+    return _run(
+      card,
+      () => read(pin: pin, onProgress: onProgress),
+      secretIsCan: false,
+    );
+  }
+
+  static Future<ChipReadOutcome> _run(
+    EnrolledCard card,
+    Future<CieReadDgsResult> Function() call, {
+    required bool secretIsCan,
+  }) async {
     MrzData? mrz;
     Uint8List? photoBytes;
     CieErrorKind? errorKind;
 
     try {
-      final result = await read(can: can, onProgress: onProgress);
+      final result = await call();
 
       if (!result.isSuccess) {
         errorKind = classifyCieError(
@@ -357,9 +396,7 @@ class CieChipReader {
           statusWord: result.statusWord,
           nativeErrorKind: result.nativeErrorKind,
         );
-        // No PIN is ever sent on this path: a "wrong PIN" classification
-        // (e.g. a library without native kind 11) is really a wrong CAN.
-        if (errorKind == CieErrorKind.wrongPin) {
+        if (secretIsCan && errorKind == CieErrorKind.wrongPin) {
           errorKind = CieErrorKind.wrongCan;
         }
       } else {
@@ -379,9 +416,7 @@ class CieChipReader {
         }
       }
     } catch (e) {
-      debugPrint(
-        'CieChipReader.readAndEnrich: chip read failed (mrz/photo unavailable): $e',
-      );
+      debugPrint('CieChipReader: chip read failed (mrz/photo unavailable): $e');
       errorKind = CieErrorKind.cardCommunicationError;
     }
 

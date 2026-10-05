@@ -310,6 +310,28 @@ typedef CieTimestampDart =
       Pointer<NativeFunction<ProgressCallbackNative>> progressCallBack,
     );
 
+// --- Combined DG1 + DG2 via PIN (fallback, single PACE session) ---
+
+/// CK_RV cie_read_dgs(const char *pin,
+///                    char *mrzOut, size_t *mrzLen,
+///                    unsigned char *photoOut, size_t *photoLen);
+typedef CieReadDgsNative =
+    UnsignedLong Function(
+      Pointer<Utf8> pin,
+      Pointer<Uint8> mrzOut,
+      Pointer<Size> mrzLen,
+      Pointer<Uint8> photoOut,
+      Pointer<Size> photoLen,
+    );
+typedef CieReadDgsDart =
+    int Function(
+      Pointer<Utf8> pin,
+      Pointer<Uint8> mrzOut,
+      Pointer<Size> mrzLen,
+      Pointer<Uint8> photoOut,
+      Pointer<Size> photoLen,
+    );
+
 // --- Combined DG1 + DG2 via PACE-CAN (single PACE session) ---
 
 /// CK_RV cie_read_dgs_can(const char *can,
