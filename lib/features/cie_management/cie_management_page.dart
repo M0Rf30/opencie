@@ -20,7 +20,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/ltv/asn1/x509_cert.dart';
 import '../../services/nfc_service.dart';
 import '../../widgets/nfc_card_dialog.dart';
-import '../../widgets/pin_entry_dialog.dart';
+import 'widgets/cie_can_dialog.dart';
 import '../../widgets/oc_card_avatar.dart';
 import '../../widgets/oc_pulse_rings.dart';
 import '../../widgets/oc_action_row.dart';
@@ -63,19 +63,20 @@ Future<EnrolledCard> _enrichCardWithCert(EnrolledCard card) async {
   }
 }
 
-/// Read MRZ + photo from the chip and return the outcome (what was read,
-/// and why not when incomplete). Never throws: chip-read failures are
-/// reported through [ChipReadOutcome.errorKind] rather than an exception,
-/// so callers can offer a retry instead of silently saving a partial card.
+/// Read MRZ + photo from the chip (PACE with the CAN) and return the
+/// outcome (what was read, and why not when incomplete). Never throws:
+/// chip-read failures are reported through [ChipReadOutcome.errorKind]
+/// rather than an exception, so callers can offer a retry instead of
+/// silently saving a partial card.
 Future<ChipReadOutcome> _readChip(
   EnrolledCard card,
-  String pin, {
+  String can, {
   ValueChanged<CieProgress>? onProgress,
 }) async {
   try {
     return await CieChipReader.readAndEnrich(
       card: card,
-      pin: pin,
+      can: can,
       onProgress: onProgress,
     );
   } catch (e) {
@@ -89,28 +90,32 @@ Future<ChipReadOutcome> _readChip(
   }
 }
 
-/// True for [CieErrorKind]s that reflect the card's own PIN verification
-/// outcome (63Cx/6983 status words) rather than a transport failure.
-/// Retrying a chip read after one of these would re-run the PIN verify
-/// step and risk burning an extra wrong-PIN attempt, so callers must stop
-/// and surface the error instead of offering Retry — see PIN safety rules.
+/// True for [CieErrorKind]s that reflect the card's own authentication
+/// outcome (wrong PIN status words, or a PACE-rejected CAN) rather than a
+/// transport failure. Retrying after one of these would resend the same
+/// secret and risk burning attempts, so callers must stop and surface the
+/// error instead of offering Retry.
 bool isPinStatusErrorKind(CieErrorKind? kind) {
   switch (kind) {
     case CieErrorKind.wrongPin:
     case CieErrorKind.pinBlocked:
     case CieErrorKind.wrongPinFormat:
     case CieErrorKind.pinExpired:
+    case CieErrorKind.wrongCan:
       return true;
     default:
       return false;
   }
 }
 
-/// Whether a failed chip read is worth offering Retry for. PIN-status
-/// failures must never be retried (extra wrong-PIN attempt) and a
-/// [CieErrorKind.chipDataUnavailable] result is deterministic.
+/// Whether a failed chip read is worth offering Retry for. Authentication
+/// failures (wrong CAN included) must never be retried with the same
+/// secret, and [CieErrorKind.chipDataUnavailable] / [CieErrorKind.unsupportedCard]
+/// results are deterministic.
 bool chipReadRetryable(CieErrorKind? kind) =>
-    !isPinStatusErrorKind(kind) && kind != CieErrorKind.chipDataUnavailable;
+    !isPinStatusErrorKind(kind) &&
+    kind != CieErrorKind.chipDataUnavailable &&
+    kind != CieErrorKind.unsupportedCard;
 
 /// Message for the chip-read-incomplete dialog, by failure kind.
 String chipReadFailureMessage(
@@ -120,6 +125,9 @@ String chipReadFailureMessage(
 }) {
   if (kind == CieErrorKind.chipDataUnavailable) {
     return l10n.cieReadChipDataUnavailable;
+  }
+  if (kind == CieErrorKind.unsupportedCard) {
+    return cieErrorMessage(l10n, kind!);
   }
   if (isPinStatusErrorKind(kind)) return cieErrorMessage(l10n, kind!);
   return isAndroid ? l10n.cieReadIncompleteNfc : l10n.cieReadIncompletePcsc;
@@ -401,15 +409,15 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     );
   }
 
-  /// Reads MRZ + photo, retrying (bounded, transport failures only — see
-  /// [ChipReadOutcome.errorKind], which [CieChipReader.readAndEnrich] never
-  /// sets from a PIN status word) until the read is complete or the user
-  /// picks "Continue without". Each attempt is a full fresh PACE/DH + SM
-  /// session via [_withNfc] (re-tap on Android, same reader session on
-  /// desktop).
+  /// Reads MRZ + photo with the CAN, retrying (bounded, transport failures
+  /// only — see [ChipReadOutcome.errorKind]) until the read is complete or
+  /// the user picks "Continue without". A wrong CAN is never retried here:
+  /// the outcome is returned as-is so the caller can ask for a new CAN.
+  /// Each attempt is a full fresh PACE session via [_withNfc] (re-tap on
+  /// Android, same reader session on desktop).
   Future<ChipReadOutcome> _readChipWithRetry({
     required EnrolledCard card,
-    required String pin,
+    required String can,
     required String processingTitle,
   }) async {
     const maxRetries = 2;
@@ -418,20 +426,18 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       await _withNfc(processingTitle, (onProgress) async {
         outcome = await _readChip(
           outcome.card,
-          pin,
+          can,
           onProgress: (p) => onProgress(p.percent / 100.0, p.message),
         );
       });
       if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
+      if (outcome.errorKind == CieErrorKind.wrongCan) break;
       final l10n = AppLocalizations.of(context);
       final message = chipReadFailureMessage(
         l10n,
         outcome.errorKind,
         isAndroid: Platform.isAndroid,
       );
-      if (outcome.errorKind == CieErrorKind.wrongPin) {
-        PinThrottle.recordFailure();
-      }
       final wantsRetry = await showChipReadIncompleteDialog(
         context,
         message,
@@ -442,26 +448,43 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     return outcome;
   }
 
-  /// Card-page "Read chip data" action for an already-enrolled card
-  /// missing MRZ/photo: asks for the PIN (shared [PinEntryDialog] +
-  /// [PinThrottle]), reads the chip with the same bounded retry as
-  /// enrolment, and upserts the result by PAN.
+  /// Chip-read flow shared by enrolment (optional, skippable) and the card
+  /// page. Always prompts for the CAN (never stored: it lives only in this
+  /// call's local variable). A wrong CAN is never resent: the dialog is
+  /// shown again with an error so the user retypes it. Returns null when
+  /// the user dismissed the prompt.
+  Future<ChipReadOutcome?> _chipReadFlow(
+    EnrolledCard card, {
+    bool optional = false,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    String? canError;
+    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
+    while (true) {
+      final can = await CieCanDialog.show(
+        context,
+        errorMessage: canError,
+        cancelLabel: optional ? l10n.cieCanSkipButton : null,
+      );
+      if (can == null || !mounted) return null;
+      outcome = await _readChipWithRetry(
+        card: outcome.card,
+        can: can,
+        processingTitle: l10n.cieReadingChip,
+      );
+      if (!mounted) return outcome;
+      if (outcome.errorKind != CieErrorKind.wrongCan) return outcome;
+      canError = cieErrorMessage(l10n, CieErrorKind.wrongCan);
+    }
+  }
+
+  /// Card-page "Read chip data" action for an enrolled card missing
+  /// MRZ/photo: prompts for the CAN every time, reads the chip with PACE, and upserts the result by PAN.
   Future<void> _readChipForCard(EnrolledCard card) async {
     if (_isProcessing) return;
     final l10n = AppLocalizations.of(context);
-    final pin = await PinEntryDialog.show(
-      context,
-      title: l10n.cieReadChipAction,
-    );
-    if (pin == null || !mounted) return;
-
-    final outcome = await _readChipWithRetry(
-      card: card,
-      pin: pin,
-      processingTitle: l10n.cieReadingChip,
-    );
-
-    if (!mounted) return;
+    final outcome = await _chipReadFlow(card);
+    if (outcome == null || !mounted) return;
     final cards = upsertEnrolledCard(
       ref.read(settingsProvider).enrolledCards,
       outcome.card,
@@ -470,7 +493,7 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
         .read(settingsProvider.notifier)
         .update((s) => s.copyWith(enrolledCards: cards));
     if (outcome.isComplete) {
-      _showSuccessSnackBar(l10n.cieEnrolledSuccess(outcome.card.displayName));
+      _showSuccessSnackBar(l10n.cieReadChipSuccess);
     }
   }
 
@@ -525,14 +548,10 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
       }
     });
 
+    // Phase 2 — optional, skippable chip read with the CAN (not the PIN).
     if (enrolledCard != null) {
-      // Phase 2 — chip read, with bounded retry on transport failures.
-      final outcome = await _readChipWithRetry(
-        card: enrolledCard!,
-        pin: pin,
-        processingTitle: l10n.cieReadingChip,
-      );
-      enrolledCard = outcome.card;
+      final outcome = await _chipReadFlow(enrolledCard!, optional: true);
+      if (outcome != null) enrolledCard = outcome.card;
     }
 
     if (enrolledCard == null) return;
@@ -683,6 +702,10 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
                 readerChecked: !Platform.isAndroid && _readerChecked,
                 nfcAvailable: Platform.isAndroid ? _nfcAvailable : null,
                 onSkip: () => setState(() => _wizardSkipped = true),
+                onOfferChipRead: (card) async {
+                  final o = await _chipReadFlow(card, optional: true);
+                  return o?.card ?? card;
+                },
               )
             : cards.isEmpty
             ? _buildEmptyState(key: const ValueKey('empty'))
@@ -1441,7 +1464,7 @@ class _CieActions extends StatelessWidget {
   final VoidCallback onRemove;
 
   /// Non-null only when [card.missingChipData]: reads MRZ + photo from
-  /// the chip (PIN-gated) and upserts the card in place.
+  /// the chip (PACE with the CAN) and upserts the card in place.
   final VoidCallback? onReadChip;
 
   String get _shortSerial {
@@ -1825,7 +1848,12 @@ class _EnrolmentWizard extends ConsumerStatefulWidget {
     required this.readerChecked,
     required this.nfcAvailable,
     required this.onSkip,
+    required this.onOfferChipRead,
   });
+
+  /// Optional CAN step after a successful enrolment: returns the card
+  /// enriched with chip data, or unchanged when the user skips.
+  final Future<EnrolledCard> Function(EnrolledCard card) onOfferChipRead;
 
   final String? readerName;
   final bool readerChecked;
@@ -1959,20 +1987,6 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
         card = await _enrichCardWithCert(card);
         setProgress(0.50, l10n.cieProgressReadCertificate);
 
-        // On desktop the card stays on the reader — read chip data
-        // immediately, retrying (bounded) if the RF link drops mid-read.
-        // On Android the NFC session is stopped in the finally block
-        // below; chip reading runs as phase 2 after this block, prompting
-        // a second tap (same as _showEnrollDialog).
-        if (!Platform.isAndroid) {
-          final outcome = await _readChipWithRetryLoop(
-            card,
-            pin,
-            (frac, msg) => setProgress(0.50 + frac * 0.50, msg),
-          );
-          card = outcome.card;
-        }
-
         pendingCard = card;
       } else {
         if (classifyCieError(
@@ -2002,94 +2016,12 @@ class _EnrolmentWizardState extends ConsumerState<_EnrolmentWizard>
 
     if (pendingCard == null) return;
 
-    if (Platform.isAndroid) {
-      // Phase 2 — prompt a second tap and read the chip, instead of
-      // skipping it: same behaviour as _showEnrollDialog's phase 2.
-      pendingCard = await _enrolChipReadPhase2(pendingCard, pin);
-    }
-
+    if (!mounted) return;
+    pendingCard = await widget.onOfferChipRead(pendingCard);
     if (!mounted) return;
     _pendingCard = pendingCard;
     setState(() => _step = _WizardStep.success);
     _successCtrl.forward();
-  }
-
-  /// Reads MRZ + photo, retrying (bounded to 2 attempts) via the shared
-  /// [showChipReadIncompleteDialog] Retry / "Continue without" prompt when
-  /// the read comes back incomplete. [setProgress] receives 0–1 fraction
-  /// and a localized message, already offset by the caller.
-  Future<ChipReadOutcome> _readChipWithRetryLoop(
-    EnrolledCard card,
-    String pin,
-    void Function(double frac, String msg) setProgress,
-  ) async {
-    const maxRetries = 2;
-    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
-    final l10n = AppLocalizations.of(context);
-    for (var attempt = 0; ; attempt++) {
-      outcome = await _readChip(
-        outcome.card,
-        pin,
-        onProgress: (p) =>
-            setProgress(p.percent / 100.0, l10n.localizeProgress(p.message)),
-      );
-      if (outcome.isComplete || attempt >= maxRetries || !mounted) break;
-      final message = chipReadFailureMessage(
-        l10n,
-        outcome.errorKind,
-        isAndroid: Platform.isAndroid,
-      );
-      if (outcome.errorKind == CieErrorKind.wrongPin) {
-        PinThrottle.recordFailure();
-      }
-      final wantsRetry = await showChipReadIncompleteDialog(
-        context,
-        message,
-        allowRetry: chipReadRetryable(outcome.errorKind),
-      );
-      if (!chipReadRetryable(outcome.errorKind) || !wantsRetry) break;
-    }
-    return outcome;
-  }
-
-  /// Android phase 2 of enrolment: prompts a second card tap and reads
-  /// MRZ + photo (with the same bounded retry as [_showEnrollDialog]).
-  /// Returns [card] enriched with whatever was read; unchanged if NFC is
-  /// unavailable, the widget is disposed, or all retries are exhausted.
-  Future<EnrolledCard> _enrolChipReadPhase2(
-    EnrolledCard card,
-    String pin,
-  ) async {
-    if (!(widget.nfcAvailable ?? false) || !mounted) return card;
-    final l10n = AppLocalizations.of(context);
-    final completer = Completer<void>();
-    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
-
-    setState(() {
-      _enrolling = true;
-      _enrollProgress = 0;
-      _enrollMessage = l10n.wizardPlaceCardTitle;
-    });
-
-    NfcService.instance.startSession(
-      onTagDiscovered: () async {
-        if (completer.isCompleted) return;
-        outcome = await _readChipWithRetryLoop(outcome.card, pin, (frac, msg) {
-          if (mounted) {
-            setState(() {
-              _enrollProgress = frac;
-              _enrollMessage = msg;
-            });
-          }
-        });
-        await NfcService.instance.stopSession();
-        if (!completer.isCompleted) completer.complete();
-      },
-    );
-
-    await completer.future;
-    if (mounted) setState(() => _enrolling = false);
-    return outcome.card;
   }
 
   /// Navigate back one wizard step. No-op on welcome/success.

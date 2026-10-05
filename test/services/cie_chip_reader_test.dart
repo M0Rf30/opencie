@@ -45,8 +45,8 @@ void main() {
     test('complete read: mrz + photo both present, errorKind null', () async {
       final outcome = await CieChipReader.readAndEnrich(
         card: _card,
-        pin: '12345678',
-        readDgs: ({required pin, onProgress}) async => CieReadDgsResult(
+        can: '123456',
+        readDgs: ({required can, onProgress}) async => CieReadDgsResult(
           returnValue: AppConstants.ckrOk,
           mrzBytes: _buildDg1(_td1Mrz),
           photoBytes: _pngBytes,
@@ -65,8 +65,8 @@ void main() {
         'errorKind', () async {
       final outcome = await CieChipReader.readAndEnrich(
         card: _card,
-        pin: '12345678',
-        readDgs: ({required pin, onProgress}) async => const CieReadDgsResult(
+        can: '123456',
+        readDgs: ({required can, onProgress}) async => const CieReadDgsResult(
           returnValue: AppConstants.ckrDeviceError,
           statusWord: 0x6987, // garbled SM data — RF link drop mid-read
         ),
@@ -84,8 +84,8 @@ void main() {
         'enriched with what was read', () async {
       final outcome = await CieChipReader.readAndEnrich(
         card: _card,
-        pin: '12345678',
-        readDgs: ({required pin, onProgress}) async => CieReadDgsResult(
+        can: '123456',
+        readDgs: ({required can, onProgress}) async => CieReadDgsResult(
           returnValue: AppConstants.ckrOk,
           mrzBytes: _buildDg1(_td1Mrz),
           photoBytes: null,
@@ -100,17 +100,55 @@ void main() {
       expect(outcome.card.photoBytes, isNull);
     });
 
-    test('wrong PIN: classified as wrongPin, never retried by the caller '
-        'contract (isPinStatusErrorKind)', () async {
+    test(
+      'wrong CAN (native kind 11): classified as wrongCan, not retryable',
+      () async {
+        final outcome = await CieChipReader.readAndEnrich(
+          card: _card,
+          can: '654321',
+          readDgs: ({required can, onProgress}) async => const CieReadDgsResult(
+            returnValue: AppConstants.ckrPinIncorrect,
+            nativeErrorKind: 11,
+          ),
+        );
+
+        expect(outcome.isComplete, isFalse);
+        expect(outcome.errorKind, CieErrorKind.wrongCan);
+      },
+    );
+
+    test('PIN-incorrect without native kind is still reported as wrongCan '
+        '(no PIN is sent on the CAN path)', () async {
       final outcome = await CieChipReader.readAndEnrich(
         card: _card,
-        pin: '00000000',
-        readDgs: ({required pin, onProgress}) async =>
+        can: '654321',
+        readDgs: ({required can, onProgress}) async =>
             const CieReadDgsResult(returnValue: AppConstants.ckrPinIncorrect),
       );
+      expect(outcome.errorKind, CieErrorKind.wrongCan);
+    });
 
-      expect(outcome.isComplete, isFalse);
-      expect(outcome.errorKind, CieErrorKind.wrongPin);
+    test('unsupported card (FUNCTION_NOT_SUPPORTED + kind 10)', () async {
+      final outcome = await CieChipReader.readAndEnrich(
+        card: _card,
+        can: '123456',
+        readDgs: ({required can, onProgress}) async => const CieReadDgsResult(
+          returnValue: AppConstants.ckrFunctionNotSupported,
+          nativeErrorKind: 10,
+        ),
+      );
+      expect(outcome.errorKind, CieErrorKind.unsupportedCard);
+    });
+
+    test('old library without cie_read_dgs_can: chipDataUnavailable', () async {
+      final outcome = await CieChipReader.readAndEnrich(
+        card: _card,
+        can: '123456',
+        readDgs: ({required can, onProgress}) async => const CieReadDgsResult(
+          returnValue: AppConstants.ckrFunctionNotSupported,
+        ),
+      );
+      expect(outcome.errorKind, CieErrorKind.chipDataUnavailable);
     });
 
     test(
@@ -118,8 +156,8 @@ void main() {
       () async {
         final outcome = await CieChipReader.readAndEnrich(
           card: _card,
-          pin: '12345678',
-          readDgs: ({required pin, onProgress}) async {
+          can: '123456',
+          readDgs: ({required can, onProgress}) async {
             throw StateError('simulated RF link drop');
           },
         );
