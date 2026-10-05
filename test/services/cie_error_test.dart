@@ -206,6 +206,25 @@ void main() {
     );
   });
 
+  test(
+    'native kind 11 + CKR_PIN_INCORRECT → wrongCan; kind 1 stays wrongPin',
+    () {
+      expect(
+        classifyCieError(AppConstants.ckrPinIncorrect, nativeErrorKind: 11),
+        CieErrorKind.wrongCan,
+      );
+      expect(
+        classifyCieError(AppConstants.ckrPinIncorrect, nativeErrorKind: 1),
+        CieErrorKind.wrongPin,
+      );
+      expect(
+        classifyCieError(AppConstants.ckrPinIncorrect),
+        CieErrorKind.wrongPin,
+      );
+      expect(cieErrorMessage(en, CieErrorKind.wrongCan), 'Wrong CAN');
+    },
+  );
+
   group('cieErrorMessage — every other kind has a non-generic message', () {
     final kinds = {
       CieErrorKind.wrongPinFormat: (AppLocalizationsEn l) =>
@@ -230,6 +249,7 @@ void main() {
       CieErrorKind.cardExpired: (AppLocalizationsEn l) => l.cieErrorCardExpired,
       CieErrorKind.unsupportedCard: (AppLocalizationsEn l) =>
           l.cieErrorUnsupportedCard,
+      CieErrorKind.wrongCan: (AppLocalizationsEn l) => l.cieErrorWrongCan,
     };
 
     kinds.forEach((kind, expected) {
@@ -256,6 +276,8 @@ void main() {
   test('chip-read helpers: chipDataUnavailable is not retryable', () {
     expect(chipReadRetryable(CieErrorKind.chipDataUnavailable), isFalse);
     expect(chipReadRetryable(CieErrorKind.wrongPin), isFalse);
+    expect(chipReadRetryable(CieErrorKind.wrongCan), isFalse);
+    expect(chipReadRetryable(CieErrorKind.unsupportedCard), isFalse);
     expect(chipReadRetryable(CieErrorKind.cardCommunicationError), isTrue);
     expect(chipReadRetryable(CieErrorKind.tagLost), isTrue);
     expect(chipReadRetryable(null), isTrue);

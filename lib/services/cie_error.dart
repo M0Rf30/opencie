@@ -22,8 +22,8 @@ import '../core/l10n/app_localizations.dart';
 ///   enrichment) should set this kind directly when `notAfter` is in the
 ///   past, so the shared message/hint copy stays in one place.
 ///
-/// Deliberately still omitted: a wrong-CAN kind (OpenCIE has no CAN entry
-/// path).
+/// [wrongCan] comes only from the PACE-CAN chip read (`cie_read_dgs_can`),
+/// via native kind 11 (`CIE_ERR_WRONG_CAN`).
 enum CieErrorKind {
   wrongPin,
   pinBlocked,
@@ -47,6 +47,11 @@ enum CieErrorKind {
   /// from native kind 10 (`CIE_ERR_UNSUPPORTED_CARD`) together with
   /// `CKR_TOKEN_NOT_RECOGNIZED`. Not retryable.
   unsupportedCard,
+
+  /// PACE rejected the CAN (mutual-authentication token mismatch / SW 63xx
+  /// on General Authenticate). Native kind 11 (`CIE_ERR_WRONG_CAN`) with
+  /// `CKR_PIN_INCORRECT`. Never auto-retried: the user must retype the CAN.
+  wrongCan,
   unknown,
 }
 
@@ -69,7 +74,17 @@ CieErrorKind classifyCieError(
 }) {
   switch (returnValue) {
     case AppConstants.ckrPinIncorrect:
-      return CieErrorKind.wrongPin;
+      // Native kind 11 refines the PIN-incorrect CK_RV: it is the CAN that
+      // was wrong (PACE), not a PIN.
+      return _kindFromNative(nativeErrorKind) == CieErrorKind.wrongCan
+          ? CieErrorKind.wrongCan
+          : CieErrorKind.wrongPin;
+    case AppConstants.ckrFunctionNotSupported:
+      // Native kind 10 = card without a supported PACE OID; otherwise the
+      // loaded library simply cannot read chip data.
+      return _kindFromNative(nativeErrorKind) == CieErrorKind.unsupportedCard
+          ? CieErrorKind.unsupportedCard
+          : CieErrorKind.chipDataUnavailable;
     case AppConstants.ckrPinLocked:
       return CieErrorKind.pinBlocked;
     case AppConstants.ckrPinInvalid:
@@ -109,7 +124,7 @@ CieErrorKind classifyCieError(
 /// 0 NONE, 1 WRONG_PIN, 2 PIN_BLOCKED, 3 PIN_NOT_SET,
 /// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND (-> chipDataUnavailable), 6 WRONG_PARAMS,
 /// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN,
-/// 10 UNSUPPORTED_CARD.
+/// 10 UNSUPPORTED_CARD, 11 WRONG_CAN.
 ///
 /// Returns null for NONE/UNKNOWN/an absent value, letting the caller fall
 /// back to [_classifyGenericFailure]'s status-word heuristic.
@@ -131,6 +146,8 @@ CieErrorKind? _kindFromNative(int? nativeErrorKind) {
       return CieErrorKind.extendedApduNotSupported;
     case 10: // CIE_ERR_UNSUPPORTED_CARD
       return CieErrorKind.unsupportedCard;
+    case 11: // CIE_ERR_WRONG_CAN
+      return CieErrorKind.wrongCan;
     case 0:
     case 9:
     default:
@@ -221,6 +238,8 @@ String cieErrorMessage(
       return l10n.cieErrorCardExpired;
     case CieErrorKind.unsupportedCard:
       return l10n.cieErrorUnsupportedCard;
+    case CieErrorKind.wrongCan:
+      return l10n.cieErrorWrongCan;
     case CieErrorKind.unknown:
       return l10n.cieErrorUnknown(_hexCode(rawCode ?? 0));
   }

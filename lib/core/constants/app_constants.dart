@@ -49,6 +49,7 @@ class AppConstants {
   static const int ckrDeviceError = 0x00000030;
   static const int ckrDeviceRemoved = 0x00000032;
   static const int ckrFunctionCanceled = 0x00000050;
+  static const int ckrFunctionNotSupported = 0x00000054;
   static const int ckrPinIncorrect = 0x000000A0;
   static const int ckrPinInvalid = 0x000000A1;
   static const int ckrPinLenRange = 0x000000A2;

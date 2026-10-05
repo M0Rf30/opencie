@@ -651,29 +651,38 @@ class OpenCiePkcs11 {
     });
   }
 
-  /// Read both DG1 (MRZ) and DG2 (photo) in a single PACE session.
+  /// Read both DG1 (MRZ) and DG2 (photo) in a single PACE-CAN session.
   ///
   /// Returns a [CieReadDgsResult]: `mrzBytes`/`photoBytes` are set on
   /// success (either may still be null if that DG was empty). On failure
   /// `returnValue` is non-zero and `statusWord`/`nativeErrorKind` carry the
   /// `cie_last_error` detail (when the loaded library exports it) so the
   /// caller can classify the failure with [classifyCieError] instead of
-  /// swallowing it. Runs in a background isolate. Requires the card PIN.
-  Future<CieReadDgsResult> readDgs({
-    required String pin,
+  /// swallowing it. Runs in a background isolate. Requires the 6-digit CAN
+  /// printed on the card (not the PIN); the CAN is never stored. If the
+  /// loaded library predates `cie_read_dgs_can`, returns
+  /// `CKR_FUNCTION_NOT_SUPPORTED` instead of throwing.
+  Future<CieReadDgsResult> readDgsCan({
+    required String can,
     ValueChanged<CieProgress>? onProgress,
   }) async {
     return _withProgress(onProgress, (progressPort) async {
       return await Isolate.run(() {
         _activeProgressPort = progressPort;
         final lib = _openLib();
-        final fn = lib.lookupFunction<CieReadDgsNative, CieReadDgsDart>(
-          'cie_read_dgs',
+        if (!lib.providesSymbol('cie_read_dgs_can')) {
+          _activeProgressPort = null;
+          return const CieReadDgsResult(
+            returnValue: AppConstants.ckrFunctionNotSupported,
+          );
+        }
+        final fn = lib.lookupFunction<CieReadDgsCanNative, CieReadDgsCanDart>(
+          'cie_read_dgs_can',
         );
 
         const mrzBufLen = 4096;
         const photoBufLen = 524288; // 512 KiB
-        final pinPtr = pin.toNativeUtf8();
+        final canPtr = can.toNativeUtf8();
         final mrzPtr = calloc<Uint8>(mrzBufLen);
         final mrzLenPtr = calloc<Size>();
         final photoPtr = calloc<Uint8>(photoBufLen);
@@ -682,7 +691,7 @@ class OpenCiePkcs11 {
         photoLenPtr.value = photoBufLen;
 
         try {
-          final rv = fn(pinPtr, mrzPtr, mrzLenPtr, photoPtr, photoLenPtr);
+          final rv = fn(canPtr, mrzPtr, mrzLenPtr, photoPtr, photoLenPtr);
           if (rv != 0) {
             final err = lastNativeError();
             return CieReadDgsResult(
@@ -706,8 +715,8 @@ class OpenCiePkcs11 {
             photoBytes: photoBytes,
           );
         } finally {
-          _wipeUtf8(pinPtr);
-          calloc.free(pinPtr);
+          _wipeUtf8(canPtr);
+          calloc.free(canPtr);
           calloc.free(mrzPtr);
           calloc.free(mrzLenPtr);
           calloc.free(photoPtr);
@@ -867,7 +876,7 @@ class CieResult {
   bool get isPinLocked => returnValue == AppConstants.ckrPinLocked;
 }
 
-/// Result of [OpenCiePkcs11.readDgs].
+/// Result of [OpenCiePkcs11.readDgsCan].
 ///
 /// On success [mrzBytes]/[photoBytes] hold the raw TLV bytes for the DGs
 /// that were non-empty (either may legitimately be null). On failure

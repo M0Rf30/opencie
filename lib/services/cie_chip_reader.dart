@@ -309,21 +309,22 @@ class ChipReadOutcome {
   final bool photoRead;
 
   /// Classified reason MRZ and/or photo are missing, or null when both
-  /// were read (or the card had no PIN attempt — see [mrzRead]/[photoRead]).
+  /// were read (or no read was attempted — see [mrzRead]/[photoRead]).
   final CieErrorKind? errorKind;
 
   /// True when both MRZ and photo were read.
   bool get isComplete => mrzRead && photoRead;
 }
 
-/// Reads DG1 (MRZ) and DG2 (photo) from the CIE chip and returns parsed data.
+/// Reads DG1 (MRZ) and DG2 (photo) from the CIE chip (PACE with the CAN)
+/// and returns parsed data.
 class CieChipReader {
   const CieChipReader._();
 
   /// Read chip data and return a [ChipReadOutcome] describing what was
   /// read and, when something is missing, why.
   ///
-  /// Uses [cie_read_dgs] to read DG1 and DG2 in a single PACE session.
+  /// Uses `cie_read_dgs_can` to read DG1 and DG2 in a single PACE-CAN session.
   /// Never throws for a failed/partial chip read: transport failures
   /// (dropped RF link mid-DH-exchange, garbled secure-messaging frame,
   /// etc.) are classified via [classifyCieError] and reported through
@@ -331,24 +332,24 @@ class CieChipReader {
   /// rather than silently saving an incomplete card.
   static Future<ChipReadOutcome> readAndEnrich({
     required EnrolledCard card,
-    required String pin,
+    required String can,
     ValueChanged<CieProgress>? onProgress,
 
-    /// Injectable for tests. Defaults to [OpenCiePkcs11.instance.readDgs].
+    /// Injectable for tests. Defaults to [OpenCiePkcs11.instance.readDgsCan].
     Future<CieReadDgsResult> Function({
-      required String pin,
+      required String can,
       ValueChanged<CieProgress>? onProgress,
     })?
     readDgs,
   }) async {
-    final read = readDgs ?? OpenCiePkcs11.instance.readDgs;
+    final read = readDgs ?? OpenCiePkcs11.instance.readDgsCan;
 
     MrzData? mrz;
     Uint8List? photoBytes;
     CieErrorKind? errorKind;
 
     try {
-      final result = await read(pin: pin, onProgress: onProgress);
+      final result = await read(can: can, onProgress: onProgress);
 
       if (!result.isSuccess) {
         errorKind = classifyCieError(
@@ -356,6 +357,11 @@ class CieChipReader {
           statusWord: result.statusWord,
           nativeErrorKind: result.nativeErrorKind,
         );
+        // No PIN is ever sent on this path: a "wrong PIN" classification
+        // (e.g. a library without native kind 11) is really a wrong CAN.
+        if (errorKind == CieErrorKind.wrongPin) {
+          errorKind = CieErrorKind.wrongCan;
+        }
       } else {
         final rawMrz = result.mrzBytes;
         final rawPhoto = result.photoBytes;
