@@ -57,6 +57,37 @@ for entry in "${ANDROID[@]}"; do
   render "$s" "android/app/src/main/res/mipmap-${d}/ic_launcher.png"
 done
 
+# Adaptive icon (API 26+). Without it the launcher shrinks the legacy PNG
+# into a white plate. The background layer is the full-bleed gradient; the
+# foreground is the card + waves on transparency, scaled so the 128 viewBox
+# maps to the 72dp inner area of the 108dp canvas (content stays inside the
+# 66dp safe zone of every mask shape).
+echo "→ Android adaptive icon layers (108dp: 108/162/216/324/432)"
+SVG="$SVG" TMP_DIR="$TMP" python - <<'PY'
+import os, re
+src = open(os.environ["SVG"], encoding="utf-8").read()
+tmp = os.environ["TMP_DIR"]
+defs = re.search(r"<defs>.*?</defs>", src, re.S).group(0)
+body = src.split("</defs>", 1)[1].rsplit("</svg>", 1)[0]
+body = re.sub(r'\s*<rect width="128" height="128" rx="28"[^>]*/>', "", body)
+head = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" '
+        'width="108" height="108">')
+fg = (head + defs + '<g transform="translate(18 18) scale(0.5625)">'
+      + body + "</g></svg>")
+bg = (head + defs + '<g transform="scale(0.84375)">'
+      '<rect width="128" height="128" fill="url(#bg)"/>'
+      '<rect width="128" height="128" fill="url(#glow)"/></g></svg>')
+open(os.path.join(tmp, "fg.svg"), "w", encoding="utf-8").write(fg)
+open(os.path.join(tmp, "bg.svg"), "w", encoding="utf-8").write(bg)
+PY
+for entry in "mdpi:108" "hdpi:162" "xhdpi:216" "xxhdpi:324" "xxxhdpi:432"; do
+  d="${entry%:*}"
+  s="${entry#*:}"
+  out="android/app/src/main/res/mipmap-${d}"
+  rsvg-convert -w "$s" -h "$s" -o "$out/ic_launcher_foreground.png" "$TMP/fg.svg"
+  rsvg-convert -w "$s" -h "$s" -o "$out/ic_launcher_background.png" "$TMP/bg.svg"
+done
+
 echo "→ Linux runner (512 master + 48 hicolor)"
 render 512 "linux/runner/resources/io.github.m0rf30.opencie.png"
 render 256 "linux/runner/resources/io.github.m0rf30.opencie_256.png"

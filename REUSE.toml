@@ -77,7 +77,7 @@ path = [
   "flatpak/flathub/*.png",
   "lib/core/l10n/*.arb",
   "linux/runner/resources/*.png",
-  "android/app/src/main/res/mipmap-*/ic_launcher.png",
+  "android/app/src/main/res/mipmap-*/ic_launcher*.png",
   "windows/runner/resources/app_icon.ico",
 ]
 precedence = "aggregate"
