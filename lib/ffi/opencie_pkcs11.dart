@@ -39,6 +39,14 @@ DynamicLibrary _openLib() {
   throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
 }
 
+/// Whether `cie_verify` failed. It returns the signature count on success
+/// (0 if the file has none) and an error code otherwise: a CIE_SIGN_ERROR_*
+/// value (0x84000000 and up, positive on 64-bit) or a negative status cast to
+/// CK_RV. Checking only for negative values misses the first kind, so any
+/// return that differs from `cie_get_sign_count()` is treated as an error.
+@visibleForTesting
+bool cieVerifyFailed(int rv, int signCount) => rv != signCount;
+
 /// FFI progress callback — sends [percent, message] to the main isolate.
 /// Called synchronously by native code on the worker thread.
 int _onProgress(int progress, Pointer<Utf8> message) {
@@ -565,15 +573,13 @@ class OpenCiePkcs11 {
       try {
         final rv = cieVerify(inPtr, proxyPtr.cast(), proxyPort, passPtr.cast());
 
-        // cie_verify returns a signed long: negative values are errors,
-        // 0 means success (use cie_get_sign_count for the actual count).
-        if (rv < 0) {
+        final count = cieGetSignCount();
+        if (cieVerifyFailed(rv, count)) {
           // Show the error as its unsigned hex representation for diagnostics.
           final hex = rv.toUnsigned(64).toRadixString(16);
           throw Exception('cie_verify failed: 0x$hex');
         }
 
-        final count = cieGetSignCount();
         final results = <VerifyInfo>[];
 
         for (var i = 0; i < count; i++) {
