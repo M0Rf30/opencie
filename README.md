@@ -249,6 +249,10 @@ This is a deliberate choice. Apple's Developer ID program costs $99/year and req
 
 </details>
 
+## Security
+
+Release assets carry a signed build-provenance attestation (`gh attestation verify <file> --repo M0Rf30/opencie`) and each release includes a CycloneDX SBOM. To report a vulnerability privately, see [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Issues and pull requests are welcome — see the [issue tracker](https://github.com/M0Rf30/opencie/issues). For non-trivial changes, please open an issue first to discuss the approach.

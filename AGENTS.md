@@ -108,6 +108,7 @@ Hardware: Android needs NFC. Desktop needs a PC/SC reader; on Linux run `sudo sy
   1. Commit `chore(release): X.Y.Z[, fetch libopencie-pkcs11 A.B.C]`. It bumps the pubspec version (X.Y.Z and the +N build number), `OPENCIE_PKCS11_VERSION`, and the release entries in both metainfo files.
   2. Tag `vX.Y.Z`. CI checks that the tag matches pubspec and metainfo, then publishes.
   3. Commit `chore(flathub): bundle vX.Y.Z`, updating the two tarball URLs and sha256 values in `flatpak/flathub/io.github.m0rf30.opencie.yml`.
+  - Supply chain: the release job also generates a CycloneDX SBOM with syft (`opencie-<tag>.cdx.json`, after `flutter pub get` because `pubspec.lock` is gitignored) and attests everything in `release/` with `actions/attest-build-provenance`. Keep `id-token`/`attestations: write` on that job only. Verify with `gh attestation verify <file> --repo M0Rf30/opencie`. Vulnerability disclosure policy: `SECURITY.md`.
 
 ## Testing & QA
 
