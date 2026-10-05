@@ -52,6 +52,14 @@ enum CieErrorKind {
   /// on General Authenticate). Native kind 11 (`CIE_ERR_WRONG_CAN`) with
   /// `CKR_PIN_INCORRECT`. Never auto-retried: the user must retype the CAN.
   wrongCan,
+
+  /// The card must be physically re-presented (lifted off the reader and put
+  /// back) before the operation can succeed. Native kind 12
+  /// (`CIE_ERR_CARD_RESET_REQUIRED`): on some contactless readers MF-level
+  /// files stay hidden after the CIE application was selected until the card
+  /// is really reset, and a software reset cannot do that. Retryable once
+  /// the user has re-presented the card, with the same CAN.
+  cardResetRequired,
   unknown,
 }
 
@@ -72,6 +80,9 @@ CieErrorKind classifyCieError(
   int? statusWord,
   int? nativeErrorKind,
 }) {
+  // Native kind 12 wins over any CK_RV: the library keeps the CK_RV it
+  // always returned for this failure, which older apps classify as before.
+  if (nativeErrorKind == 12) return CieErrorKind.cardResetRequired;
   switch (returnValue) {
     case AppConstants.ckrPinIncorrect:
       // Native kind 11 refines the PIN-incorrect CK_RV: it is the CAN that
@@ -124,7 +135,7 @@ CieErrorKind classifyCieError(
 /// 0 NONE, 1 WRONG_PIN, 2 PIN_BLOCKED, 3 PIN_NOT_SET,
 /// 4 SECURITY_NOT_SATISFIED, 5 FILE_NOT_FOUND (-> chipDataUnavailable), 6 WRONG_PARAMS,
 /// 7 INS_NOT_SUPPORTED, 8 CARD_COMMUNICATION, 9 UNKNOWN,
-/// 10 UNSUPPORTED_CARD, 11 WRONG_CAN.
+/// 10 UNSUPPORTED_CARD, 11 WRONG_CAN, 12 CARD_RESET_REQUIRED.
 ///
 /// Returns null for NONE/UNKNOWN/an absent value, letting the caller fall
 /// back to [_classifyGenericFailure]'s status-word heuristic.
@@ -148,6 +159,8 @@ CieErrorKind? _kindFromNative(int? nativeErrorKind) {
       return CieErrorKind.unsupportedCard;
     case 11: // CIE_ERR_WRONG_CAN
       return CieErrorKind.wrongCan;
+    case 12: // CIE_ERR_CARD_RESET_REQUIRED
+      return CieErrorKind.cardResetRequired;
     case 0:
     case 9:
     default:
@@ -240,6 +253,8 @@ String cieErrorMessage(
       return l10n.cieErrorUnsupportedCard;
     case CieErrorKind.wrongCan:
       return l10n.cieErrorWrongCan;
+    case CieErrorKind.cardResetRequired:
+      return l10n.cieErrorCardResetRequired;
     case CieErrorKind.unknown:
       return l10n.cieErrorUnknown(_hexCode(rawCode ?? 0));
   }

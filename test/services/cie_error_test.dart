@@ -226,6 +226,39 @@ void main() {
     },
   );
 
+  test('native kind 12 → cardResetRequired regardless of CK_RV', () {
+    for (final rv in [
+      AppConstants.ckrFunctionFailed,
+      AppConstants.ckrDeviceError,
+      AppConstants.ckrGeneralError,
+      AppConstants.ckrFunctionNotSupported,
+      0x84,
+    ]) {
+      expect(
+        classifyCieError(rv, nativeErrorKind: 12),
+        CieErrorKind.cardResetRequired,
+      );
+    }
+    // Without the native kind (older library) nothing changes.
+    expect(
+      classifyCieError(AppConstants.ckrFunctionFailed, statusWord: 0x6A82),
+      isNot(CieErrorKind.cardResetRequired),
+    );
+    expect(
+      cieErrorMessage(en, CieErrorKind.cardResetRequired),
+      en.cieErrorCardResetRequired,
+    );
+    expect(chipReadRetryable(CieErrorKind.cardResetRequired), isTrue);
+    expect(
+      chipReadFailureMessage(
+        en,
+        CieErrorKind.cardResetRequired,
+        isAndroid: false,
+      ),
+      en.cieErrorCardResetRequired,
+    );
+  });
+
   group('cieErrorMessage — every other kind has a non-generic message', () {
     final kinds = {
       CieErrorKind.wrongPinFormat: (AppLocalizationsEn l) =>

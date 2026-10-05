@@ -437,3 +437,49 @@ class CieChipReader {
     );
   }
 }
+
+/// How many times a chip read is re-run after
+/// [CieErrorKind.cardResetRequired] (the user lifts the card and puts it
+/// back each time) before giving up.
+const int chipReadMaxResetRetries = 3;
+
+/// Drives a chip read to completion, re-running [attempt] while the outcome
+/// is incomplete and a retry is wanted.
+///
+/// [attempt] receives the outcome of the previous attempt (so the enriched
+/// card is carried over) and MUST reuse the secret (CAN/PIN) the caller
+/// already holds: this helper never sees or stores it.
+///
+/// A [CieErrorKind.cardResetRequired] outcome is handled here, bounded by
+/// [maxResetRetries]: [onResetRequired] is asked to show the "lift the card
+/// and put it back" instruction. It receives the number of retries still
+/// left (0 means this is the last one: show the message without Retry) and
+/// returns true when the user chose Retry. Every other incomplete outcome
+/// is delegated to [shouldRetry] (attempt index starts at 0).
+///
+/// Returns the last outcome; never throws on its own.
+Future<ChipReadOutcome> runChipReadLoop({
+  required ChipReadOutcome initial,
+  required Future<ChipReadOutcome> Function(ChipReadOutcome previous) attempt,
+  required Future<bool> Function(ChipReadOutcome outcome, int attempt)
+  shouldRetry,
+  required Future<bool> Function(ChipReadOutcome outcome, int retriesLeft)
+  onResetRequired,
+  int maxResetRetries = chipReadMaxResetRetries,
+}) async {
+  var outcome = initial;
+  var resetRetries = 0;
+  for (var i = 0; ; i++) {
+    outcome = await attempt(outcome);
+    if (outcome.isComplete) break;
+    if (outcome.errorKind == CieErrorKind.cardResetRequired) {
+      final left = maxResetRetries - resetRetries;
+      final retry = await onResetRequired(outcome, left < 0 ? 0 : left);
+      if (!retry || left <= 0) break;
+      resetRetries++;
+      continue;
+    }
+    if (!await shouldRetry(outcome, i)) break;
+  }
+  return outcome;
+}

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/core/constants/app_constants.dart';
 import 'package:opencie/ffi/opencie_pkcs11.dart';
@@ -230,5 +231,137 @@ void main() {
         expect(outcome.card, same(_card));
       },
     );
+  });
+
+  group('runChipReadLoop with cardResetRequired', () {
+    const resetResult = CieReadDgsResult(
+      returnValue: AppConstants.ckrFunctionFailed,
+      statusWord: 0x6A82,
+      nativeErrorKind: 12,
+    );
+    final okResult = CieReadDgsResult(
+      returnValue: AppConstants.ckrOk,
+      mrzBytes: _buildDg1(_td1Mrz),
+      photoBytes: _pngBytes,
+    );
+    const initial = ChipReadOutcome(
+      card: _card,
+      mrzRead: false,
+      photoRead: false,
+    );
+
+    test('kind 12 then success: retry reuses the same CAN', () async {
+      final cans = <String>[];
+      final retriesLeft = <int>[];
+      final results = [resetResult, okResult];
+      final outcome = await runChipReadLoop(
+        initial: initial,
+        attempt: (prev) => CieChipReader.readAndEnrich(
+          card: prev.card,
+          can: '123456',
+          readDgs: ({required can, onProgress}) async {
+            cans.add(can);
+            return results.removeAt(0);
+          },
+        ),
+        shouldRetry: (_, _) async => fail('not expected'),
+        onResetRequired: (o, left) async {
+          expect(o.errorKind, CieErrorKind.cardResetRequired);
+          retriesLeft.add(left);
+          return true;
+        },
+      );
+      expect(cans, ['123456', '123456']);
+      expect(retriesLeft, [chipReadMaxResetRetries]);
+      expect(outcome.isComplete, isTrue);
+      expect(outcome.card.mrzSurname, 'ROSSI');
+    });
+
+    test('user cancels: stops after the first attempt', () async {
+      var calls = 0;
+      final outcome = await runChipReadLoop(
+        initial: initial,
+        attempt: (prev) => CieChipReader.readAndEnrich(
+          card: prev.card,
+          can: '123456',
+          readDgs: ({required can, onProgress}) async {
+            calls++;
+            return resetResult;
+          },
+        ),
+        shouldRetry: (_, _) async => fail('not expected'),
+        onResetRequired: (_, _) async => false,
+      );
+      expect(calls, 1);
+      expect(outcome.errorKind, CieErrorKind.cardResetRequired);
+    });
+
+    test('retries are bounded; last prompt has no retries left', () async {
+      var calls = 0;
+      final left = <int>[];
+      final outcome = await runChipReadLoop(
+        initial: initial,
+        maxResetRetries: 2,
+        attempt: (prev) => CieChipReader.readAndEnrich(
+          card: prev.card,
+          can: '123456',
+          readDgs: ({required can, onProgress}) async {
+            calls++;
+            return resetResult;
+          },
+        ),
+        shouldRetry: (_, _) async => fail('not expected'),
+        onResetRequired: (_, n) async {
+          left.add(n);
+          return true;
+        },
+      );
+      expect(calls, 3);
+      expect(left, [2, 1, 0]);
+      expect(outcome.errorKind, CieErrorKind.cardResetRequired);
+    });
+
+    test(
+      'other failures go through shouldRetry, not onResetRequired',
+      () async {
+        var calls = 0;
+        final outcome = await runChipReadLoop(
+          initial: initial,
+          attempt: (prev) => CieChipReader.readAndEnrich(
+            card: prev.card,
+            can: '123456',
+            readDgs: ({required can, onProgress}) async {
+              calls++;
+              return const CieReadDgsResult(
+                returnValue: AppConstants.ckrDeviceRemoved,
+              );
+            },
+          ),
+          shouldRetry: (o, i) async => false,
+          onResetRequired: (_, _) async => fail('not expected'),
+        );
+        expect(calls, 1);
+        expect(outcome.errorKind, CieErrorKind.tagLost);
+      },
+    );
+
+    test('the CAN never appears in debug logs', () async {
+      final logs = <String?>[];
+      final original = debugPrint;
+      debugPrint = (String? m, {int? wrapWidth}) => logs.add(m);
+      addTearDown(() => debugPrint = original);
+      final results = [resetResult, okResult];
+      await runChipReadLoop(
+        initial: initial,
+        attempt: (prev) => CieChipReader.readAndEnrich(
+          card: prev.card,
+          can: '987654',
+          readDgs: ({required can, onProgress}) async => results.removeAt(0),
+        ),
+        shouldRetry: (_, _) async => false,
+        onResetRequired: (_, _) async => true,
+      );
+      expect(logs.where((l) => l?.contains('987654') ?? false), isEmpty);
+    });
   });
 }

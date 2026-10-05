@@ -140,7 +140,9 @@ String chipReadFailureMessage(
   if (kind == CieErrorKind.unsupportedCard) {
     return cieErrorMessage(l10n, kind!);
   }
-  if (isPinStatusErrorKind(kind)) return cieErrorMessage(l10n, kind!);
+  if (isPinStatusErrorKind(kind) || kind == CieErrorKind.cardResetRequired) {
+    return cieErrorMessage(l10n, kind!);
+  }
   return isAndroid ? l10n.cieReadIncompleteNfc : l10n.cieReadIncompletePcsc;
 }
 
@@ -436,40 +438,62 @@ class _CieManagementPageState extends ConsumerState<CieManagementPage>
     required String processingTitle,
   }) async {
     const maxRetries = 2;
-    var outcome = ChipReadOutcome(card: card, mrzRead: false, photoRead: false);
-    for (var attempt = 0; ; attempt++) {
-      await _withNfc(processingTitle, (onProgress) async {
-        outcome = await _readChip(
-          outcome.card,
-          can: can,
-          pin: pin,
-          onProgress: (p) => onProgress(p.percent / 100.0, p.message),
+    return runChipReadLoop(
+      initial: ChipReadOutcome(card: card, mrzRead: false, photoRead: false),
+      // The CAN/PIN stays in this call's arguments only and is reused as-is
+      // for every attempt (never stored or logged).
+      attempt: (previous) async {
+        var outcome = previous;
+        await _withNfc(processingTitle, (onProgress) async {
+          outcome = await _readChip(
+            previous.card,
+            can: can,
+            pin: pin,
+            onProgress: (p) => onProgress(p.percent / 100.0, p.message),
+          );
+        });
+        return outcome;
+      },
+      onResetRequired: (outcome, retriesLeft) async {
+        if (!mounted) return false;
+        // The reader cannot reset the card itself: the user has to lift it
+        // and put it back, then tap Retry (same CAN, no re-prompt).
+        return showChipReadIncompleteDialog(
+          context,
+          cieErrorMessage(
+            AppLocalizations.of(context),
+            CieErrorKind.cardResetRequired,
+          ),
+          allowRetry: retriesLeft > 0,
         );
-      });
-      if (outcome.isComplete || !mounted) break;
-      if (outcome.errorKind == CieErrorKind.wrongCan) break;
-      if (can != null &&
-          outcome.errorKind == CieErrorKind.extendedApduNotSupported) {
-        break;
-      }
-      if (pin != null && outcome.errorKind == CieErrorKind.wrongPin) {
-        PinThrottle.recordFailure();
-      }
-      if (attempt >= maxRetries && chipReadRetryable(outcome.errorKind)) break;
-      final l10n = AppLocalizations.of(context);
-      final message = chipReadFailureMessage(
-        l10n,
-        outcome.errorKind,
-        isAndroid: Platform.isAndroid,
-      );
-      final wantsRetry = await showChipReadIncompleteDialog(
-        context,
-        message,
-        allowRetry: chipReadRetryable(outcome.errorKind),
-      );
-      if (!chipReadRetryable(outcome.errorKind) || !wantsRetry) break;
-    }
-    return outcome;
+      },
+      shouldRetry: (outcome, attempt) async {
+        if (!mounted) return false;
+        if (outcome.errorKind == CieErrorKind.wrongCan) return false;
+        if (can != null &&
+            outcome.errorKind == CieErrorKind.extendedApduNotSupported) {
+          return false;
+        }
+        if (pin != null && outcome.errorKind == CieErrorKind.wrongPin) {
+          PinThrottle.recordFailure();
+        }
+        if (attempt >= maxRetries && chipReadRetryable(outcome.errorKind)) {
+          return false;
+        }
+        final l10n = AppLocalizations.of(context);
+        final message = chipReadFailureMessage(
+          l10n,
+          outcome.errorKind,
+          isAndroid: Platform.isAndroid,
+        );
+        final wantsRetry = await showChipReadIncompleteDialog(
+          context,
+          message,
+          allowRetry: chipReadRetryable(outcome.errorKind),
+        );
+        return chipReadRetryable(outcome.errorKind) && wantsRetry;
+      },
+    );
   }
 
   /// Asks whether to read with the PIN because the reader cannot use the

@@ -516,6 +516,7 @@
      "cieReadContinueWithout": "Continua senza",
      "cieReadKeepStill": "Tieni ferma la carta — l'operazione può richiedere fino a 20 secondi.",
   "cieErrorWrongCan": "CAN errato",
+  "cieErrorCardResetRequired": "Questo lettore non riesce a reimpostare la carta da solo. Solleva la carta dal lettore, riappoggiala, poi tocca Riprova.",
   "cieReadChipSuccess": "Dati del chip letti correttamente.",
   "cieCanDialogBody": "Inserisci il CAN (Card Access Number) di 6 cifre stampato sul fronte della carta, in basso a destra. Non è il PIN.",
   "cieCanLabel": "CAN (6 cifre)",

@@ -518,6 +518,7 @@
    "cieReadContinueWithout": "Continue without",
    "cieReadKeepStill": "Keep the card still — this can take up to 20 seconds.",
   "cieErrorWrongCan": "Wrong CAN",
+  "cieErrorCardResetRequired": "This reader cannot reset the card by itself. Lift the card off the reader, put it back, then tap Retry.",
   "cieReadChipSuccess": "Chip data read successfully.",
   "cieCanDialogBody": "Enter the 6-digit CAN (Card Access Number) printed on the front of your card, bottom right. This is not your PIN.",
   "cieCanLabel": "CAN (6 digits)",
