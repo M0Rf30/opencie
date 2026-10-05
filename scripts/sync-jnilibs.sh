@@ -28,18 +28,16 @@ fi
 
 echo "Syncing libopencie-pkcs11 Android libraries from $REPO @ $TAG"
 
-declare -A ABI_MAP=(
-	["arm64-v8a"]="android-arm64"
-	["armeabi-v7a"]="android-armv7"
-	["x86_64"]="android-x86_64"
-)
+# "<abi>:<asset suffix>" pairs (no associative arrays: bash 3.2 compatible).
+ABI_PAIRS="arm64-v8a:android-arm64 armeabi-v7a:android-armv7 x86_64:android-x86_64"
 
 # Some ABIs may not be published in every release (e.g. armeabi-v7a was dropped
 # in 1.0.0). Skip cleanly when the asset is missing rather than failing CI.
 ASSETS=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[].name')
 
-for ABI in "${!ABI_MAP[@]}"; do
-	ASSET_SUFFIX="${ABI_MAP[$ABI]}"
+for PAIR in $ABI_PAIRS; do
+	ABI="${PAIR%%:*}"
+	ASSET_SUFFIX="${PAIR#*:}"
 	ASSET_NAME="libopencie-pkcs11-${TAG}-${ASSET_SUFFIX}.so"
 	DEST_DIR="$JNILIBS_DIR/$ABI"
 	DEST_FILE="$DEST_DIR/libopencie-pkcs11.so"

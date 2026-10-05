@@ -40,7 +40,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add android/app/src/main/jniLibs/
+          # *.so is gitignored, so force-add the jniLibs.
+          git add -f android/app/src/main/jniLibs/
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: sync Android jniLibs to opencie-pkcs11 ${TAG}"
           git push origin "$BRANCH"
