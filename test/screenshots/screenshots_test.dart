@@ -2,7 +2,9 @@
 //
 // Offscreen renderer for the README / Flathub screenshots.
 //
-//   fvm flutter test --tags screenshots test/screenshots
+//   OPENCIE_SCREENSHOTS=1 fvm flutter test --tags screenshots test/screenshots
+//
+// Run from the repo root with FLUTTER_ROOT set; skipped unless the env var is 1.
 //
 // Renders the real app (OpenCieApp -> router -> ShellPage + pages) with all
 // state faked: in-memory SharedPreferences, in-memory secure storage, a fake

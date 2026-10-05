@@ -1,9 +1,13 @@
 # Test suite configuration. Declares custom tags so `flutter test` does not
-# warn about unknown tags. Network-tagged tests hit live endpoints
-# (OCSP/TSA/SPID/OIDC) and are excluded in CI via --exclude-tags network.
+# warn about unknown tags.
 #
-# Screenshot-tagged tests regenerate docs/screenshots/*.png and are skipped
-# by default; run with `flutter test --tags screenshots test/screenshots`.
+# network: hits live endpoints (OCSP/TSA/SPID/OIDC); excluded in CI via
+#   --exclude-tags network and skipped locally unless enabled:
+#     OPENCIE_NETWORK_TESTS=1 fvm flutter test --tags network
+#
+# screenshots: regenerates docs/screenshots/*.png; skipped unless enabled.
+#   Run from the repo root (FLUTTER_ROOT must be set):
+#     OPENCIE_SCREENSHOTS=1 fvm flutter test --tags screenshots test/screenshots
 tags:
   network:
     description: Tests that require live network access.

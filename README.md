@@ -172,7 +172,17 @@ flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
 flutter run -d <device-id>       # use `flutter devices` to list
 ```
 
-Regenerate the README/Flathub screenshots (offscreen render, fake data only): `OPENCIE_SCREENSHOTS=1 flutter test --tags screenshots test/screenshots`.
+Regenerate the README/Flathub screenshots (offscreen render, fake data only; run from the repo root with `FLUTTER_ROOT` set):
+
+```bash
+OPENCIE_SCREENSHOTS=1 fvm flutter test --tags screenshots test/screenshots
+```
+
+Live-endpoint tests (e.g. FreeTSA) are tagged `network`, excluded in CI and skipped by default:
+
+```bash
+OPENCIE_NETWORK_TESTS=1 fvm flutter test --tags network
+```
 
 ### Android release signing
 

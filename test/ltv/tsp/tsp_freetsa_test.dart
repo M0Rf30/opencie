@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/services/ltv/asn1/oids.dart';
 import 'package:opencie/services/ltv/tsp/tsp_client.dart';
+
+/// Hits the live FreeTSA endpoint, so it is skipped unless explicitly enabled:
+///   OPENCIE_NETWORK_TESTS=1 fvm flutter test --tags network
+/// The `network` tag keeps CI's `--exclude-tags network` excluding it.
+final bool _enabled = Platform.environment['OPENCIE_NETWORK_TESTS'] == '1';
 
 void main() {
   group('TspClient (FreeTSA.org)', () {
@@ -28,7 +34,9 @@ void main() {
         expect(resp.genTime, isNotNull);
         expect(resp.timeStampToken, isNotNull);
       },
-      skip: 'requires network — run with --tags network',
+      skip: _enabled
+          ? false
+          : 'requires network — set OPENCIE_NETWORK_TESTS=1 and run with --tags network',
       tags: ['network'],
     );
   });
