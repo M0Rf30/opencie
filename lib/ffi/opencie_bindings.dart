@@ -3,7 +3,7 @@
 // ignore_for_file: non_constant_identifier_names, camel_case_types
 //
 // Low-level FFI bindings to libopencie-pkcs11.
-// Mirrors include/opencie/cie_ext.h exactly.
+// Mirrors include/opencie/cie_ext.h (libopencie-pkcs11 1.3.0).
 
 import 'dart:ffi';
 
@@ -194,8 +194,11 @@ typedef CieSignDart =
       Pointer<NativeFunction<SignCompletedCallbackNative>> completedCallBack,
     );
 
+/// CK_RV cie_verify(...): the number of signatures, 0 if none, or an error
+/// code (CIE_SIGN_ERROR_* or a negative status cast to CK_RV). A value that
+/// differs from cie_get_sign_count() is an error.
 typedef CieVerifyNative =
-    Long Function(
+    UnsignedLong Function(
       Pointer<Utf8> inFilePath,
       Pointer<Utf8> proxyAddress,
       Int32 proxyPort,
