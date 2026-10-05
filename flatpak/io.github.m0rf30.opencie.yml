@@ -2,7 +2,7 @@
 #
 # This manifest packages the locally built Flutter bundle
 # (build/linux/x64/release/bundle) together with the shared libraries that
-# libopencie-pkcs11.so needs but the Freedesktop 24.08 runtime does not ship
+# libopencie-pkcs11.so needs but the Freedesktop 25.08 runtime does not ship
 # (cryptopp, pcsclite, libxml2 >= 2.14). For local testing those libraries are
 # staged from the host into flatpak/deps-libs/ by tools/flatpak-build.sh.
 #

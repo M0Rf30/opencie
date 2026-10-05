@@ -342,7 +342,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Bundle libopencie-pkcs11.dylib into Frameworks/\nFRAMEWORKS_DIR=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nmkdir -p \"${FRAMEWORKS_DIR}\"\n\nif [ -n \"${OPENCIE_PKCS11_LIB}\" ] && [ -f \"${OPENCIE_PKCS11_LIB}\" ]; then\n  cp -f \"${OPENCIE_PKCS11_LIB}\" \"${FRAMEWORKS_DIR}/libopencie-pkcs11.dylib\"\n  echo \"Bundled libopencie-pkcs11.dylib from OPENCIE_PKCS11_LIB\"\nelse\n  DEFAULT_LIB=\"${SRCROOT}/../../libcie-pkcs11/builddir/libopencie-pkcs11.dylib\"\n  if [ -f \"${DEFAULT_LIB}\" ]; then\n    cp -f \"${DEFAULT_LIB}\" \"${FRAMEWORKS_DIR}/libopencie-pkcs11.dylib\"\n    echo \"Bundled libopencie-pkcs11.dylib from default location\"\n  else\n    echo \"warning: libopencie-pkcs11.dylib not found. Set OPENCIE_PKCS11_LIB to bundle it.\"\n  fi\nfi\n";
+			shellScript = "# Bundle libopencie-pkcs11.dylib into Frameworks/\nFRAMEWORKS_DIR=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nmkdir -p \"${FRAMEWORKS_DIR}\"\n\nif [ -n \"${OPENCIE_PKCS11_LIB}\" ] && [ -f \"${OPENCIE_PKCS11_LIB}\" ]; then\n  cp -f \"${OPENCIE_PKCS11_LIB}\" \"${FRAMEWORKS_DIR}/libopencie-pkcs11.dylib\"\n  echo \"Bundled libopencie-pkcs11.dylib from OPENCIE_PKCS11_LIB\"\nelse\n  DEFAULT_LIB=\"${SRCROOT}/../../opencie-pkcs11/builddir/libopencie-pkcs11.dylib\"\n  if [ -f \"${DEFAULT_LIB}\" ]; then\n    cp -f \"${DEFAULT_LIB}\" \"${FRAMEWORKS_DIR}/libopencie-pkcs11.dylib\"\n    echo \"Bundled libopencie-pkcs11.dylib from default location\"\n  else\n    echo \"warning: libopencie-pkcs11.dylib not found. Set OPENCIE_PKCS11_LIB to bundle it.\"\n  fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

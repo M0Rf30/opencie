@@ -476,6 +476,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Same version source as the ISCC /DMyAppVersion step below.
+          APP_VERSION=$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml | head -n1)
+          [ -n "$APP_VERSION" ] || { echo "could not read version from pubspec.yaml" >&2; exit 1; }
           # Regenerate Inno Setup wizard BMPs on every build so they stay in
           # sync with the brand palette colors (#0F1115/#181A21/#5B9DFF/
           # #FFAB40/#F5F6F8/#9097A6) and the current app icon. ImageMagick 7
@@ -499,7 +502,7 @@ jobs:
             -fill "#F5F6F8" -font Arial-Bold -pointsize 22 \
             -gravity North -annotate +0+150 "OpenCIE" \
             -fill "#9097A6" -font Arial -pointsize 11 \
-            -gravity North -annotate +0+182 "v0.1.0" \
+            -gravity North -annotate +0+182 "v${APP_VERSION}" \
             -fill "#FFAB40" \
             -draw "rectangle 66,212 98,215" \
             -fill "#9097A6" -font Arial -pointsize 11 \
