@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 Gianluca Boiano
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    # Arms GitHub auto-merge on Dependabot PRs. The merge itself happens only
+    # once every status check required by the "main" ruleset (the CI jobs)
+    # has passed; a failing check leaves the PR open.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'M0Rf30/opencie'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge (rebase)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --rebase "$PR_URL"

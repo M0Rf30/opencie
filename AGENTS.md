@@ -95,6 +95,7 @@ Hardware: Android needs NFC. Desktop needs a PC/SC reader; on Linux run `sudo sy
 - `lib/services/sign/sign_backend.dart`, `lib/services/cie_error.dart`, `lib/core/constants/app_constants.dart`.
 - `pubspec.yaml` (`version: X.Y.Z+N`), `analysis_options.yaml`, `l10n.yaml`, `dart_test.yaml`.
 - `.github/workflows/main.yml`: pins `OPENCIE_PKCS11_VERSION` (single source for every platform) and Flutter `3.47.0`, which appears in several places.
+- `.github/workflows/dependabot-automerge.yml`: arms auto-merge (rebase) on Dependabot PRs; they merge once the CI checks required by the `main` ruleset pass.
 - `linux/CMakeLists.txt`, `windows/CMakeLists.txt` (MSVC `/W4 /WX`), `android/app/build.gradle.kts` (minSdk 24, NDK pin, signing via gitignored `android/key.properties`).
 - `flatpak/*.metainfo.xml` and `flatpak/flathub/*.metainfo.xml`: **both** need identical `<release>` entries.
 
