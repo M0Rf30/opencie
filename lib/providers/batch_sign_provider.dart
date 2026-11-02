@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,12 +11,16 @@ import '../services/batch_sign/batch_sign_models.dart';
 import '../services/batch_sign/batch_sign_service.dart';
 import '../services/sign/output_path_resolver.dart';
 import '../services/sign/signature_upgrader.dart';
+import '../services/storage_service.dart';
 import 'settings_provider.dart';
 import 'sign_backend_provider.dart';
 
 class BatchSignNotifier extends Notifier<BatchSignState> {
   late BatchSignService _service;
   StreamSubscription<BatchSignState>? _subscription;
+
+  /// Output paths already handed to [StorageService.publishSignedFile].
+  final _published = <String>{};
 
   @override
   BatchSignState build() {
@@ -51,6 +56,7 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     String? portalOutputFolder,
   }) async {
     _subscription?.cancel();
+    _published.clear();
 
     _service = _newService();
     state = state.copyWith(isRunning: true);
@@ -95,6 +101,9 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
         .listen(
           (newState) {
             state = newState;
+            if (Platform.isAndroid) {
+              _publishNewlySigned(newState, settings.destinationFolder);
+            }
           },
           onError: (error) {
             state = state.copyWith(isRunning: false);
@@ -109,6 +118,17 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
 
   void cancel() {
     _service.cancel();
+  }
+
+  /// Android signs into app-private storage; like single sign, copy each
+  /// finished file to the configured SAF folder once.
+  void _publishNewlySigned(BatchSignState batch, String? treeUri) {
+    for (final item in batch.items) {
+      final path = item.outputPath;
+      if (item.status != BatchSignItemStatus.success || path == null) continue;
+      if (!_published.add(path)) continue;
+      unawaited(StorageService.publishSignedFile(path, treeUri: treeUri));
+    }
   }
 
   String _pathKey(String inputPath, SignatureFormat format) =>
