@@ -80,7 +80,6 @@
 
   "settingsLanguage": "Lingua",
   "settingsDestinationFolder": "Cartella di destinazione",
-  "settingsOpenAfterSign": "Apri cartella al termine della firma",
   "settingsSameAsDocument": "Stessa del documento",
   "settingsCustomFolder": "Cartella personalizzata",
   "settingsChangeFolder": "Cambia cartella",

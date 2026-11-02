@@ -306,15 +306,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         }
                       },
                     ),
-                    OcActionRow(
-                      title: l10n.settingsOpenAfterSign,
-                      trailing: Switch.adaptive(
-                        value: settings.openFolderAfterSign,
-                        onChanged: (v) => ref
-                            .read(settingsProvider.notifier)
-                            .update((s) => s.copyWith(openFolderAfterSign: v)),
-                      ),
-                    ),
                   ],
                 ),
 
