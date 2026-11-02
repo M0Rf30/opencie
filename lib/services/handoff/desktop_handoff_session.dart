@@ -18,6 +18,7 @@ import 'pairing.dart';
 import 'qr_payload.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../ffi/models/verify_info.dart';
+import '../sign/output_path_resolver.dart';
 
 /// Desktop-side state machine for the QR-paired phone signing handoff.
 enum DesktopHandoffState {
@@ -463,7 +464,7 @@ class DesktopHandoffSession {
         throw StateError('no valid signature found in the returned document');
       }
 
-      final outPath = _uniqueOutputPath(_desiredOutputPath());
+      final outPath = uniqueFilePath(_desiredOutputPath());
       await File(outPath).writeAsBytes(bytes, flush: true);
 
       _signatureBytes = bytes;
@@ -492,21 +493,6 @@ class DesktopHandoffSession {
     outputDirectory ?? p.dirname(filePath),
     '${p.basename(filePath)}.p7m',
   );
-
-  /// Never overwrites an existing file: appends " (1)", " (2)", … before the
-  /// extension until a free name is found.
-  String _uniqueOutputPath(String desired) {
-    if (!File(desired).existsSync()) return desired;
-    final dir = p.dirname(desired);
-    final ext = p.extension(desired);
-    final baseNoExt = p.basenameWithoutExtension(desired);
-    var i = 1;
-    while (true) {
-      final candidate = p.join(dir, '$baseNoExt ($i)$ext');
-      if (!File(candidate).existsSync()) return candidate;
-      i++;
-    }
-  }
 
   Future<void> _writeAudit({
     required String outcome,

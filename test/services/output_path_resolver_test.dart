@@ -1,5 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opencie/models/signature_options.dart';
 import 'package:opencie/services/sign/output_path_resolver.dart';
@@ -56,6 +58,21 @@ void main() {
         result,
         equals(p.join('home', 'user', 'Documents', 'contract_signed.pdf')),
       );
+    }, testOn: '!android');
+
+    test('re-signing a .p7m as CAdES never targets the input itself', () async {
+      final dir = await Directory.systemTemp.createTemp('resolver_');
+      addTearDown(() => dir.delete(recursive: true));
+      final input = p.join(dir.path, 'contract.pdf.p7m');
+      await File(input).writeAsString('synthetic');
+      await File(p.join(dir.path, 'contract.pdf (1).p7m')).create();
+
+      final result = await resolveSignedOutputPath(
+        input,
+        SignatureFormat.cades,
+      );
+
+      expect(result, equals(p.join(dir.path, 'contract.pdf (2).p7m')));
     }, testOn: '!android');
 
     test('strips .p7s before re-signing as CAdES', () {
