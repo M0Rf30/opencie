@@ -30,7 +30,7 @@ dependencies:
 
   # UI
   desktop_drop: ^0.8.4
-  file_picker: ^13.1.0
+  file_picker: ^13.3.2
   dotted_border: ^3.1.0
   animations: ^3.0.0
   percent_indicator: ^4.2.3
