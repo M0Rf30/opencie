@@ -682,6 +682,7 @@
   "signSaveTo": "Save to",
   "signSaveToSameFolder": "Same folder as the document",
   "signSaveAsTitle": "Save the signed document",
+  "commonRecentFileMissing": "This file no longer exists or can no longer be opened. It has been removed from the list.",
   "saveChooseFolderTitle": "Choose where to save the new files",
   "signNfcReady": "NFC ready",
   "signReaderName": "Reader: {name}",

@@ -1884,17 +1884,40 @@ class _SignPageState extends ConsumerState<SignPage> {
         ),
       ),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => setState(() {
-        _selectedFile = file.path;
-        if (!file.path.toLowerCase().endsWith('.pdf') &&
-            _options.format == SignatureFormat.pades) {
-          _options = _options.copyWith(
-            format: SignatureFormat.cades,
-            graphicSignature: false,
-          );
+      onTap: () {
+        if (!File(file.path).existsSync()) {
+          _dropMissingRecent(file.path);
+          return;
         }
-      }),
+        _selectRecent(file);
+      },
     );
+  }
+
+  /// Removes a recent entry whose file is gone (deleted, moved, or an
+  /// expired document-portal path) and says so.
+  void _dropMissingRecent(String path) {
+    ref.read(recentSignedFilesProvider.notifier).remove(path);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context).commonRecentFileMissing),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  void _selectRecent(RecentFile file) {
+    setState(() {
+      _selectedFile = file.path;
+      if (!file.path.toLowerCase().endsWith('.pdf') &&
+          _options.format == SignatureFormat.pades) {
+        _options = _options.copyWith(
+          format: SignatureFormat.cades,
+          graphicSignature: false,
+        );
+      }
+    });
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────

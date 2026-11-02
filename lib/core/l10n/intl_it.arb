@@ -671,6 +671,7 @@
   "signSaveTo": "Salva in",
   "signSaveToSameFolder": "Stessa cartella del documento",
   "signSaveAsTitle": "Salva il documento firmato",
+  "commonRecentFileMissing": "Questo file non esiste più o non è più accessibile. È stato rimosso dall'elenco.",
   "saveChooseFolderTitle": "Scegli dove salvare i nuovi file",
   "signNfcReady": "NFC pronto",
   "signReaderName": "Lettore: {name}",

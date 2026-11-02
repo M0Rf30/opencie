@@ -82,6 +82,11 @@ class RecentFilesNotifier extends Notifier<List<RecentFile>> {
     _save();
   }
 
+  void remove(String path) {
+    state = state.where((f) => f.path != path).toList();
+    _save();
+  }
+
   void clear() {
     state = const [];
     _save();

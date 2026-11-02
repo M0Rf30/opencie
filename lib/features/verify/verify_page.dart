@@ -63,7 +63,20 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
     });
   }
 
+  /// Verifies a recent entry. One whose file is gone (deleted, moved, or an
+  /// expired document-portal path) is removed from the list instead.
   Future<void> _verifyPath(String path) async {
+    if (!File(path).existsSync()) {
+      ref.read(recentFilesProvider.notifier).remove(path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).commonRecentFileMissing),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     setState(() {
       _selectedFile = path;
       _results = null;
