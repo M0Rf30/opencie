@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/l10n/app_localizations.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../models/tsa_config.dart';
+import '../../services/sign/output_path_resolver.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_help_sheet.dart';
 import '../../widgets/oc_page.dart';
@@ -41,6 +44,20 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
     setState(() => _isTimestamping = true);
 
     final files = List<String>.of(_selectedFiles);
+
+    // A `.tsr` next to a document-portal input (Flatpak) never reaches the
+    // host folder, so those tokens go to a folder the user picks.
+    String? portalOutputDir;
+    if (files.any(isDocumentPortalPath)) {
+      portalOutputDir = await FilePicker.getDirectoryPath(
+        dialogTitle: l10n.saveChooseFolderTitle,
+      );
+      if (portalOutputDir == null) {
+        if (mounted) setState(() => _isTimestamping = false);
+        return;
+      }
+      if (!mounted) return;
+    }
     final total = files.length;
     // 0-based index of the file currently being timestamped, driving the
     // "i/N" title of the single batch-wide progress dialog below.
@@ -83,7 +100,9 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
             tsaPassword: settings.tsaConfig.password.isEmpty
                 ? null
                 : settings.tsaConfig.password,
-            outputPath: '$file.tsr',
+            outputPath: isDocumentPortalPath(file)
+                ? p.join(portalOutputDir!, '${p.basename(file)}.tsr')
+                : '$file.tsr',
           );
 
           if (!mounted) return;

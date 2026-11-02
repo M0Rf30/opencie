@@ -98,8 +98,13 @@ void main() {
           } catch (_) {}
         });
 
+        // A configured output folder wins over the input's folder (#43).
+        final outDir = await Directory.systemTemp.createTemp('handoff_out_');
+        addTearDown(() => outDir.delete(recursive: true));
+
         final desktop = DesktopHandoffSession.forTesting(
           filePath: srcPath,
+          outputDirectory: outDir.path,
           transport: transportA,
           cryptoSession: sessionA,
           verify: _alwaysValidVerify,
@@ -139,8 +144,8 @@ void main() {
         expect(desktop.signatureBytes, equals(signedBytes));
         final outPath = desktop.signedFilePath;
         expect(outPath, isNotNull);
-        expect(await File(outPath!).readAsBytes(), equals(signedBytes));
-        await File(outPath).delete();
+        expect(File(outPath!).parent.path, equals(outDir.path));
+        expect(await File(outPath).readAsBytes(), equals(signedBytes));
       },
     );
 

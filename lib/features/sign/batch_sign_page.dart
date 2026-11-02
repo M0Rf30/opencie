@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Gianluca Boiano
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +17,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/batch_sign_provider.dart';
 import '../../providers/recent_files_provider.dart';
 import '../../services/batch_sign/batch_sign_models.dart';
+import '../../services/sign/output_path_resolver.dart';
 import 'utils/upgrade_warning_text.dart';
 import '../../widgets/oc_gradient_button.dart';
 import '../../widgets/oc_page.dart';
@@ -461,6 +464,21 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     BuildContext context,
     AppLocalizations l10n,
   ) async {
+    // Files next to a document-portal input (Flatpak) never reach the host
+    // folder: without a destination folder, ask where to put them.
+    String? portalOutputFolder;
+    if (!Platform.isAndroid &&
+        ref.read(settingsProvider).destinationFolder == null &&
+        ref
+            .read(batchSignProvider)
+            .items
+            .any((item) => isDocumentPortalPath(item.inputPath))) {
+      portalOutputFolder = await FilePicker.getDirectoryPath(
+        dialogTitle: l10n.saveChooseFolderTitle,
+      );
+      if (portalOutputFolder == null || !context.mounted) return;
+    }
+
     final pin = await PinEntryDialog.show(context);
     if (pin == null || !mounted) return;
 
@@ -468,7 +486,11 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
     // the single-card behaviour).
     await ref
         .read(batchSignProvider.notifier)
-        .start(pin: pin, pan: ref.read(settingsProvider).signPan);
+        .start(
+          pin: pin,
+          pan: ref.read(settingsProvider).signPan,
+          portalOutputFolder: portalOutputFolder,
+        );
 
     // Add signed files to recent files
     final state = ref.read(batchSignProvider);

@@ -12,6 +12,8 @@ import '../../../widgets/oc_file_tile.dart';
 import '../../../widgets/oc_gradient_button.dart';
 import '../../../widgets/oc_section_label.dart';
 import '../../../widgets/oc_status_disc.dart';
+import '../../../services/sign/output_path_resolver.dart'
+    show isDocumentPortalPath;
 import '../../../services/sign/signature_upgrader.dart'
     show SignatureUpgradeWarning;
 import '../utils/upgrade_warning_text.dart';
@@ -58,7 +60,11 @@ class SignedResultDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final fileName = p.basename(outputPath);
     final ext = fileName.split('.').last.toLowerCase();
-    final folderLabel = p.basename(p.dirname(outputPath));
+    // A document-portal parent is an opaque document ID, not a folder the
+    // user would recognise, so it is not shown.
+    final folderLabel = isDocumentPortalPath(outputPath)
+        ? null
+        : p.basename(p.dirname(outputPath));
     final now = DateTime.now();
     final dateLabel =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
@@ -140,11 +146,12 @@ class SignedResultDialog extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        OcMonoText(
-                          l10n.signedResultSavedIn(folderLabel),
-                          color: cs.onSurfaceVariant,
-                          fontSize: 11,
-                        ),
+                        if (folderLabel != null)
+                          OcMonoText(
+                            l10n.signedResultSavedIn(folderLabel),
+                            color: cs.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
                       ],
                     ),
                   ),

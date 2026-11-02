@@ -17,6 +17,7 @@ import '../../core/theme/color_schemes.dart';
 import '../../ffi/models/verify_info.dart';
 import '../../ffi/opencie_pkcs11.dart';
 import '../../providers/recent_files_provider.dart';
+import '../../services/sign/output_path_resolver.dart';
 import '../../widgets/oc_action_row.dart';
 import '../../widgets/oc_file_tile.dart';
 import '../../widgets/oc_gradient_button.dart';
@@ -81,7 +82,18 @@ class _VerifyPageState extends ConsumerState<VerifyPage> {
     final l10n = AppLocalizations.of(context);
     final file = _selectedFile;
     if (file == null || !file.toLowerCase().endsWith('.p7m')) return;
-    final outputPath = file.substring(0, file.length - 4);
+    var outputPath = file.substring(0, file.length - 4);
+    // Next to a document-portal input (Flatpak) the extracted file would
+    // never reach the host folder: ask where to save it instead.
+    if (isDocumentPortalPath(file)) {
+      final picked = await FilePicker.saveFile(
+        dialogTitle: l10n.saveChooseFolderTitle,
+        fileName: p.basename(outputPath),
+        bytes: Uint8List(0),
+      );
+      if (picked == null || !mounted) return;
+      outputPath = picked.toFilePath();
+    }
     try {
       final result = await OpenCiePkcs11.instance.extractP7m(
         inputPath: file,

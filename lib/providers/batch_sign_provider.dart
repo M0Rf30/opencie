@@ -42,7 +42,14 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     state = const BatchSignState();
   }
 
-  Future<void> start({required String pin, required String pan}) async {
+  /// [portalOutputFolder] is where document-portal inputs (Flatpak) are
+  /// signed to when no destination folder is configured; see
+  /// [isDocumentPortalPath].
+  Future<void> start({
+    required String pin,
+    required String pan,
+    String? portalOutputFolder,
+  }) async {
     _subscription?.cancel();
 
     _service = _newService();
@@ -56,8 +63,16 @@ class BatchSignNotifier extends Notifier<BatchSignState> {
     // `outputPathBuilder` callback itself must stay synchronous.
     final outputPaths = <String, String>{};
     for (final item in items) {
-      outputPaths[_pathKey(item.inputPath, item.format)] =
-          await resolveSignedOutputPath(item.inputPath, item.format);
+      outputPaths[_pathKey(
+        item.inputPath,
+        item.format,
+      )] = await resolveSignedOutputPath(
+        item.inputPath,
+        item.format,
+        destinationFolder:
+            settings.destinationFolder ??
+            (isDocumentPortalPath(item.inputPath) ? portalOutputFolder : null),
+      );
     }
 
     _subscription = _service

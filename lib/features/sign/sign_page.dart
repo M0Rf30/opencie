@@ -13,7 +13,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -38,6 +37,7 @@ import '../../services/nfc_service.dart';
 import '../../services/cie_error.dart';
 import '../../services/pin_throttle.dart';
 import '../../services/storage_service.dart';
+import '../../services/sign/output_path_resolver.dart';
 import '../../services/sign/signature_upgrader.dart';
 import '../../widgets/oc_help_sheet.dart';
 import 'batch_sign_page.dart';
@@ -230,9 +230,17 @@ class _SignPageState extends ConsumerState<SignPage> {
         // → `_executeSign`, or gets reset by `_cancelWaitCard`/`_dismissNfcError`.
         handedOff = true;
       } else {
+        // A document-portal input (Flatpak) has no writable host folder
+        // around it; without a destination folder ask where to save.
+        String? exportPath;
+        if (ref.read(settingsProvider).destinationFolder == null &&
+            isDocumentPortalPath(_selectedFile!)) {
+          exportPath = await _askSaveLocation(_selectedFile!, options.format);
+          if (exportPath == null || !mounted) return;
+        }
         _nfcNotifier.value = (false, 0.0, '');
         _showNfcDialog();
-        await _executeSign(pin, options);
+        await _executeSign(pin, options, exportPath: exportPath);
         // `_executeSign` owns `_isSigning` for the remainder of this flow.
         handedOff = true;
       }
@@ -330,7 +338,15 @@ class _SignPageState extends ConsumerState<SignPage> {
     }
   }
 
-  Future<void> _executeSign(String pin, SignatureOptions options) async {
+  /// Signs the selected file. With [exportPath] (a Save As target chosen
+  /// for a document-portal input) the signature and its upgrade happen in
+  /// a private temp folder and the final bytes are then written to
+  /// [exportPath]; the portal file is never renamed over.
+  Future<void> _executeSign(
+    String pin,
+    SignatureOptions options, {
+    String? exportPath,
+  }) async {
     if (_selectedFile == null) return;
     final l10n = AppLocalizations.of(context);
 
@@ -340,10 +356,21 @@ class _SignPageState extends ConsumerState<SignPage> {
 
     String? successPath;
     SignatureUpgradeResult? upgrade;
+    Directory? stagingDir;
 
     try {
       final file = _selectedFile!;
-      final outputPath = await _resolveOutputPath(file, options);
+      final String outputPath;
+      if (exportPath != null) {
+        stagingDir = await Directory.systemTemp.createTemp('opencie_sign_');
+        outputPath = p.join(stagingDir.path, p.basename(exportPath));
+      } else {
+        outputPath = await resolveSignedOutputPath(
+          file,
+          options.format,
+          destinationFolder: ref.read(settingsProvider).destinationFolder,
+        );
+      }
 
       final result = await ref
           .read(signBackendProvider)
@@ -383,8 +410,6 @@ class _SignPageState extends ConsumerState<SignPage> {
                 ),
               ),
             );
-        successPath = outputPath;
-
         // Timestamp / LTV upgrade. The native signature is already valid
         // and on disk, so any failure here only produces a warning.
         if (options.timestampRequested) {
@@ -406,8 +431,17 @@ class _SignPageState extends ConsumerState<SignPage> {
               detail: e.toString(),
             );
           }
-          if (!mounted) return;
         }
+
+        // Export before any `mounted` bail-out: once the staged copy is
+        // cleaned up this is the only copy of the signed file.
+        if (exportPath != null) {
+          await File(
+            exportPath,
+          ).writeAsBytes(await File(outputPath).readAsBytes(), flush: true);
+        }
+        successPath = exportPath ?? outputPath;
+        if (!mounted) return;
 
         if (Platform.isAndroid) {
           final settings = ref.read(settingsProvider);
@@ -482,6 +516,7 @@ class _SignPageState extends ConsumerState<SignPage> {
       if (Platform.isAndroid) await NfcService.instance.stopSession();
       _closeNfcDialog();
       if (mounted) setState(() => _isSigning = false);
+      await _cleanUpExport(stagingDir, successPath == null ? exportPath : null);
     }
 
     if (successPath != null && mounted) {
@@ -489,49 +524,62 @@ class _SignPageState extends ConsumerState<SignPage> {
     }
   }
 
-  String _addSignedSuffix(String path) {
-    final dot = path.lastIndexOf('.');
-    if (dot == -1) return '${path}_signed';
-    return '${path.substring(0, dot)}_signed${path.substring(dot)}';
-  }
-
-  static const _signatureExtensions = {'.p7m', '.p7s', '.xml'};
-
-  String _stripSignatureExtension(String name) {
-    final lower = name.toLowerCase();
-    for (final ext in _signatureExtensions) {
-      if (lower.endsWith(ext)) {
-        return name.substring(0, name.length - ext.length);
-      }
-    }
-    return name;
-  }
-
-  Future<String> _resolveOutputPath(
+  /// Asks where to save the signed copy of [inputPath]. Returns `null` when
+  /// the user cancels. The portal creates the (empty) file right away; it is
+  /// filled once signing succeeds, or removed again by [_cleanUpExport].
+  Future<String?> _askSaveLocation(
     String inputPath,
-    SignatureOptions options,
+    SignatureFormat format,
   ) async {
-    final inputFile = File(inputPath);
-    final inputName = inputFile.uri.pathSegments.last;
-    final baseName = options.format == SignatureFormat.pades
-        ? inputName
-        : _stripSignatureExtension(inputName);
-    final signedName = options.format == SignatureFormat.pades
-        ? _addSignedSuffix(baseName)
-        : '$baseName${options.format.extension}';
-
-    if (Platform.isAndroid) {
-      final outputDir = await _resolveAndroidOutputDir(inputFile);
-      return '${outputDir.path}/$signedName';
-    }
-
-    return '${inputFile.parent.path}/$signedName';
+    final name = signedFileName(inputPath, format);
+    final uri = await FilePicker.saveFile(
+      dialogTitle: AppLocalizations.of(context).signSaveAsTitle,
+      fileName: name,
+      bytes: Uint8List(0),
+      mimeType: _mimeForExt(p.extension(name)),
+    );
+    return uri?.toFilePath();
   }
 
-  Future<Directory> _resolveAndroidOutputDir(File inputFile) async {
-    // Always sign into app-private storage; SAF copy happens afterwards
-    // if the user has selected an external folder.
-    return getApplicationDocumentsDirectory();
+  Future<void> _openDesktopHandoff() async {
+    final file = _selectedFile;
+    if (file == null) return;
+    var outputDirectory = ref.read(settingsProvider).destinationFolder;
+    if (outputDirectory == null && isDocumentPortalPath(file)) {
+      outputDirectory = await FilePicker.getDirectoryPath(
+        dialogTitle: AppLocalizations.of(context).saveChooseFolderTitle,
+      );
+      if (outputDirectory == null || !mounted) return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => DesktopHandoffPage(
+          filePath: file,
+          outputDirectory: outputDirectory,
+        ),
+      ),
+    );
+  }
+
+  /// Removes the staging folder and, after a failed signature, the empty
+  /// Save As placeholder at [unusedExportPath].
+  static Future<void> _cleanUpExport(
+    Directory? stagingDir,
+    String? unusedExportPath,
+  ) async {
+    try {
+      if (stagingDir != null) await stagingDir.delete(recursive: true);
+    } catch (e) {
+      debugPrint('SignPage._cleanUpExport: staging cleanup failed ($e)');
+    }
+    if (unusedExportPath == null) return;
+    try {
+      final placeholder = File(unusedExportPath);
+      if (await placeholder.length() == 0) await placeholder.delete();
+    } catch (e) {
+      debugPrint('SignPage._cleanUpExport: placeholder cleanup failed ($e)');
+    }
   }
 
   static String _mimeForExt(String ext) {
@@ -1613,13 +1661,7 @@ class _SignPageState extends ConsumerState<SignPage> {
                         !_isSigning) ...[
                       const SizedBox(height: 10),
                       OutlinedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                DesktopHandoffPage(filePath: _selectedFile!),
-                          ),
-                        ),
+                        onPressed: _openDesktopHandoff,
                         icon: const Icon(Icons.smartphone_rounded, size: 18),
                         label: Text(l10n.handoffEntryDesktopButton),
                       ),
