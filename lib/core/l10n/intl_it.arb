@@ -671,6 +671,8 @@
   "signColumnStatus": "Stato",
   "signSaveTo": "Salva in",
   "signSaveToSameFolder": "Stessa cartella del documento",
+  "signSaveAsTitle": "Salva il documento firmato",
+  "saveChooseFolderTitle": "Scegli dove salvare i nuovi file",
   "signNfcReady": "NFC pronto",
   "signReaderName": "Lettore: {name}",
   "signNoReaderDetected": "Nessun lettore rilevato",

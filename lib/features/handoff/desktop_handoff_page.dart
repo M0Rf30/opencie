@@ -32,9 +32,17 @@ import '../../widgets/oc_status_disc.dart';
 /// signed. The page drives a [DesktopHandoffSession] from idle through done
 /// or error, writing the resulting .p7m file to disk alongside the source.
 class DesktopHandoffPage extends StatefulWidget {
-  const DesktopHandoffPage({super.key, required this.filePath, this.fileName});
+  const DesktopHandoffPage({
+    super.key,
+    required this.filePath,
+    this.fileName,
+    this.outputDirectory,
+  });
 
   final String filePath;
+
+  /// Folder for the signed file; `null` saves it next to [filePath].
+  final String? outputDirectory;
   final String? fileName;
 
   @override
@@ -55,7 +63,10 @@ class _DesktopHandoffPageState extends State<DesktopHandoffPage> {
   @override
   void initState() {
     super.initState();
-    _session = DesktopHandoffSession(filePath: widget.filePath);
+    _session = DesktopHandoffSession(
+      filePath: widget.filePath,
+      outputDirectory: widget.outputDirectory,
+    );
     _sub = _session.states.listen((s) {
       if (mounted) setState(() {});
     });

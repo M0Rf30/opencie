@@ -682,6 +682,8 @@
   "signColumnStatus": "Status",
   "signSaveTo": "Save to",
   "signSaveToSameFolder": "Same folder as the document",
+  "signSaveAsTitle": "Save the signed document",
+  "saveChooseFolderTitle": "Choose where to save the new files",
   "signNfcReady": "NFC ready",
   "signReaderName": "Reader: {name}",
   "@signReaderName": {"placeholders": {"name": {"type": "String"}}},

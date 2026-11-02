@@ -61,6 +61,7 @@ enum DesktopHandoffState {
 class DesktopHandoffSession {
   DesktopHandoffSession({
     required this.filePath,
+    this.outputDirectory,
     @visibleForTesting
     Future<List<VerifyInfo>> Function({required String inputPath})? verify,
   }) : _verify = verify ?? OpenCiePkcs11.instance.verify;
@@ -72,6 +73,7 @@ class DesktopHandoffSession {
   @visibleForTesting
   DesktopHandoffSession.forTesting({
     required this.filePath,
+    this.outputDirectory,
     required HandoffTransport transport,
     required HandoffSession cryptoSession,
     List<String>? sasWords,
@@ -88,6 +90,10 @@ class DesktopHandoffSession {
   /// Path to the local file the user wants signed. Bytes never leave the
   /// desktop; only descriptor + hash do.
   final String filePath;
+
+  /// Folder the signed `.p7m` is written to; `null` means next to
+  /// [filePath].
+  final String? outputDirectory;
 
   /// Verifies a candidate signed document before it's trusted/written to
   /// disk. Defaults to the real native PKCS#11 verify path; overridable in
@@ -482,8 +488,10 @@ class DesktopHandoffSession {
     }
   }
 
-  String _desiredOutputPath() =>
-      p.join(p.dirname(filePath), '${p.basename(filePath)}.p7m');
+  String _desiredOutputPath() => p.join(
+    outputDirectory ?? p.dirname(filePath),
+    '${p.basename(filePath)}.p7m',
+  );
 
   /// Never overwrites an existing file: appends " (1)", " (2)", … before the
   /// extension until a free name is found.
