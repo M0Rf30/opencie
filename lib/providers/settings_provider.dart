@@ -26,7 +26,6 @@ class AppSettings {
     this.graphicPades = false,
     this.includeDate = true,
     this.alwaysTimestamp = false,
-    this.openFolderAfterSign = true,
     this.checkForUpdates = false,
     this.updateCheckConsentAsked = false,
     this.destinationFolder,
@@ -48,7 +47,6 @@ class AppSettings {
   final bool graphicPades;
   final bool includeDate;
   final bool alwaysTimestamp;
-  final bool openFolderAfterSign;
 
   /// Off until the user agrees in the first-launch prompt or in Settings:
   /// each check sends the user's IP address to GitHub.
@@ -114,7 +112,6 @@ class AppSettings {
     bool? graphicPades,
     bool? includeDate,
     bool? alwaysTimestamp,
-    bool? openFolderAfterSign,
     bool? checkForUpdates,
     bool? updateCheckConsentAsked,
     // Use the [_unset] sentinel to allow clearing back to null:
@@ -141,7 +138,6 @@ class AppSettings {
       graphicPades: graphicPades ?? this.graphicPades,
       includeDate: includeDate ?? this.includeDate,
       alwaysTimestamp: alwaysTimestamp ?? this.alwaysTimestamp,
-      openFolderAfterSign: openFolderAfterSign ?? this.openFolderAfterSign,
       checkForUpdates: checkForUpdates ?? this.checkForUpdates,
       updateCheckConsentAsked:
           updateCheckConsentAsked ?? this.updateCheckConsentAsked,
@@ -376,7 +372,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
           graphicPades: map['graphicPades'] as bool? ?? false,
           includeDate: map['includeDate'] as bool? ?? true,
           alwaysTimestamp: map['alwaysTimestamp'] as bool? ?? false,
-          openFolderAfterSign: map['openFolderAfterSign'] as bool? ?? true,
           checkForUpdates: map['checkForUpdates'] as bool? ?? false,
           updateCheckConsentAsked:
               map['updateCheckConsentAsked'] as bool? ?? false,
@@ -434,7 +429,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
       'graphicPades': state.graphicPades,
       'includeDate': state.includeDate,
       'alwaysTimestamp': state.alwaysTimestamp,
-      'openFolderAfterSign': state.openFolderAfterSign,
       'checkForUpdates': state.checkForUpdates,
       'updateCheckConsentAsked': state.updateCheckConsentAsked,
       'destinationFolder': state.destinationFolder,

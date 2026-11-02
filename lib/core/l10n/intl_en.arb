@@ -82,7 +82,6 @@
 
   "settingsLanguage": "Language",
   "settingsDestinationFolder": "Destination folder",
-  "settingsOpenAfterSign": "Open folder after signing",
   "settingsSameAsDocument": "Same as document",
   "settingsCustomFolder": "Custom folder",
   "settingsChangeFolder": "Change folder",
