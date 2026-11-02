@@ -22,14 +22,29 @@ Future<String> resolveSignedOutputPath(
   SignatureFormat format, {
   String? destinationFolder,
 }) async {
-  final signedName = signedFileName(inputPath, format);
+  final outputDir = Platform.isAndroid
+      ? (await getApplicationDocumentsDirectory()).path
+      : destinationFolder ?? p.dirname(inputPath);
+  final outputPath = p.join(outputDir, signedFileName(inputPath, format));
 
-  if (Platform.isAndroid) {
-    final outputDir = await getApplicationDocumentsDirectory();
-    return p.join(outputDir.path, signedName);
+  // Re-signing `a.p7m` as CAdES (or `a.xml` as XAdES) maps back to the
+  // input's own name; writing there would destroy the input mid-read.
+  return p.equals(outputPath, inputPath)
+      ? uniqueFilePath(outputPath)
+      : outputPath;
+}
+
+/// [desired] if no file exists there, otherwise the first free
+/// `name (1).ext`, `name (2).ext`, … in the same folder.
+String uniqueFilePath(String desired) {
+  if (!File(desired).existsSync()) return desired;
+  final dir = p.dirname(desired);
+  final ext = p.extension(desired);
+  final baseNoExt = p.basenameWithoutExtension(desired);
+  for (var i = 1; ; i++) {
+    final candidate = p.join(dir, '$baseNoExt ($i)$ext');
+    if (!File(candidate).existsSync()) return candidate;
   }
-
-  return p.join(destinationFolder ?? p.dirname(inputPath), signedName);
 }
 
 /// File name of the signed counterpart of [inputPath]: `name_signed.pdf`
