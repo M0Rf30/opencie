@@ -48,8 +48,6 @@ import 'widgets/sign_pin_dialog.dart';
 import 'widgets/signer_box.dart';
 import 'widgets/signed_result_dialog.dart';
 
-const _nfcChannel = MethodChannel('io.github.m0rf30.opencie/nfc');
-
 /// Digital Signature page.
 class SignPage extends ConsumerStatefulWidget {
   const SignPage({super.key});
@@ -444,25 +442,10 @@ class _SignPageState extends ConsumerState<SignPage> {
         if (!mounted) return;
 
         if (Platform.isAndroid) {
-          final settings = ref.read(settingsProvider);
-          if (settings.destinationFolder != null) {
-            try {
-              await StorageService.writeFileToTreeUri(
-                treeUri: settings.destinationFolder!,
-                sourcePath: outputPath,
-                fileName: p.basename(outputPath),
-                mimeType: _mimeForExt(p.extension(outputPath)),
-              );
-            } catch (_) {
-              // SAF copy is best-effort; the file is already in app-private
-              // storage and can be accessed from the success dialog.
-            }
-          }
-          try {
-            await _nfcChannel.invokeMethod<bool>('scanMediaFile', {
-              'path': outputPath,
-            });
-          } catch (_) {}
+          await StorageService.publishSignedFile(
+            outputPath,
+            treeUri: ref.read(settingsProvider).destinationFolder,
+          );
         }
       } else if (result.isPinIncorrect) {
         PinThrottle.recordFailure();
@@ -536,7 +519,7 @@ class _SignPageState extends ConsumerState<SignPage> {
       dialogTitle: AppLocalizations.of(context).signSaveAsTitle,
       fileName: name,
       bytes: Uint8List(0),
-      mimeType: _mimeForExt(p.extension(name)),
+      mimeType: StorageService.mimeTypeFor(name),
     );
     return uri?.toFilePath();
   }
@@ -579,19 +562,6 @@ class _SignPageState extends ConsumerState<SignPage> {
       if (await placeholder.length() == 0) await placeholder.delete();
     } catch (e) {
       debugPrint('SignPage._cleanUpExport: placeholder cleanup failed ($e)');
-    }
-  }
-
-  static String _mimeForExt(String ext) {
-    switch (ext.toLowerCase()) {
-      case '.pdf':
-        return 'application/pdf';
-      case '.p7m':
-        return 'application/pkcs7-mime';
-      case '.xml':
-        return 'application/xml';
-      default:
-        return 'application/octet-stream';
     }
   }
 
