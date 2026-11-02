@@ -69,6 +69,20 @@ SPDX-License-Identifier: CC0-1.0
   </screenshots>
 
   <releases>
+    <release version="0.5.4" date="2026-11-02">
+      <description>
+        <p>Fixes for where signed files are saved.</p>
+        <ul>
+          <li>On desktop, signed files are saved in the destination folder chosen in Settings.</li>
+          <li>In the Flatpak, documents opened from folders the app cannot access directly now ask where to save the result instead of losing it.</li>
+          <li>Signing a .p7m or .xml file again no longer overwrites the original.</li>
+          <li>On Android, batch-signed files are copied to the chosen destination folder.</li>
+          <li>Recent files that no longer exist are removed from the list when opened.</li>
+          <li>The unused "Open folder after signing" option has been removed.</li>
+          <li>Updated libopencie-pkcs11 to 1.3.4.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.3" date="2026-10-05">
       <description>
         <p>Android and layout fixes.</p>
