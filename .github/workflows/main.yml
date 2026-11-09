@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OPENCIE_PKCS11_VERSION: "1.3.4"
+  OPENCIE_PKCS11_VERSION: "1.4.0"
 
 jobs:
   test:

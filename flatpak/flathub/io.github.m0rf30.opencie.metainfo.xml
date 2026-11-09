@@ -66,6 +66,14 @@ SPDX-License-Identifier: CC0-1.0
   </screenshots>
 
   <releases>
+    <release version="0.5.5" date="2026-11-09">
+      <description>
+        <p>Security update.</p>
+        <ul>
+          <li>Updated libopencie-pkcs11 to 1.4.0, which fixes the findings of a full security review of the card, signing and verification code.</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.4" date="2026-11-02">
       <description>
         <p>Fixes for where signed files are saved.</p>
