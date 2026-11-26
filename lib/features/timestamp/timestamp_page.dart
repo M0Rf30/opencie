@@ -49,9 +49,9 @@ class _TimestampPageState extends ConsumerState<TimestampPage> {
     // host folder, so those tokens go to a folder the user picks.
     String? portalOutputDir;
     if (files.any(isDocumentPortalPath)) {
-      portalOutputDir = await FilePicker.getDirectoryPath(
+      portalOutputDir = (await FilePicker.pickDirectory(
         dialogTitle: l10n.saveChooseFolderTitle,
-      );
+      ))?.toFilePath();
       if (portalOutputDir == null) {
         if (mounted) setState(() => _isTimestamping = false);
         return;

@@ -529,9 +529,9 @@ class _SignPageState extends ConsumerState<SignPage> {
     if (file == null) return;
     var outputDirectory = ref.read(settingsProvider).destinationFolder;
     if (outputDirectory == null && isDocumentPortalPath(file)) {
-      outputDirectory = await FilePicker.getDirectoryPath(
+      outputDirectory = (await FilePicker.pickDirectory(
         dialogTitle: AppLocalizations.of(context).saveChooseFolderTitle,
-      );
+      ))?.toFilePath();
       if (outputDirectory == null || !mounted) return;
     }
     await Navigator.push(

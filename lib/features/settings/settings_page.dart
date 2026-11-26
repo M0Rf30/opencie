@@ -295,7 +295,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         if (Platform.isAndroid) {
                           picked = await StorageService.pickOutputFolder();
                         } else {
-                          picked = await FilePicker.getDirectoryPath();
+                          picked = (await FilePicker.pickDirectory())
+                              ?.toFilePath();
                         }
                         if (picked != null) {
                           ref

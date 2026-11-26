@@ -473,9 +473,9 @@ class _BatchSignPageState extends ConsumerState<BatchSignPage> {
             .read(batchSignProvider)
             .items
             .any((item) => isDocumentPortalPath(item.inputPath))) {
-      portalOutputFolder = await FilePicker.getDirectoryPath(
+      portalOutputFolder = (await FilePicker.pickDirectory(
         dialogTitle: l10n.saveChooseFolderTitle,
-      );
+      ))?.toFilePath();
       if (portalOutputFolder == null || !context.mounted) return;
     }
 
